@@ -66,6 +66,21 @@ function SkillPage(): React.ReactElement {
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [submitting, setSubmitting] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const keywordRef = useRef('');
+  const selectedIdRef = useRef<number | null>(null);
+  const submittingRef = useRef(false);
+
+  useEffect(() => {
+    keywordRef.current = keyword;
+  }, [keyword]);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  useEffect(() => {
+    submittingRef.current = submitting;
+  }, [submitting]);
 
   const nodeMap = useMemo(() => {
     const map = new Map<number, SkillTreeNode>();
@@ -85,18 +100,23 @@ function SkillPage(): React.ReactElement {
 
   const loadTree = useCallback(
     async (
-      nextKeyword: string = keyword,
-      nextSelectedId: number | null = selectedId
+      nextKeyword?: string,
+      nextSelectedId?: number | null
     ): Promise<void> => {
+      const resolvedKeyword = nextKeyword ?? keywordRef.current;
+      const resolvedSelectedId =
+        typeof nextSelectedId === 'undefined'
+          ? selectedIdRef.current
+          : nextSelectedId;
       setLoading(true);
       try {
-        const data = await listSkillTree(nextKeyword || undefined);
+        const data = await listSkillTree(resolvedKeyword || undefined);
         const nextTreeData = data || [];
         setTreeData(nextTreeData);
         if (
-          nextSelectedId &&
+          resolvedSelectedId &&
           !new Map(flattenNodes(nextTreeData).map(node => [node.id, node])).has(
-            nextSelectedId
+            resolvedSelectedId
           )
         ) {
           setSelectedId(null);
@@ -108,7 +128,7 @@ function SkillPage(): React.ReactElement {
         setLoading(false);
       }
     },
-    [keyword, selectedId]
+    []
   );
 
   useEffect(() => {
@@ -203,9 +223,15 @@ function SkillPage(): React.ReactElement {
   };
 
   const handleSave = async (): Promise<void> => {
-    if (!selectedNode || selectedNode.entryType !== 'file' || !selectedId) {
+    if (
+      submittingRef.current ||
+      !selectedNode ||
+      selectedNode.entryType !== 'file' ||
+      !selectedId
+    ) {
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const saved = await updateSkillFileContent({
@@ -216,28 +242,33 @@ function SkillPage(): React.ReactElement {
       setEditorValue(saved.content || '');
       setDirty(false);
       message.success('Skill 文件已保存');
-      await loadTree(keyword, selectedId);
+      await loadTree(keywordRef.current, selectedId);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleDialogSubmit = async (): Promise<void> => {
-    const values = await form.validateFields();
-    const parentId =
-      selectedNode?.entryType === 'folder'
-        ? selectedNode.id
-        : selectedNode?.parentId || 0;
-
+    if (submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
+      const values = await form.validateFields();
+      const parentId =
+        selectedNode?.entryType === 'folder'
+          ? selectedNode.id
+          : selectedNode?.parentId || 0;
+
       if (dialogMode === 'folder') {
         await createSkillFolder({
           parentId,
           name: values.name,
         });
         message.success('文件夹已创建');
-        await loadTree(keyword);
+        await loadTree(keywordRef.current);
       } else if (dialogMode === 'file') {
         const created = await createSkillFile({
           parentId,
@@ -245,7 +276,7 @@ function SkillPage(): React.ReactElement {
           content: values.content || '',
         });
         message.success('文件已创建');
-        await loadTree(keyword, created.id);
+        await loadTree(keywordRef.current, created.id);
         setSelectedId(created.id);
         setCurrentFile(created);
         setEditorValue(created.content || '');
@@ -257,7 +288,7 @@ function SkillPage(): React.ReactElement {
           name: values.name,
         });
         message.success('名称已更新');
-        await loadTree(keyword, selectedNode.id);
+        await loadTree(keywordRef.current, selectedNode.id);
         if (selectedNode.entryType === 'file') {
           await openFile(selectedNode.id);
         }
@@ -265,12 +296,13 @@ function SkillPage(): React.ReactElement {
       setDialogMode(null);
       form.resetFields();
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (): Promise<void> => {
-    if (!selectedNode) {
+    if (!selectedNode || submittingRef.current) {
       return;
     }
     Modal.confirm({
@@ -283,13 +315,23 @@ function SkillPage(): React.ReactElement {
       okButtonProps: { danger: true },
       cancelText: '取消',
       onOk: async () => {
-        await deleteSkillEntry(selectedNode.id);
-        message.success('已删除');
-        setSelectedId(null);
-        setCurrentFile(null);
-        setEditorValue('');
-        setDirty(false);
-        await loadTree(keyword);
+        if (submittingRef.current) {
+          return;
+        }
+        submittingRef.current = true;
+        setSubmitting(true);
+        try {
+          await deleteSkillEntry(selectedNode.id);
+          message.success('已删除');
+          setSelectedId(null);
+          setCurrentFile(null);
+          setEditorValue('');
+          setDirty(false);
+          await loadTree(keywordRef.current, null);
+        } finally {
+          submittingRef.current = false;
+          setSubmitting(false);
+        }
       },
     });
   };
@@ -303,19 +345,23 @@ function SkillPage(): React.ReactElement {
   };
 
   const handleUpload = async (files: FileList | null): Promise<void> => {
-    if (!files?.length) {
+    if (submittingRef.current || !files?.length) {
       return;
     }
     const parentId =
       selectedNode?.entryType === 'folder'
         ? selectedNode.id
         : selectedNode?.parentId || 0;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const uploaded = await uploadSkillFiles(parentId, Array.from(files));
       message.success(`已上传 ${uploaded.length} 个文件`);
       const firstFile = uploaded[0];
-      await loadTree(keyword, firstFile?.id || selectedId);
+      await loadTree(
+        keywordRef.current,
+        firstFile?.id || selectedIdRef.current
+      );
       if (firstFile) {
         setSelectedId(firstFile.id);
         setCurrentFile(firstFile);
@@ -324,6 +370,7 @@ function SkillPage(): React.ReactElement {
         setDirty(false);
       }
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
       if (uploadRef.current) {
         uploadRef.current.value = '';
@@ -332,12 +379,16 @@ function SkillPage(): React.ReactElement {
   };
 
   const onDrop: TreeProps['onDrop'] = async info => {
+    if (submittingRef.current) {
+      return;
+    }
     const dragId = Number(info.dragNode.key);
     const dropId = Number(info.node.key);
     const targetNode = nodeMap.get(dropId);
     if (!targetNode) {
       return;
     }
+    submittingRef.current = true;
     let targetParentId = 0;
     let sortOrder = 0;
     if (!info.dropToGap && targetNode.entryType === 'folder') {
@@ -353,12 +404,18 @@ function SkillPage(): React.ReactElement {
         0
       );
     }
-    await moveSkillEntry({
-      id: dragId,
-      targetParentId,
-      sortOrder,
-    });
-    await loadTree(keyword, dragId);
+    setSubmitting(true);
+    try {
+      await moveSkillEntry({
+        id: dragId,
+        targetParentId,
+        sortOrder,
+      });
+      await loadTree(keywordRef.current, dragId);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   };
 
   const renderEmpty = (): React.ReactElement => (
@@ -624,7 +681,7 @@ function SkillPage(): React.ReactElement {
           setDialogMode(null);
           form.resetFields();
         }}
-        onOk={() => void handleDialogSubmit()}
+        onOk={handleDialogSubmit}
       >
         <Form form={form} layout="vertical">
           <Form.Item

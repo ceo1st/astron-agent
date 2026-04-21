@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 import aiohttp
 from aiohttp import ClientResponse, ClientTimeout
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from workflow.consts.engine.chat_status import ChatStatus
 from workflow.consts.engine.model_provider import ModelProviderEnum
@@ -106,6 +106,18 @@ class Skill(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(min_length=0, max_length=1024)
     downloadUrl: str = Field(default="")
+
+    @field_validator("skillId", mode="before")
+    @classmethod
+    def normalize_skill_id(cls, value: Any) -> str:
+        if value is None:
+            raise ValueError("skillId is required")
+        return str(value)
+
+    @field_validator("description", "downloadUrl", mode="before")
+    @classmethod
+    def normalize_optional_string_fields(cls, value: Any) -> str:
+        return "" if value is None else str(value)
 
 
 class AgentNodePlugin(BaseModel):
