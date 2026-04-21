@@ -131,6 +131,16 @@ function SkillPage(): React.ReactElement {
     []
   );
 
+  const refreshTree = useCallback(
+    async (
+      nextKeyword?: string,
+      nextSelectedId?: number | null
+    ): Promise<void> => {
+      await loadTree(nextKeyword, nextSelectedId);
+    },
+    [loadTree]
+  );
+
   useEffect(() => {
     void loadTree('');
   }, [loadTree]);
@@ -267,34 +277,38 @@ function SkillPage(): React.ReactElement {
           parentId,
           name: values.name,
         });
+        setDialogMode(null);
+        form.resetFields();
         message.success('文件夹已创建');
-        await loadTree(keywordRef.current);
+        await refreshTree(keywordRef.current);
       } else if (dialogMode === 'file') {
         const created = await createSkillFile({
           parentId,
           name: values.name,
           content: values.content || '',
         });
+        setDialogMode(null);
+        form.resetFields();
         message.success('文件已创建');
-        await loadTree(keywordRef.current, created.id);
         setSelectedId(created.id);
         setCurrentFile(created);
         setEditorValue(created.content || '');
         setMode(created.fileExt === 'md' ? 'preview' : 'edit');
         setDirty(false);
+        await refreshTree(keywordRef.current, created.id);
       } else if (dialogMode === 'rename' && selectedNode) {
         await renameSkillEntry({
           id: selectedNode.id,
           name: values.name,
         });
+        setDialogMode(null);
+        form.resetFields();
         message.success('名称已更新');
-        await loadTree(keywordRef.current, selectedNode.id);
+        await refreshTree(keywordRef.current, selectedNode.id);
         if (selectedNode.entryType === 'file') {
           await openFile(selectedNode.id);
         }
       }
-      setDialogMode(null);
-      form.resetFields();
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -327,7 +341,7 @@ function SkillPage(): React.ReactElement {
           setCurrentFile(null);
           setEditorValue('');
           setDirty(false);
-          await loadTree(keywordRef.current, null);
+          await refreshTree(keywordRef.current, null);
         } finally {
           submittingRef.current = false;
           setSubmitting(false);
@@ -358,7 +372,7 @@ function SkillPage(): React.ReactElement {
       const uploaded = await uploadSkillFiles(parentId, Array.from(files));
       message.success(`已上传 ${uploaded.length} 个文件`);
       const firstFile = uploaded[0];
-      await loadTree(
+      await refreshTree(
         keywordRef.current,
         firstFile?.id || selectedIdRef.current
       );
@@ -411,7 +425,7 @@ function SkillPage(): React.ReactElement {
         targetParentId,
         sortOrder,
       });
-      await loadTree(keywordRef.current, dragId);
+      await refreshTree(keywordRef.current, dragId);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
