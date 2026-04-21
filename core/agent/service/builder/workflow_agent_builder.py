@@ -48,6 +48,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 mcp_server_ids=self.inputs.plugin.mcp_server_ids,
                 mcp_server_urls=self.inputs.plugin.mcp_server_urls,
                 workflow_ids=self.inputs.plugin.workflow_ids,
+                skills=[skill.model_dump() for skill in self.inputs.plugin.skills],
             )
             metadata_list, knowledge = await self.query_knowledge_by_workflow(
                 self.inputs.plugin.knowledge, sp

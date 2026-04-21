@@ -17,6 +17,7 @@ from agent.infra.app_auth import MaasAuth
 from agent.service.plugin.base import BasePlugin
 from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
 from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
+from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 from agent.service.plugin.workflow import WorkflowPlugin, WorkflowPluginFactory
 
 
@@ -83,18 +84,22 @@ class BaseApiBuilder(BaseModel):
         mcp_server_ids: list,
         mcp_server_urls: list,
         workflow_ids: list,
-    ) -> list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]]:
+        skills: list | None = None,
+    ) -> list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]]:
 
         with self.span.start("BuildPlugins") as sp:
             mcp_server_urls = [url for url in mcp_server_urls if url and url.strip()]
 
-            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]] = []
+            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]] = []
             if tool_ids:
                 link_tools = await LinkPluginFactory(
                     app_id=self.app_id, uid=self.uid, tool_ids=tool_ids
                 ).gen(sp)
                 plugins.extend(
-                    cast(list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]], link_tools)
+                    cast(
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        link_tools,
+                    )
                 )
 
             if mcp_server_ids or mcp_server_urls:
@@ -104,7 +109,10 @@ class BaseApiBuilder(BaseModel):
                     mcp_server_urls=mcp_server_urls,
                 ).gen(sp)
                 plugins.extend(
-                    cast(list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]], mcp_tools)
+                    cast(
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        mcp_tools,
+                    )
                 )
 
             if workflow_ids:
@@ -113,8 +121,17 @@ class BaseApiBuilder(BaseModel):
                 ).gen(sp)
                 plugins.extend(
                     cast(
-                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]],
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
                         workflow_tools,
+                    )
+                )
+
+            if skills:
+                skill_tools = SkillPluginFactory(skills=skills).gen()
+                plugins.extend(
+                    cast(
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        skill_tools,
                     )
                 )
 
@@ -124,6 +141,7 @@ class BaseApiBuilder(BaseModel):
                     "mcp-server-ids": mcp_server_ids,
                     "mcp-server-urls": mcp_server_urls,
                     "workflow-ids": workflow_ids,
+                    "skills": json.dumps(skills or [], ensure_ascii=False),
                     "built-plugins": json.dumps(
                         [
                             f"{plugin.typ}\n{plugin.schema_template}"
@@ -189,7 +207,15 @@ class BaseApiBuilder(BaseModel):
             )
 
             plugins_list = cast(
-                list[Union[BasePlugin, McpPlugin, LinkPlugin, WorkflowPlugin]],
+                list[
+                    Union[
+                        BasePlugin,
+                        McpPlugin,
+                        LinkPlugin,
+                        WorkflowPlugin,
+                        SkillPlugin,
+                    ]
+                ],
                 list(params.plugins),
             )
             cot_runner = CotRunner(

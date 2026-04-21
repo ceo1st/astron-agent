@@ -15,6 +15,7 @@ const DataBaseTableAdd = React.lazy(
 );
 const RpaPage = React.lazy(() => import('./rpa-page'));
 const RpaDetail = React.lazy(() => import('./rpa-detail'));
+const SkillPage = React.lazy(() => import('./skill-page'));
 
 function ResourceManagement(): JSX.Element {
   return (
@@ -38,6 +39,7 @@ function ResourceManagement(): JSX.Element {
           <Route path="/database/:id/add" element={<DataBaseTableAdd />} />
           <Route path="/rpa" element={<RpaPage />} />
           <Route path="/rpa/detail/:rpa_id" element={<RpaDetail />} />
+          <Route path="/skill" element={<SkillPage />} />
         </Routes>
       </Suspense>
     </div>

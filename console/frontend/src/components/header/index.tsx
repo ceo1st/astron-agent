@@ -51,6 +51,15 @@ const tabs = [
     createButtonText: 'rpa.createRpa',
     createButtonKey: 'create-rpa',
   },
+  {
+    key: 'skill',
+    path: '/resource/skill',
+    iconClass: 'plugin-icon',
+    title: 'common.header.skill',
+    searchPlaceholder: 'common.inputPlaceholder',
+    createButtonText: 'common.create',
+    createButtonKey: 'create-skill',
+  },
 ];
 
 interface HeaderProps {

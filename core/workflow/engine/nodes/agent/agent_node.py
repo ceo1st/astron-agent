@@ -93,6 +93,21 @@ class Knowledge(BaseModel):
         return self
 
 
+class Skill(BaseModel):
+    """Skill metadata passed to agent runtime.
+
+    :param skillId: Skill file identifier
+    :param name: Skill display name
+    :param description: Short summary injected into system prompt
+    :param downloadUrl: Presigned URL for lazily reading full SKILL.md content
+    """
+
+    skillId: str = Field(..., min_length=1)
+    name: str = Field(min_length=1, max_length=128)
+    description: str = Field(min_length=0, max_length=1024)
+    downloadUrl: str = Field(default="")
+
+
 class AgentNodePlugin(BaseModel):
     """Plugin configuration for agent node.
 
@@ -108,6 +123,7 @@ class AgentNodePlugin(BaseModel):
     tools: list = Field(...)
     workflowIds: List[str] = Field(...)
     knowledge: List[Knowledge] = Field(default_factory=list)
+    skills: List[Skill] = Field(default_factory=list)
 
 
 class AgentNodeMessage:
@@ -207,6 +223,9 @@ class AgentNode(BaseNode):
         # Prepare instruction templates
         reasoning_instruction, answer_instruction, query_instruction = (
             self._prepare_instructions(variable_pool, span)
+        )
+        reasoning_instruction, answer_instruction = self._append_skill_context(
+            reasoning_instruction, answer_instruction
         )
 
         messages = await self._deal_history(inputs, variable_pool, span)
@@ -312,6 +331,23 @@ class AgentNode(BaseNode):
             query_instruction,
         )
 
+    def _append_skill_context(
+        self, reasoning_instruction: str, answer_instruction: str
+    ) -> Tuple[str, str]:
+        if not self.plugin.skills:
+            return reasoning_instruction, answer_instruction
+
+        skill_lines = [
+            f"- {skill.name}: {skill.description}".rstrip(": ").rstrip()
+            for skill in self.plugin.skills
+        ]
+        skill_context = (
+            "\n\nAvailable Skills:\n"
+            + "\n".join(skill_lines)
+            + "\nIf detailed procedures are required, call the corresponding skill tool to read the full SKILL.md content."
+        )
+        return reasoning_instruction + skill_context, answer_instruction + skill_context
+
     async def _process_stream_response(
         self,
         response: ClientResponse,
@@ -416,6 +452,7 @@ class AgentNode(BaseNode):
                 "knowledge": keys_to_snake_case(
                     [k.dict() for k in self.plugin.knowledge]
                 ),
+                "skills": keys_to_snake_case([s.dict() for s in self.plugin.skills]),
             },
             "uid": span.uid,
             "messages": messages,
