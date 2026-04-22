@@ -60,6 +60,7 @@ function SkillPage(): React.ReactElement {
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [currentFile, setCurrentFile] = useState<SkillFileContent | null>(null);
   const [editorValue, setEditorValue] = useState('');
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
@@ -113,6 +114,12 @@ function SkillPage(): React.ReactElement {
         const data = await listSkillTree(resolvedKeyword || undefined);
         const nextTreeData = data || [];
         setTreeData(nextTreeData);
+        const existingIds = new Set(
+          flattenNodes(nextTreeData).map(node => node.id)
+        );
+        setExpandedKeys(prev =>
+          prev.filter(key => existingIds.has(Number(key)))
+        );
         if (
           resolvedSelectedId &&
           !new Map(flattenNodes(nextTreeData).map(node => [node.id, node])).has(
@@ -231,8 +238,12 @@ function SkillPage(): React.ReactElement {
     setSelectedId(targetId);
     const node = nodeMap.get(targetId);
     if (node?.entryType === 'file') {
+      if (node.parentId) {
+        setExpandedKeys(prev => mergeExpandedKeys(prev, [node.parentId]));
+      }
       await openFile(targetId);
     } else {
+      setExpandedKeys(prev => mergeExpandedKeys(prev, [targetId]));
       setCurrentFile(null);
       setEditorValue('');
       setDirty(false);
@@ -288,6 +299,9 @@ function SkillPage(): React.ReactElement {
         setDialogMode(null);
         form.resetFields();
         setTreeData(prev => insertTreeNode(prev, createdFolder));
+        setExpandedKeys(prev =>
+          mergeExpandedKeys(prev, [parentId, createdFolder.id])
+        );
         message.success('文件夹已创建');
         revalidateTree(keywordRef.current);
       } else if (dialogMode === 'file') {
@@ -305,6 +319,7 @@ function SkillPage(): React.ReactElement {
         setMode(created.fileExt === 'md' ? 'preview' : 'edit');
         setDirty(false);
         setTreeData(prev => insertTreeNode(prev, toTreeNode(created)));
+        setExpandedKeys(prev => mergeExpandedKeys(prev, [parentId]));
         revalidateTree(keywordRef.current, created.id);
       } else if (dialogMode === 'rename' && selectedNode) {
         const renamed = await renameSkillEntry({
@@ -340,7 +355,7 @@ function SkillPage(): React.ReactElement {
     if (!selectedNode || submittingRef.current) {
       return;
     }
-    Modal.confirm({
+    const confirmModal = Modal.confirm({
       title: `删除${selectedNode.entryType === 'folder' ? '文件夹' : '文件'}？`,
       content:
         selectedNode.entryType === 'folder'
@@ -358,11 +373,15 @@ function SkillPage(): React.ReactElement {
         try {
           await deleteSkillEntry(selectedNode.id);
           setTreeData(prev => removeTreeNode(prev, selectedNode.id));
+          setExpandedKeys(prev =>
+            prev.filter(key => Number(key) !== selectedNode.id)
+          );
           message.success('已删除');
           setSelectedId(null);
           setCurrentFile(null);
           setEditorValue('');
           setDirty(false);
+          confirmModal.destroy();
           revalidateTree(keywordRef.current, null);
         } finally {
           submittingRef.current = false;
@@ -400,6 +419,7 @@ function SkillPage(): React.ReactElement {
           prev
         )
       );
+      setExpandedKeys(prev => mergeExpandedKeys(prev, [parentId]));
       revalidateTree(
         keywordRef.current,
         firstFile?.id || selectedIdRef.current
@@ -454,6 +474,7 @@ function SkillPage(): React.ReactElement {
         sortOrder,
       });
       setTreeData(prev => moveTreeNode(prev, movedNode));
+      setExpandedKeys(prev => mergeExpandedKeys(prev, [targetParentId]));
       revalidateTree(keywordRef.current, dragId);
     } finally {
       submittingRef.current = false;
@@ -675,8 +696,10 @@ function SkillPage(): React.ReactElement {
             <Tree
               blockNode
               draggable
+              expandedKeys={expandedKeys}
               selectedKeys={selectedId ? [selectedId] : []}
               treeData={toTreeData(treeData)}
+              onExpand={keys => setExpandedKeys(keys)}
               onSelect={keys => void handleSelect(keys)}
               onDrop={info => void onDrop(info)}
             />
@@ -738,6 +761,19 @@ function SkillPage(): React.ReactElement {
 
 function flattenNodes(nodes: SkillTreeNode[]): SkillTreeNode[] {
   return nodes.flatMap(node => [node, ...flattenNodes(node.children || [])]);
+}
+
+function mergeExpandedKeys(
+  currentKeys: React.Key[],
+  nextIds: Array<number | null | undefined>
+): React.Key[] {
+  const keySet = new Set(currentKeys.map(key => Number(key)));
+  nextIds.forEach(id => {
+    if (id) {
+      keySet.add(id);
+    }
+  });
+  return Array.from(keySet);
 }
 
 function toTreeNode(file: SkillFileContent): SkillTreeNode {
@@ -822,7 +858,7 @@ function patchTreeNode(
       return {
         ...node,
         ...targetNode,
-        children: targetNode.children || node.children || [],
+        children: node.children || [],
       };
     }
     const currentChildren = node.children || [];
