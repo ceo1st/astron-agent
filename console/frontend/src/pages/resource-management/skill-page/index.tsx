@@ -71,6 +71,7 @@ function SkillPage(): React.ReactElement {
   const keywordRef = useRef('');
   const selectedIdRef = useRef<number | null>(null);
   const submittingRef = useRef(false);
+  const revalidateTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     keywordRef.current = keyword;
@@ -83,6 +84,14 @@ function SkillPage(): React.ReactElement {
   useEffect(() => {
     submittingRef.current = submitting;
   }, [submitting]);
+
+  useEffect(() => {
+    return (): void => {
+      if (revalidateTimerRef.current !== null) {
+        window.clearTimeout(revalidateTimerRef.current);
+      }
+    };
+  }, []);
 
   const nodeMap = useMemo(() => {
     const map = new Map<number, SkillTreeNode>();
@@ -147,6 +156,19 @@ function SkillPage(): React.ReactElement {
       await loadTree(nextKeyword, nextSelectedId);
     },
     [loadTree]
+  );
+
+  const scheduleRevalidate = useCallback(
+    (nextKeyword?: string, nextSelectedId?: number | null): void => {
+      if (revalidateTimerRef.current !== null) {
+        window.clearTimeout(revalidateTimerRef.current);
+      }
+      revalidateTimerRef.current = window.setTimeout(() => {
+        void refreshTree(nextKeyword, nextSelectedId);
+        revalidateTimerRef.current = null;
+      }, 400);
+    },
+    [refreshTree]
   );
 
   useEffect(() => {
@@ -263,9 +285,11 @@ function SkillPage(): React.ReactElement {
       setCurrentFile(saved);
       setEditorValue(saved.content || '');
       setDirty(false);
-      setTreeData(prev => patchTreeNode(prev, toTreeNode(saved)));
+      setTreeData(prev =>
+        patchTreeNode(prev, toTreeNode(saved, selectedNode.parentId))
+      );
       message.success('Skill 文件已保存');
-      await refreshTree(keywordRef.current, selectedId);
+      scheduleRevalidate(keywordRef.current, selectedId);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -312,9 +336,11 @@ function SkillPage(): React.ReactElement {
         setEditorValue(created.content || '');
         setMode(created.fileExt === 'md' ? 'preview' : 'edit');
         setDirty(false);
-        setTreeData(prev => insertTreeNode(prev, toTreeNode(created)));
+        setTreeData(prev =>
+          insertTreeNode(prev, toTreeNode(created, parentId, true))
+        );
         setExpandedKeys(prev => mergeExpandedKeys(prev, [parentId]));
-        await refreshTree(keywordRef.current, created.id);
+        scheduleRevalidate(keywordRef.current, created.id);
       } else if (dialogMode === 'rename' && selectedNode) {
         const renamed = await renameSkillEntry({
           id: selectedNode.id,
@@ -401,12 +427,13 @@ function SkillPage(): React.ReactElement {
       const firstFile = uploaded[0];
       setTreeData(prev =>
         uploaded.reduce(
-          (nextTree, file) => insertTreeNode(nextTree, toTreeNode(file)),
+          (nextTree, file) =>
+            insertTreeNode(nextTree, toTreeNode(file, parentId, true)),
           prev
         )
       );
       setExpandedKeys(prev => mergeExpandedKeys(prev, [parentId]));
-      await refreshTree(
+      scheduleRevalidate(
         keywordRef.current,
         firstFile?.id || selectedIdRef.current
       );
@@ -788,16 +815,20 @@ function mergeExpandedKeys(
   return Array.from(keySet);
 }
 
-function toTreeNode(file: SkillFileContent): SkillTreeNode {
+function toTreeNode(
+  file: SkillFileContent,
+  fallbackParentId?: number,
+  fallbackSkillEntry?: boolean
+): SkillTreeNode {
   return {
     id: file.id,
-    parentId: file.parentId || 0,
+    parentId: file.parentId ?? fallbackParentId ?? 0,
     name: file.name,
     entryType: file.entryType,
     sortOrder: file.sortOrder,
     fileExt: file.fileExt,
     fileSize: file.fileSize,
-    skillEntry: file.skillEntry,
+    skillEntry: file.skillEntry ?? fallbackSkillEntry,
     skillName: file.skillName,
     skillDescription: file.skillDescription,
     updateTime: file.updateTime,
