@@ -15,11 +15,14 @@ export interface SkillTreeNode {
 
 export interface SkillFileContent {
   id: number;
+  parentId: number;
   name: string;
   entryType: 'folder' | 'file';
+  sortOrder?: number;
   fileExt?: string;
   content: string;
   fileSize?: number;
+  skillEntry?: boolean;
   skillName?: string;
   skillDescription?: string;
   updateTime?: string;

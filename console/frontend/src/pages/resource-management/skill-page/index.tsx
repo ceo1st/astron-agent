@@ -141,6 +141,13 @@ function SkillPage(): React.ReactElement {
     [loadTree]
   );
 
+  const revalidateTree = useCallback(
+    (nextKeyword?: string, nextSelectedId?: number | null): void => {
+      void refreshTree(nextKeyword, nextSelectedId).catch(() => undefined);
+    },
+    [refreshTree]
+  );
+
   useEffect(() => {
     void loadTree('');
   }, [loadTree]);
@@ -251,8 +258,9 @@ function SkillPage(): React.ReactElement {
       setCurrentFile(saved);
       setEditorValue(saved.content || '');
       setDirty(false);
+      setTreeData(prev => patchTreeNode(prev, toTreeNode(saved)));
       message.success('Skill 文件已保存');
-      await loadTree(keywordRef.current, selectedId);
+      revalidateTree(keywordRef.current, selectedId);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -273,14 +281,15 @@ function SkillPage(): React.ReactElement {
           : selectedNode?.parentId || 0;
 
       if (dialogMode === 'folder') {
-        await createSkillFolder({
+        const createdFolder = await createSkillFolder({
           parentId,
           name: values.name,
         });
         setDialogMode(null);
         form.resetFields();
+        setTreeData(prev => insertTreeNode(prev, createdFolder));
         message.success('文件夹已创建');
-        await refreshTree(keywordRef.current);
+        revalidateTree(keywordRef.current);
       } else if (dialogMode === 'file') {
         const created = await createSkillFile({
           parentId,
@@ -295,19 +304,31 @@ function SkillPage(): React.ReactElement {
         setEditorValue(created.content || '');
         setMode(created.fileExt === 'md' ? 'preview' : 'edit');
         setDirty(false);
-        await refreshTree(keywordRef.current, created.id);
+        setTreeData(prev => insertTreeNode(prev, toTreeNode(created)));
+        revalidateTree(keywordRef.current, created.id);
       } else if (dialogMode === 'rename' && selectedNode) {
-        await renameSkillEntry({
+        const renamed = await renameSkillEntry({
           id: selectedNode.id,
           name: values.name,
         });
         setDialogMode(null);
         form.resetFields();
+        setTreeData(prev => patchTreeNode(prev, renamed));
+        setCurrentFile(prev =>
+          prev && prev.id === renamed.id
+            ? {
+                ...prev,
+                name: renamed.name,
+                fileExt: renamed.fileExt,
+                skillEntry: renamed.skillEntry,
+                skillName: renamed.skillName,
+                skillDescription: renamed.skillDescription,
+                updateTime: renamed.updateTime,
+              }
+            : prev
+        );
         message.success('名称已更新');
-        await refreshTree(keywordRef.current, selectedNode.id);
-        if (selectedNode.entryType === 'file') {
-          await openFile(selectedNode.id);
-        }
+        revalidateTree(keywordRef.current, selectedNode.id);
       }
     } finally {
       submittingRef.current = false;
@@ -336,12 +357,13 @@ function SkillPage(): React.ReactElement {
         setSubmitting(true);
         try {
           await deleteSkillEntry(selectedNode.id);
+          setTreeData(prev => removeTreeNode(prev, selectedNode.id));
           message.success('已删除');
           setSelectedId(null);
           setCurrentFile(null);
           setEditorValue('');
           setDirty(false);
-          await refreshTree(keywordRef.current, null);
+          revalidateTree(keywordRef.current, null);
         } finally {
           submittingRef.current = false;
           setSubmitting(false);
@@ -372,7 +394,13 @@ function SkillPage(): React.ReactElement {
       const uploaded = await uploadSkillFiles(parentId, Array.from(files));
       message.success(`已上传 ${uploaded.length} 个文件`);
       const firstFile = uploaded[0];
-      await refreshTree(
+      setTreeData(prev =>
+        uploaded.reduce(
+          (nextTree, file) => insertTreeNode(nextTree, toTreeNode(file)),
+          prev
+        )
+      );
+      revalidateTree(
         keywordRef.current,
         firstFile?.id || selectedIdRef.current
       );
@@ -420,12 +448,13 @@ function SkillPage(): React.ReactElement {
     }
     setSubmitting(true);
     try {
-      await moveSkillEntry({
+      const movedNode = await moveSkillEntry({
         id: dragId,
         targetParentId,
         sortOrder,
       });
-      await refreshTree(keywordRef.current, dragId);
+      setTreeData(prev => moveTreeNode(prev, movedNode));
+      revalidateTree(keywordRef.current, dragId);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -456,15 +485,9 @@ function SkillPage(): React.ReactElement {
           >
             新建文件夹
           </Button>
-          <Button
-            icon={<CodeOutlined />}
-            onClick={() => {
-              form.setFieldsValue({ name: 'SKILL.md', content: '' });
-              setDialogMode('file');
-            }}
-          >
-            新建 SKILL.md
-          </Button>
+          <Typography.Text type="secondary">
+            先选中一个目录，再在右侧创建文件。
+          </Typography.Text>
         </div>
       </div>
     </div>
@@ -634,15 +657,6 @@ function SkillPage(): React.ReactElement {
                 文件夹
               </Button>
               <Button
-                icon={<CodeOutlined />}
-                onClick={() => {
-                  form.setFieldsValue({ name: 'SKILL.md', content: '' });
-                  setDialogMode('file');
-                }}
-              >
-                文件
-              </Button>
-              <Button
                 icon={<UploadOutlined />}
                 onClick={() => uploadRef.current?.click()}
               >
@@ -661,7 +675,6 @@ function SkillPage(): React.ReactElement {
             <Tree
               blockNode
               draggable
-              showLine
               selectedKeys={selectedId ? [selectedId] : []}
               treeData={toTreeData(treeData)}
               onSelect={keys => void handleSelect(keys)}
@@ -725,6 +738,173 @@ function SkillPage(): React.ReactElement {
 
 function flattenNodes(nodes: SkillTreeNode[]): SkillTreeNode[] {
   return nodes.flatMap(node => [node, ...flattenNodes(node.children || [])]);
+}
+
+function toTreeNode(file: SkillFileContent): SkillTreeNode {
+  return {
+    id: file.id,
+    parentId: file.parentId || 0,
+    name: file.name,
+    entryType: file.entryType,
+    sortOrder: file.sortOrder,
+    fileExt: file.fileExt,
+    fileSize: file.fileSize,
+    skillEntry: file.skillEntry,
+    skillName: file.skillName,
+    skillDescription: file.skillDescription,
+    updateTime: file.updateTime,
+    children: [],
+  };
+}
+
+function compareTreeNode(a: SkillTreeNode, b: SkillTreeNode): number {
+  if (a.entryType !== b.entryType) {
+    return a.entryType === 'folder' ? -1 : 1;
+  }
+  const sortDiff = (a.sortOrder || 0) - (b.sortOrder || 0);
+  if (sortDiff !== 0) {
+    return sortDiff;
+  }
+  return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+}
+
+function sortTreeNodes(nodes: SkillTreeNode[]): SkillTreeNode[] {
+  return [...nodes]
+    .map(node => ({
+      ...node,
+      children: sortTreeNodes(node.children || []),
+    }))
+    .sort(compareTreeNode);
+}
+
+function insertTreeNode(
+  nodes: SkillTreeNode[],
+  targetNode: SkillTreeNode
+): SkillTreeNode[] {
+  const normalizedNode: SkillTreeNode = {
+    ...targetNode,
+    children: targetNode.children || [],
+  };
+  if (!normalizedNode.parentId) {
+    return sortTreeNodes([...nodes, normalizedNode]);
+  }
+  let inserted = false;
+  const nextNodes = nodes.map(node => {
+    if (node.id === normalizedNode.parentId && node.entryType === 'folder') {
+      inserted = true;
+      return {
+        ...node,
+        children: sortTreeNodes([...(node.children || []), normalizedNode]),
+      };
+    }
+    const currentChildren = node.children || [];
+    const nextChildren = insertTreeNode(currentChildren, normalizedNode);
+    if (nextChildren !== currentChildren) {
+      inserted = true;
+      return {
+        ...node,
+        children: nextChildren,
+      };
+    }
+    return node;
+  });
+  return inserted ? sortTreeNodes(nextNodes) : nodes;
+}
+
+function patchTreeNode(
+  nodes: SkillTreeNode[],
+  targetNode: SkillTreeNode
+): SkillTreeNode[] {
+  let patched = false;
+  const nextNodes = nodes.map(node => {
+    if (node.id === targetNode.id) {
+      patched = true;
+      return {
+        ...node,
+        ...targetNode,
+        children: targetNode.children || node.children || [],
+      };
+    }
+    const currentChildren = node.children || [];
+    const nextChildren = patchTreeNode(currentChildren, targetNode);
+    if (nextChildren !== currentChildren) {
+      patched = true;
+      return {
+        ...node,
+        children: nextChildren,
+      };
+    }
+    return node;
+  });
+  return patched ? sortTreeNodes(nextNodes) : nodes;
+}
+
+function removeTreeNode(
+  nodes: SkillTreeNode[],
+  targetId: number
+): SkillTreeNode[] {
+  let removed = false;
+  const nextNodes: SkillTreeNode[] = [];
+  nodes.forEach(node => {
+    if (node.id === targetId) {
+      removed = true;
+      return;
+    }
+    const currentChildren = node.children || [];
+    const nextChildren = removeTreeNode(currentChildren, targetId);
+    if (nextChildren !== currentChildren) {
+      removed = true;
+      nextNodes.push({
+        ...node,
+        children: nextChildren,
+      });
+      return;
+    }
+    nextNodes.push(node);
+  });
+  return removed ? sortTreeNodes(nextNodes) : nodes;
+}
+
+function moveTreeNode(
+  nodes: SkillTreeNode[],
+  targetNode: SkillTreeNode
+): SkillTreeNode[] {
+  const detached = detachTreeNode(nodes, targetNode.id);
+  const movedNode: SkillTreeNode = {
+    ...(detached.removed || { children: [] }),
+    ...targetNode,
+    children: detached.removed?.children || targetNode.children || [],
+  };
+  return insertTreeNode(detached.nodes, movedNode);
+}
+
+function detachTreeNode(
+  nodes: SkillTreeNode[],
+  targetId: number
+): { nodes: SkillTreeNode[]; removed: SkillTreeNode | null } {
+  let removedNode: SkillTreeNode | null = null;
+  const nextNodes: SkillTreeNode[] = [];
+  nodes.forEach(node => {
+    if (node.id === targetId) {
+      removedNode = node;
+      return;
+    }
+    const currentChildren = node.children || [];
+    const detached = detachTreeNode(currentChildren, targetId);
+    if (detached.removed) {
+      removedNode = detached.removed;
+      nextNodes.push({
+        ...node,
+        children: detached.nodes,
+      });
+      return;
+    }
+    nextNodes.push(node);
+  });
+  return {
+    nodes: removedNode ? sortTreeNodes(nextNodes) : nodes,
+    removed: removedNode,
+  };
 }
 
 function resolveLanguage(fileExt?: string): string {

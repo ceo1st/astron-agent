@@ -28,8 +28,8 @@ export async function getSkillFileContent(
 
 export async function createSkillFolder(
   params: CreateSkillFolderParams
-): Promise<void> {
-  await http.post('/skill-file/folder', params);
+): Promise<SkillTreeNode> {
+  return await http.post('/skill-file/folder', params);
 }
 
 export async function createSkillFile(
@@ -58,14 +58,14 @@ export async function updateSkillFileContent(
 
 export async function renameSkillEntry(
   params: RenameSkillEntryParams
-): Promise<void> {
-  await http.put('/skill-file/rename', params);
+): Promise<SkillTreeNode> {
+  return await http.put('/skill-file/rename', params);
 }
 
 export async function moveSkillEntry(
   params: MoveSkillEntryParams
-): Promise<void> {
-  await http.put('/skill-file/move', params);
+): Promise<SkillTreeNode> {
+  return await http.put('/skill-file/move', params);
 }
 
 export async function deleteSkillEntry(id: number): Promise<void> {

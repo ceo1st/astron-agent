@@ -83,7 +83,7 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     }
 
     @Transactional
-    public void createFolder(SkillFileCreateFolderReq req) {
+    public SkillFileTreeNodeDto createFolder(SkillFileCreateFolderReq req) {
         String name = normalizeFolderName(req.getName());
         Long parentId = normalizeParentId(req.getParentId());
         assertParentFolder(parentId);
@@ -100,6 +100,7 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         folder.setCreateTime(LocalDateTime.now());
         folder.setUpdateTime(LocalDateTime.now());
         save(folder);
+        return toTreeNode(folder);
     }
 
     @Transactional
@@ -177,7 +178,7 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     }
 
     @Transactional
-    public void rename(SkillFileRenameReq req) {
+    public SkillFileTreeNodeDto rename(SkillFileRenameReq req) {
         SkillFile entry = getScopedEntry(req.getId());
         String name = ENTRY_TYPE_FOLDER.equals(entry.getEntryType())
                 ? normalizeFolderName(req.getName())
@@ -198,10 +199,11 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         }
         entry.setUpdateTime(LocalDateTime.now());
         updateById(entry);
+        return toTreeNode(entry);
     }
 
     @Transactional
-    public void move(SkillFileMoveReq req) {
+    public SkillFileTreeNodeDto move(SkillFileMoveReq req) {
         SkillFile entry = getScopedEntry(req.getId());
         Long targetParentId = normalizeParentId(req.getTargetParentId());
         assertParentFolder(targetParentId);
@@ -216,6 +218,7 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         entry.setSortOrder(req.getSortOrder() == null ? nextSortOrder(targetParentId) : Math.max(req.getSortOrder(), 0));
         entry.setUpdateTime(LocalDateTime.now());
         updateById(entry);
+        return toTreeNode(entry);
     }
 
     @Transactional
@@ -357,11 +360,14 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     private SkillFileContentDto toContentDto(SkillFile file, String content) {
         SkillFileContentDto dto = new SkillFileContentDto();
         dto.setId(file.getId());
+        dto.setParentId(file.getParentId());
         dto.setName(file.getName());
         dto.setEntryType(file.getEntryType());
+        dto.setSortOrder(file.getSortOrder());
         dto.setFileExt(file.getFileExt());
         dto.setContent(content);
         dto.setFileSize(file.getFileSize());
+        dto.setSkillEntry(isSkillFile(file.getName()));
         dto.setSkillName(resolveSkillName(file));
         dto.setSkillDescription(resolveSkillDescription(file));
         dto.setUpdateTime(file.getUpdateTime());

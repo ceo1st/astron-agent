@@ -7,11 +7,14 @@ import lombok.Data;
 @Data
 public class SkillFileContentDto {
     private Long id;
+    private Long parentId;
     private String name;
     private String entryType;
+    private Integer sortOrder;
     private String fileExt;
     private String content;
     private Long fileSize;
+    private Boolean skillEntry;
     private String skillName;
     private String skillDescription;
 

@@ -44,9 +44,8 @@ public class SkillFileController {
     }
 
     @PostMapping("/folder")
-    public ApiResult<Void> createFolder(@RequestBody SkillFileCreateFolderReq req) {
-        skillFileService.createFolder(req);
-        return ApiResult.success();
+    public ApiResult<SkillFileTreeNodeDto> createFolder(@RequestBody SkillFileCreateFolderReq req) {
+        return ApiResult.success(skillFileService.createFolder(req));
     }
 
     @PostMapping("/file")
@@ -68,15 +67,13 @@ public class SkillFileController {
     }
 
     @PutMapping("/rename")
-    public ApiResult<Void> rename(@RequestBody SkillFileRenameReq req) {
-        skillFileService.rename(req);
-        return ApiResult.success();
+    public ApiResult<SkillFileTreeNodeDto> rename(@RequestBody SkillFileRenameReq req) {
+        return ApiResult.success(skillFileService.rename(req));
     }
 
     @PutMapping("/move")
-    public ApiResult<Void> move(@RequestBody SkillFileMoveReq req) {
-        skillFileService.move(req);
-        return ApiResult.success();
+    public ApiResult<SkillFileTreeNodeDto> move(@RequestBody SkillFileMoveReq req) {
+        return ApiResult.success(skillFileService.move(req));
     }
 
     @DeleteMapping
