@@ -60,6 +60,13 @@ public class SkillFileController {
         return ApiResult.success(skillFileService.uploadFiles(parentId, files));
     }
 
+    @PostMapping("/upload-directory")
+    public ApiResult<List<SkillFileTreeNodeDto>> uploadDirectory(
+            @RequestParam("paths") List<String> paths,
+            @RequestPart("files") MultipartFile[] files) {
+        return ApiResult.success(skillFileService.uploadDirectory(paths, files));
+    }
+
     @PutMapping("/content")
     public ApiResult<SkillFileContentDto> updateContent(
             @RequestBody SkillFileUpdateContentReq req) {

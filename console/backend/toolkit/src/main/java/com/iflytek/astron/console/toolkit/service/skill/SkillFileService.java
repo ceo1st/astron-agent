@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -162,6 +163,45 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             result.add(toContentDto(file, content));
         }
         return result;
+    }
+
+    @Transactional
+    public List<SkillFileTreeNodeDto> uploadDirectory(List<String> paths, MultipartFile[] files) {
+        if (files == null || files.length == 0 || paths == null || paths.size() != files.length) {
+            throw new BusinessException(ResponseEnum.PARAM_ERROR);
+        }
+        List<SkillFileTreeNodeDto> createdRoots = new ArrayList<>();
+        for (int index = 0; index < files.length; index++) {
+            MultipartFile upload = files[index];
+            List<String> segments = normalizeUploadPath(paths.get(index));
+            Long currentParentId = 0L;
+            for (int segmentIndex = 0; segmentIndex < segments.size() - 1; segmentIndex++) {
+                String folderName = normalizeFolderName(segments.get(segmentIndex));
+                SkillFile folder = resolveOrCreateFolder(currentParentId, folderName);
+                if (currentParentId == 0L && createdRoots.stream().noneMatch(item -> Objects.equals(item.getId(), folder.getId()))) {
+                    createdRoots.add(toTreeNode(folder));
+                }
+                currentParentId = folder.getId();
+            }
+
+            String fileName = normalizeFileName(segments.get(segments.size() - 1));
+            validateUpload(upload, fileName);
+            assertDuplicateName(currentParentId, fileName, null);
+
+            String content = readMultipartContent(upload);
+            SkillFile file = buildFileEntry(currentParentId, fileName, content);
+            save(file);
+            updateById(file);
+            if (currentParentId == 0L) {
+                createdRoots.add(toTreeNode(file));
+            }
+        }
+        return createdRoots.stream()
+                .sorted(Comparator
+                        .comparing((SkillFileTreeNodeDto node) -> ENTRY_TYPE_FILE.equals(node.getEntryType()))
+                        .thenComparing(node -> node.getSortOrder() == null ? 0 : node.getSortOrder())
+                        .thenComparing(node -> StringUtils.defaultString(node.getName()), String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 
     @Transactional
@@ -432,6 +472,39 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         validateAllowedExtension(normalizedName);
     }
 
+    private List<String> normalizeUploadPath(String path) {
+        String normalized = StringUtils.trimToEmpty(path).replace("\\", "/");
+        if (StringUtils.isBlank(normalized) || normalized.startsWith("/") || normalized.endsWith("/")) {
+            throw new BusinessException(ResponseEnum.PARAM_ERROR);
+        }
+        List<String> segments = Arrays.stream(normalized.split("/"))
+                .map(StringUtils::trimToEmpty)
+                .toList();
+        if (segments.isEmpty() || segments.stream().anyMatch(StringUtils::isBlank)) {
+            throw new BusinessException(ResponseEnum.PARAM_ERROR);
+        }
+        return segments;
+    }
+
+    private SkillFile resolveOrCreateFolder(Long parentId, String folderName) {
+        SkillFile existing = findEntryByParentAndName(parentId, folderName);
+        if (existing != null) {
+            if (!ENTRY_TYPE_FOLDER.equals(existing.getEntryType())) {
+                throw new BusinessException(ResponseEnum.PARAM_ERROR);
+            }
+            return existing;
+        }
+        SkillFile folder = buildFolderEntry(parentId, folderName);
+        save(folder);
+        return folder;
+    }
+
+    private SkillFile findEntryByParentAndName(Long parentId, String name) {
+        return getOne(scopeQuery()
+                .eq(SkillFile::getParentId, parentId)
+                .eq(SkillFile::getName, name), false);
+    }
+
     private String normalizeFolderName(String name) {
         String normalized = StringUtils.trimToEmpty(name);
         if (StringUtils.isBlank(normalized)
@@ -472,6 +545,37 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             case "py", "js", "ts", "csv", "xml" -> "text/plain";
             default -> "application/octet-stream";
         };
+    }
+
+    private SkillFile buildFolderEntry(Long parentId, String name) {
+        SkillFile folder = new SkillFile();
+        folder.setUid(currentUid());
+        folder.setSpaceId(currentSpaceId());
+        folder.setParentId(parentId);
+        folder.setName(name);
+        folder.setEntryType(ENTRY_TYPE_FOLDER);
+        folder.setSortOrder(nextSortOrder(parentId));
+        folder.setDeleted(Boolean.FALSE);
+        folder.setCreateTime(LocalDateTime.now());
+        folder.setUpdateTime(LocalDateTime.now());
+        return folder;
+    }
+
+    private SkillFile buildFileEntry(Long parentId, String name, String content) {
+        SkillFile file = new SkillFile();
+        file.setUid(currentUid());
+        file.setSpaceId(currentSpaceId());
+        file.setParentId(parentId);
+        file.setName(name);
+        file.setEntryType(ENTRY_TYPE_FILE);
+        file.setSortOrder(nextSortOrder(parentId));
+        file.setDeleted(Boolean.FALSE);
+        file.setCreateTime(LocalDateTime.now());
+        file.setUpdateTime(LocalDateTime.now());
+        file.setFileExt(fileExt(name));
+        file.setContentType(resolveContentType(name));
+        upsertFileContent(file, content);
+        return file;
     }
 
     private void upsertFileContent(SkillFile file, String content) {

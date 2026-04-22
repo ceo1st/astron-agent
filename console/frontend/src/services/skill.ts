@@ -50,6 +50,22 @@ export async function uploadSkillFiles(
   });
 }
 
+export async function uploadSkillDirectory(
+  files: File[]
+): Promise<SkillTreeNode[]> {
+  const formData = new FormData();
+  files.forEach(file => {
+    const relativePath =
+      (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
+      file.name;
+    formData.append('paths', relativePath);
+    formData.append('files', file);
+  });
+  return await http.post('/skill-file/upload-directory', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
+
 export async function updateSkillFileContent(
   params: UpdateSkillFileContentParams
 ): Promise<SkillFileContent> {
