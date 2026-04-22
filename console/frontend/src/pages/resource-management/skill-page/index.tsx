@@ -61,6 +61,7 @@ function SkillPage(): React.ReactElement {
   const [keyword, setKeyword] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<SkillTreeNode | null>(null);
   const [currentFile, setCurrentFile] = useState<SkillFileContent | null>(null);
   const [editorValue, setEditorValue] = useState('');
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
@@ -146,13 +147,6 @@ function SkillPage(): React.ReactElement {
       await loadTree(nextKeyword, nextSelectedId);
     },
     [loadTree]
-  );
-
-  const revalidateTree = useCallback(
-    (nextKeyword?: string, nextSelectedId?: number | null): void => {
-      void refreshTree(nextKeyword, nextSelectedId).catch(() => undefined);
-    },
-    [refreshTree]
   );
 
   useEffect(() => {
@@ -271,7 +265,7 @@ function SkillPage(): React.ReactElement {
       setDirty(false);
       setTreeData(prev => patchTreeNode(prev, toTreeNode(saved)));
       message.success('Skill 文件已保存');
-      revalidateTree(keywordRef.current, selectedId);
+      await refreshTree(keywordRef.current, selectedId);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -303,7 +297,7 @@ function SkillPage(): React.ReactElement {
           mergeExpandedKeys(prev, [parentId, createdFolder.id])
         );
         message.success('文件夹已创建');
-        revalidateTree(keywordRef.current);
+        await refreshTree(keywordRef.current);
       } else if (dialogMode === 'file') {
         const created = await createSkillFile({
           parentId,
@@ -320,7 +314,7 @@ function SkillPage(): React.ReactElement {
         setDirty(false);
         setTreeData(prev => insertTreeNode(prev, toTreeNode(created)));
         setExpandedKeys(prev => mergeExpandedKeys(prev, [parentId]));
-        revalidateTree(keywordRef.current, created.id);
+        await refreshTree(keywordRef.current, created.id);
       } else if (dialogMode === 'rename' && selectedNode) {
         const renamed = await renameSkillEntry({
           id: selectedNode.id,
@@ -343,7 +337,7 @@ function SkillPage(): React.ReactElement {
             : prev
         );
         message.success('名称已更新');
-        revalidateTree(keywordRef.current, selectedNode.id);
+        await refreshTree(keywordRef.current, selectedNode.id);
       }
     } finally {
       submittingRef.current = false;
@@ -355,40 +349,32 @@ function SkillPage(): React.ReactElement {
     if (!selectedNode || submittingRef.current) {
       return;
     }
-    const confirmModal = Modal.confirm({
-      title: `删除${selectedNode.entryType === 'folder' ? '文件夹' : '文件'}？`,
-      content:
-        selectedNode.entryType === 'folder'
-          ? '删除后会同时移除其下所有 Skill 文件。'
-          : '删除后不可恢复。',
-      okText: '删除',
-      okButtonProps: { danger: true },
-      cancelText: '取消',
-      onOk: async () => {
-        if (submittingRef.current) {
-          return;
-        }
-        submittingRef.current = true;
-        setSubmitting(true);
-        try {
-          await deleteSkillEntry(selectedNode.id);
-          setTreeData(prev => removeTreeNode(prev, selectedNode.id));
-          setExpandedKeys(prev =>
-            prev.filter(key => Number(key) !== selectedNode.id)
-          );
-          message.success('已删除');
-          setSelectedId(null);
-          setCurrentFile(null);
-          setEditorValue('');
-          setDirty(false);
-          confirmModal.destroy();
-          revalidateTree(keywordRef.current, null);
-        } finally {
-          submittingRef.current = false;
-          setSubmitting(false);
-        }
-      },
-    });
+    setDeleteTarget(selectedNode);
+  };
+
+  const handleDeleteConfirm = async (): Promise<void> => {
+    if (!deleteTarget || submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await deleteSkillEntry(deleteTarget.id);
+      setTreeData(prev => removeTreeNode(prev, deleteTarget.id));
+      setExpandedKeys(prev =>
+        prev.filter(key => Number(key) !== deleteTarget.id)
+      );
+      setDeleteTarget(null);
+      setSelectedId(null);
+      setCurrentFile(null);
+      setEditorValue('');
+      setDirty(false);
+      message.success('已删除');
+      await refreshTree(keywordRef.current, null);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   };
 
   const handleRename = (): void => {
@@ -420,7 +406,7 @@ function SkillPage(): React.ReactElement {
         )
       );
       setExpandedKeys(prev => mergeExpandedKeys(prev, [parentId]));
-      revalidateTree(
+      await refreshTree(
         keywordRef.current,
         firstFile?.id || selectedIdRef.current
       );
@@ -475,7 +461,7 @@ function SkillPage(): React.ReactElement {
       });
       setTreeData(prev => moveTreeNode(prev, movedNode));
       setExpandedKeys(prev => mergeExpandedKeys(prev, [targetParentId]));
-      revalidateTree(keywordRef.current, dragId);
+      await refreshTree(keywordRef.current, dragId);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -714,6 +700,32 @@ function SkillPage(): React.ReactElement {
               : renderFileView()}
         </div>
       </div>
+
+      <Modal
+        open={deleteTarget !== null}
+        title={
+          deleteTarget
+            ? `删除${deleteTarget.entryType === 'folder' ? '文件夹' : '文件'}？`
+            : '删除'
+        }
+        okText="删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        confirmLoading={submitting}
+        onCancel={() => {
+          if (submittingRef.current) {
+            return;
+          }
+          setDeleteTarget(null);
+        }}
+        onOk={() => void handleDeleteConfirm()}
+      >
+        <Typography.Text>
+          {deleteTarget?.entryType === 'folder'
+            ? '删除后会同时移除其下所有 Skill 文件。'
+            : '删除后不可恢复。'}
+        </Typography.Text>
+      </Modal>
 
       <Modal
         open={dialogMode !== null}
