@@ -175,17 +175,21 @@ function SkillPage(): React.ReactElement {
       targetIds,
       expandIds = [],
       selectedId: nextSelectedId,
+      keyword: syncKeyword,
       loadingText,
       successText,
     }: {
       targetIds: number[];
       expandIds?: Array<number | null | undefined>;
       selectedId?: number | null;
+      keyword?: string;
       loadingText: string;
       successText: string;
     }): Promise<void> => {
       const messageKey = 'skill-tree-sync';
       const normalizedTargetIds = targetIds.filter(Boolean);
+      const keywordForSync =
+        typeof syncKeyword === 'undefined' ? keywordRef.current : syncKeyword;
       message.open({
         key: messageKey,
         type: 'loading',
@@ -195,7 +199,7 @@ function SkillPage(): React.ReactElement {
       try {
         let synced = false;
         for (let attempt = 0; attempt < 12; attempt += 1) {
-          const nextTreeData = await listSkillTree(keywordRef.current || undefined);
+          const nextTreeData = await listSkillTree(keywordForSync || undefined);
           const flattened = flattenNodes(nextTreeData);
           const existingIds = new Set(flattened.map(node => node.id));
           setTreeData(nextTreeData);
@@ -215,7 +219,7 @@ function SkillPage(): React.ReactElement {
           await wait(300);
         }
         if (!synced) {
-          await refreshTree(keywordRef.current, nextSelectedId);
+          await refreshTree(keywordForSync, nextSelectedId);
         }
         message.success({
           key: messageKey,
@@ -548,21 +552,23 @@ function SkillPage(): React.ReactElement {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const createdRoots = await uploadSkillDirectory(Array.from(files));
+      const uploadedNodes = await uploadSkillDirectory(Array.from(files));
+      setKeyword('');
       setExpandedKeys(prev =>
         mergeExpandedKeys(
           prev,
-          createdRoots
+          uploadedNodes
             .filter(node => node.entryType === 'folder')
             .map(node => node.id)
         )
       );
       await syncTreeAfterMutation({
-        targetIds: createdRoots.map(node => node.id),
-        expandIds: createdRoots
+        targetIds: uploadedNodes.map(node => node.id),
+        expandIds: uploadedNodes
           .filter(node => node.entryType === 'folder')
           .map(node => node.id),
         selectedId: selectedIdRef.current,
+        keyword: '',
         loadingText: '正在同步上传目录...',
         successText: `目录上传完成，共导入 ${files.length} 个文件`,
       });
@@ -725,7 +731,7 @@ function SkillPage(): React.ReactElement {
           </div>
           <div className={styles.editorSub}>
             {currentFile?.skillName ? (
-              <span>鎶€鑳藉悕: {currentFile.skillName}</span>
+              <span>技能名: {currentFile.skillName}</span>
             ) : null}
             {currentFile?.skillDescription ? (
               <span>{currentFile.skillDescription}</span>
@@ -740,14 +746,15 @@ function SkillPage(): React.ReactElement {
             value={mode}
             onChange={value => setMode(value as 'edit' | 'preview')}
             options={[
-              { label: '缂栬緫', value: 'edit' },
-              { label: '棰勮', value: 'preview' },
+              { label: '编辑', value: 'edit' },
+              { label: '预览', value: 'preview' },
             ]}
           />
           <Button icon={<EditOutlined />} onClick={handleRename}>
-            閲嶅懡鍚?          </Button>
+            重命名
+          </Button>
           <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
-            鍒犻櫎
+            删除
           </Button>
           <Button
             type="primary"
@@ -755,7 +762,7 @@ function SkillPage(): React.ReactElement {
             loading={submitting}
             onClick={() => void handleSave()}
           >
-            淇濆瓨
+            保存
           </Button>
         </div>
       </div>
@@ -810,10 +817,10 @@ function SkillPage(): React.ReactElement {
               <span className={styles.statusDot}></span>
               Resource / Skill
             </div>
-            <div className={styles.title}>Skill 鏂囦欢绯荤粺</div>
+            <div className={styles.title}>Skill 文件系统</div>
             <div className={styles.desc}>
-              鐢ㄧ洰褰曠粍缁?`SKILL.md`銆佽剼鏈拰鍙傝€冩枃浠讹紝鏀寔鍦ㄧ嚎缂栬緫涓?Agent
-              鑺傜偣娓愯繘寮忓姞杞姐€?            </div>
+              用目录组织 `SKILL.md`、脚本和参考文件，支持在线编辑与 Agent 节点渐进式加载。
+            </div>
             <div className={styles.toolbar}>
               <Button
                 type="primary"
@@ -824,19 +831,20 @@ function SkillPage(): React.ReactElement {
                   setDialogMode('folder');
                 }}
               >
-                鏂囦欢澶?              </Button>
+                文件夹
+              </Button>
               <Button
                 icon={<UploadOutlined />}
                 onClick={() => directoryUploadRef.current?.click()}
               >
-                涓婁紶鐩綍
+                上传目录
               </Button>
             </div>
             {loading ? (
-              <Typography.Text type="secondary">鍔犺浇涓?..</Typography.Text>
+              <Typography.Text type="secondary">加载中...</Typography.Text>
             ) : keyword ? (
               <Typography.Text type="secondary">
-                褰撳墠绛涢€? {keyword}
+                当前筛选: {keyword}
               </Typography.Text>
             ) : null}
           </div>

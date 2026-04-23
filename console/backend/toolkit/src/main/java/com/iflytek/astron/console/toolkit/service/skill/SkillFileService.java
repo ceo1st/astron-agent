@@ -170,7 +170,7 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         if (files == null || files.length == 0 || paths == null || paths.size() != files.length) {
             throw new BusinessException(ResponseEnum.PARAM_ERROR);
         }
-        List<SkillFileTreeNodeDto> createdRoots = new ArrayList<>();
+        List<SkillFileTreeNodeDto> uploadedNodes = new ArrayList<>();
         for (int index = 0; index < files.length; index++) {
             MultipartFile upload = files[index];
             List<String> segments = normalizeUploadPath(paths.get(index));
@@ -178,8 +178,8 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             for (int segmentIndex = 0; segmentIndex < segments.size() - 1; segmentIndex++) {
                 String folderName = normalizeFolderName(segments.get(segmentIndex));
                 SkillFile folder = resolveOrCreateFolder(currentParentId, folderName);
-                if (currentParentId == 0L && createdRoots.stream().noneMatch(item -> Objects.equals(item.getId(), folder.getId()))) {
-                    createdRoots.add(toTreeNode(folder));
+                if (uploadedNodes.stream().noneMatch(item -> Objects.equals(item.getId(), folder.getId()))) {
+                    uploadedNodes.add(toTreeNode(folder));
                 }
                 currentParentId = folder.getId();
             }
@@ -192,11 +192,9 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             SkillFile file = buildFileEntry(currentParentId, fileName, content);
             save(file);
             updateById(file);
-            if (currentParentId == 0L) {
-                createdRoots.add(toTreeNode(file));
-            }
+            uploadedNodes.add(toTreeNode(file));
         }
-        return createdRoots.stream()
+        return uploadedNodes.stream()
                 .sorted(Comparator
                         .comparing((SkillFileTreeNodeDto node) -> ENTRY_TYPE_FILE.equals(node.getEntryType()))
                         .thenComparing(node -> node.getSortOrder() == null ? 0 : node.getSortOrder())
