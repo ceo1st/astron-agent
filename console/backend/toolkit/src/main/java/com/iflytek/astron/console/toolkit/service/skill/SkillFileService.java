@@ -174,7 +174,6 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         return result;
     }
 
-    @Transactional
     public SkillDirectoryUploadResultDto uploadDirectory(List<String> paths, MultipartFile[] files) {
         if (files == null || files.length == 0 || paths == null || paths.size() != files.length) {
             throw new BusinessException(ResponseEnum.PARAM_ERROR);
