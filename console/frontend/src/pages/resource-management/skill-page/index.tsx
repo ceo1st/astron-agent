@@ -6,7 +6,6 @@
   useState,
 } from 'react';
 import {
-  App,
   Button,
   Form,
   Input,
@@ -14,6 +13,7 @@ import {
   Segmented,
   Tree,
   Typography,
+  message as antdMessage,
 } from 'antd';
 import type { DataNode, TreeProps } from 'antd/es/tree';
 import {
@@ -48,9 +48,9 @@ import styles from './index.module.scss';
 const FILE_ACCEPT = '.md,.txt,.yaml,.yml,.json,.py,.js,.ts,.csv,.xml';
 
 type DialogMode = 'folder' | 'file' | 'rename' | null;
+type MessageType = 'success' | 'error' | 'warning';
 
 function SkillPage(): React.ReactElement {
-  const { message } = App.useApp();
   const [form] = Form.useForm();
   const fileUploadRef = useRef<HTMLInputElement | null>(null);
   const directoryUploadRef = useRef<HTMLInputElement | null>(null);
@@ -221,12 +221,12 @@ function SkillPage(): React.ReactElement {
         if (!synced || alwaysRefresh) {
           await refreshTree(keywordForSync, nextSelectedId);
         }
-        message.success(successText);
+        safeMessage('success', successText);
       } finally {
         setLoading(false);
       }
     },
-    [message, refreshTree]
+    [refreshTree]
   );
 
   const scheduleRevalidate = useCallback(
@@ -360,7 +360,7 @@ function SkillPage(): React.ReactElement {
       setTreeData(prev =>
         patchTreeNode(prev, toTreeNode(saved, selectedNode.parentId))
       );
-      message.success('Skill 文件已保存');
+      safeMessage('success', 'Skill 文件已保存');
       scheduleRevalidate(keywordRef.current, selectedId);
     } finally {
       submittingRef.current = false;
@@ -445,7 +445,7 @@ function SkillPage(): React.ReactElement {
               }
             : prev
         );
-        message.success('名称已更新');
+        safeMessage('success', '名称已更新');
         await refreshTree(keywordRef.current, selectedNode.id);
       }
     } finally {
@@ -479,7 +479,7 @@ function SkillPage(): React.ReactElement {
       setCurrentFile(null);
       setEditorValue('');
       setDirty(false);
-      message.success('已删除');
+      safeMessage('success', '已删除');
       await refreshTree(keywordRef.current, null);
     } finally {
       submittingRef.current = false;
@@ -505,7 +505,7 @@ function SkillPage(): React.ReactElement {
         ? selectedNode.id
         : selectedNode?.parentId || 0;
     if (!parentId) {
-      message.warning('请先选中一个目录，再上传文件');
+      safeMessage('warning', '请先选中一个目录，再上传文件');
       return;
     }
     submittingRef.current = true;
@@ -570,9 +570,9 @@ function SkillPage(): React.ReactElement {
         setEditorValue('');
         setDirty(false);
       }
-      message.success(`目录上传完成，共导入 ${files.length} 个文件`);
+      safeMessage('success', `目录上传完成，共导入 ${files.length} 个文件`);
     } catch (error) {
-      message.error('目录上传失败，请稍后重试');
+      safeMessage('error', '目录上传失败，请稍后重试');
     } finally {
       setLoading(false);
       setDirectoryUploading(false);
@@ -970,6 +970,13 @@ function mergeExpandedKeys(
     }
   });
   return Array.from(keySet);
+}
+
+function safeMessage(type: MessageType, content: string): void {
+  const handler = antdMessage[type];
+  if (typeof handler === 'function') {
+    handler(content);
+  }
 }
 
 function wait(ms: number): Promise<void> {
