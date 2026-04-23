@@ -45,12 +45,14 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
+@Slf4j
 public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
 
     private static final Set<String> ALLOWED_FILE_EXTS = Set.of(
@@ -220,13 +222,18 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             }
 
             String fileName = normalizeFileName(segments.get(segments.size() - 1));
-            String content = readMultipartContent(upload);
-            SkillFile file = upsertDirectoryFile(currentParentId, fileName, content);
-            if (file == null) {
+            try {
+                String content = readMultipartContent(upload);
+                SkillFile file = upsertDirectoryFile(currentParentId, fileName, content);
+                if (file == null) {
+                    skippedFiles.add(uploadPath);
+                    continue;
+                }
+                uploadedNodes.add(toTreeNode(file));
+            } catch (Exception ex) {
                 skippedFiles.add(uploadPath);
-                continue;
+                log.warn("Skip failed skill directory file upload, path={}", uploadPath, ex);
             }
-            uploadedNodes.add(toTreeNode(file));
         }
         SkillDirectoryUploadResultDto result = new SkillDirectoryUploadResultDto();
         result.setUploadedNodes(uploadedNodes.stream()
