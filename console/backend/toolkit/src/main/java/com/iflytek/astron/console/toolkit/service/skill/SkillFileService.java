@@ -54,7 +54,13 @@ import org.springframework.web.multipart.MultipartFile;
 public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
 
     private static final Set<String> ALLOWED_FILE_EXTS = Set.of(
-            "md", "txt", "yaml", "yml", "json", "py", "js", "ts", "csv", "xml");
+            "md", "txt", "yaml", "yml", "json", "py", "js", "ts", "csv", "xml",
+            "sh", "bash", "zsh", "bat", "ps1", "java", "go", "rs", "rb", "php",
+            "html", "css", "scss", "less", "vue", "jsx", "tsx", "mjs", "cjs",
+            "toml", "ini", "cfg", "conf", "env", "properties", "sql", "log",
+            "gitignore", "dockerignore", "npmignore", "editorconfig");
+    private static final Set<String> EXTENSIONLESS_FILE_NAMES = Set.of(
+            "dockerfile", "makefile", "procfile", "license", "readme");
     private static final long MAX_FILE_SIZE = 5L * 1024 * 1024;
     private static final String ENTRY_TYPE_FOLDER = "folder";
     private static final String ENTRY_TYPE_FILE = "file";
@@ -172,27 +178,54 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             throw new BusinessException(ResponseEnum.PARAM_ERROR);
         }
         List<SkillFileTreeNodeDto> uploadedNodes = new ArrayList<>();
+        List<String> skippedFiles = new ArrayList<>();
         for (int index = 0; index < files.length; index++) {
             MultipartFile upload = files[index];
-            List<String> segments = normalizeUploadPath(paths.get(index));
+            String uploadPath = paths.get(index);
+            List<String> segments;
+            try {
+                segments = normalizeUploadPath(uploadPath);
+                for (int segmentIndex = 0; segmentIndex < segments.size() - 1; segmentIndex++) {
+                    normalizeFolderName(segments.get(segmentIndex));
+                }
+                String fileName = normalizeFileName(segments.get(segments.size() - 1));
+                if (shouldSkipDirectoryUploadFile(upload, fileName)) {
+                    skippedFiles.add(uploadPath);
+                    continue;
+                }
+            } catch (BusinessException ex) {
+                skippedFiles.add(uploadPath);
+                continue;
+            }
+
             Long currentParentId = 0L;
+            boolean skipCurrentFile = false;
             for (int segmentIndex = 0; segmentIndex < segments.size() - 1; segmentIndex++) {
                 String folderName = normalizeFolderName(segments.get(segmentIndex));
-                SkillFile folder = resolveOrCreateFolder(currentParentId, folderName);
+                SkillFile folder;
+                try {
+                    folder = resolveOrCreateFolder(currentParentId, folderName);
+                } catch (BusinessException ex) {
+                    skippedFiles.add(uploadPath);
+                    skipCurrentFile = true;
+                    break;
+                }
                 if (uploadedNodes.stream().noneMatch(item -> Objects.equals(item.getId(), folder.getId()))) {
                     uploadedNodes.add(toTreeNode(folder));
                 }
                 currentParentId = folder.getId();
             }
+            if (skipCurrentFile) {
+                continue;
+            }
 
             String fileName = normalizeFileName(segments.get(segments.size() - 1));
-            validateUpload(upload, fileName);
-            assertDuplicateName(currentParentId, fileName, null);
-
             String content = readMultipartContent(upload);
-            SkillFile file = buildFileEntry(currentParentId, fileName, content);
-            save(file);
-            updateById(file);
+            SkillFile file = upsertDirectoryFile(currentParentId, fileName, content);
+            if (file == null) {
+                skippedFiles.add(uploadPath);
+                continue;
+            }
             uploadedNodes.add(toTreeNode(file));
         }
         SkillDirectoryUploadResultDto result = new SkillDirectoryUploadResultDto();
@@ -202,6 +235,7 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
                         .thenComparing(node -> node.getSortOrder() == null ? 0 : node.getSortOrder())
                         .thenComparing(node -> StringUtils.defaultString(node.getName()), String.CASE_INSENSITIVE_ORDER))
                 .toList());
+        result.setSkippedFiles(skippedFiles);
         result.setTree(listTree(null));
         return result;
     }
@@ -474,6 +508,13 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         validateAllowedExtension(normalizedName);
     }
 
+    private boolean shouldSkipDirectoryUploadFile(MultipartFile upload, String normalizedName) {
+        return upload == null
+                || upload.isEmpty()
+                || upload.getSize() > MAX_FILE_SIZE
+                || !isAllowedFileName(normalizedName);
+    }
+
     private List<String> normalizeUploadPath(String path) {
         String normalized = StringUtils.trimToEmpty(path).replace("\\", "/");
         if (StringUtils.isBlank(normalized) || normalized.startsWith("/") || normalized.endsWith("/")) {
@@ -501,6 +542,23 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         return folder;
     }
 
+    private SkillFile upsertDirectoryFile(Long parentId, String fileName, String content) {
+        SkillFile existing = findEntryByParentAndName(parentId, fileName);
+        if (existing != null) {
+            if (!ENTRY_TYPE_FILE.equals(existing.getEntryType())) {
+                return null;
+            }
+            upsertFileContent(existing, content);
+            existing.setUpdateTime(LocalDateTime.now());
+            updateById(existing);
+            return existing;
+        }
+        SkillFile file = buildFileEntry(parentId, fileName, content);
+        save(file);
+        updateById(file);
+        return file;
+    }
+
     private SkillFile findEntryByParentAndName(Long parentId, String name) {
         return getOne(scopeQuery()
                 .eq(SkillFile::getParentId, parentId)
@@ -526,10 +584,15 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     }
 
     private void validateAllowedExtension(String name) {
-        String ext = fileExt(name);
-        if (!ALLOWED_FILE_EXTS.contains(ext)) {
+        if (!isAllowedFileName(name)) {
             throw new BusinessException(ResponseEnum.PARAM_ERROR);
         }
+    }
+
+    private boolean isAllowedFileName(String name) {
+        String ext = fileExt(name);
+        return ALLOWED_FILE_EXTS.contains(ext)
+                || EXTENSIONLESS_FILE_NAMES.contains(StringUtils.lowerCase(StringUtils.defaultString(name)));
     }
 
     private String fileExt(String name) {

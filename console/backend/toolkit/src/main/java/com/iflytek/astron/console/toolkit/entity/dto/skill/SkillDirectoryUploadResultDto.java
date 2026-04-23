@@ -8,4 +8,5 @@ import lombok.Data;
 public class SkillDirectoryUploadResultDto {
     private List<SkillFileTreeNodeDto> tree = new ArrayList<>();
     private List<SkillFileTreeNodeDto> uploadedNodes = new ArrayList<>();
+    private List<String> skippedFiles = new ArrayList<>();
 }

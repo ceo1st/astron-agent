@@ -549,6 +549,10 @@ function SkillPage(): React.ReactElement {
     try {
       const uploadResult = await uploadSkillDirectory(Array.from(files));
       const uploadedNodes = uploadResult.uploadedNodes || [];
+      const skippedCount = uploadResult.skippedFiles?.length || 0;
+      const importedFileCount = uploadedNodes.filter(
+        node => node.entryType === 'file'
+      ).length;
       const nextTreeData = uploadResult.tree || [];
       const existingIds = new Set(
         flattenNodes(nextTreeData).map(node => node.id)
@@ -570,7 +574,11 @@ function SkillPage(): React.ReactElement {
         setEditorValue('');
         setDirty(false);
       }
-      safeMessage('success', `目录上传完成，共导入 ${files.length} 个文件`);
+      const resultText =
+        skippedCount > 0
+          ? `目录上传完成，导入 ${importedFileCount} 个文件，跳过 ${skippedCount} 个不支持文件`
+          : `目录上传完成，共导入 ${importedFileCount} 个文件`;
+      safeMessage(importedFileCount > 0 ? 'success' : 'warning', resultText);
     } catch (error) {
       safeMessage('error', '目录上传失败，请稍后重试');
     } finally {

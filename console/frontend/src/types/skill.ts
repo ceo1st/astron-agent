@@ -16,6 +16,7 @@ export interface SkillTreeNode {
 export interface SkillDirectoryUploadResult {
   tree: SkillTreeNode[];
   uploadedNodes: SkillTreeNode[];
+  skippedFiles?: string[];
 }
 
 export interface SkillFileContent {
