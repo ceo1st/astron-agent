@@ -191,15 +191,10 @@ function SkillPage(): React.ReactElement {
       loadingText: string;
       successText: string;
     }): Promise<void> => {
-      const messageKey = 'skill-tree-sync';
       const normalizedTargetIds = targetIds.filter(Boolean);
       const keywordForSync =
         typeof syncKeyword === 'undefined' ? keywordRef.current : syncKeyword;
-      message.loading({
-        key: messageKey,
-        content: loadingText,
-        duration: 0,
-      });
+      const closeLoading = message.loading(loadingText, 0);
       setLoading(true);
       try {
         let synced = false;
@@ -229,12 +224,10 @@ function SkillPage(): React.ReactElement {
         if (!synced || alwaysRefresh) {
           await refreshTree(keywordForSync, nextSelectedId);
         }
-        message.success({
-          key: messageKey,
-          content: successText,
-        });
+        closeLoading();
+        message.success(successText);
       } catch (error) {
-        message.destroy(messageKey);
+        closeLoading();
         throw error;
       } finally {
         setLoading(false);
@@ -563,13 +556,8 @@ function SkillPage(): React.ReactElement {
     setSubmitting(true);
     setDirectoryUploading(true);
     setLoading(true);
-    const messageKey = 'skill-directory-upload';
+    const closeLoading = message.loading('正在上传目录并同步文件树...', 0);
     try {
-      message.loading({
-        key: messageKey,
-        content: '正在上传目录并同步文件树...',
-        duration: 0,
-      });
       const uploadResult = await uploadSkillDirectory(Array.from(files));
       const uploadedNodes = uploadResult.uploadedNodes || [];
       const nextTreeData = uploadResult.tree || [];
@@ -593,13 +581,11 @@ function SkillPage(): React.ReactElement {
         setEditorValue('');
         setDirty(false);
       }
-      message.success({
-        key: messageKey,
-        content: `目录上传完成，共导入 ${files.length} 个文件`,
-      });
+      closeLoading();
+      message.success(`目录上传完成，共导入 ${files.length} 个文件`);
     } catch (error) {
-      message.destroy(messageKey);
-      throw error;
+      closeLoading();
+      message.error('目录上传失败，请稍后重试');
     } finally {
       setLoading(false);
       setDirectoryUploading(false);
