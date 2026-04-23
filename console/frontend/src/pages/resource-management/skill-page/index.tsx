@@ -176,6 +176,8 @@ function SkillPage(): React.ReactElement {
       expandIds = [],
       selectedId: nextSelectedId,
       keyword: syncKeyword,
+      settleMs = 0,
+      alwaysRefresh = false,
       loadingText,
       successText,
     }: {
@@ -183,6 +185,8 @@ function SkillPage(): React.ReactElement {
       expandIds?: Array<number | null | undefined>;
       selectedId?: number | null;
       keyword?: string;
+      settleMs?: number;
+      alwaysRefresh?: boolean;
       loadingText: string;
       successText: string;
     }): Promise<void> => {
@@ -196,6 +200,7 @@ function SkillPage(): React.ReactElement {
         content: loadingText,
         duration: 0,
       });
+      setLoading(true);
       try {
         let synced = false;
         for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -218,7 +223,10 @@ function SkillPage(): React.ReactElement {
           }
           await wait(300);
         }
-        if (!synced) {
+        if (settleMs > 0) {
+          await wait(settleMs);
+        }
+        if (!synced || alwaysRefresh) {
           await refreshTree(keywordForSync, nextSelectedId);
         }
         message.success({
@@ -228,6 +236,8 @@ function SkillPage(): React.ReactElement {
       } catch (error) {
         message.destroy(messageKey);
         throw error;
+      } finally {
+        setLoading(false);
       }
     },
     [message, refreshTree]
@@ -569,6 +579,8 @@ function SkillPage(): React.ReactElement {
           .map(node => node.id),
         selectedId: selectedIdRef.current,
         keyword: '',
+        settleMs: 800,
+        alwaysRefresh: true,
         loadingText: '正在同步上传目录...',
         successText: `目录上传完成，共导入 ${files.length} 个文件`,
       });
@@ -825,6 +837,7 @@ function SkillPage(): React.ReactElement {
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
+                loading={submitting}
                 onClick={() => {
                   form.resetFields();
                   setDialogParentId(0);
@@ -835,6 +848,7 @@ function SkillPage(): React.ReactElement {
               </Button>
               <Button
                 icon={<UploadOutlined />}
+                loading={submitting}
                 onClick={() => directoryUploadRef.current?.click()}
               >
                 上传目录
