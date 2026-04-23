@@ -70,6 +70,7 @@ function SkillPage(): React.ReactElement {
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [directoryUploading, setDirectoryUploading] = useState(false);
   const [dirty, setDirty] = useState(false);
   const keywordRef = useRef('');
   const selectedIdRef = useRef<number | null>(null);
@@ -194,9 +195,8 @@ function SkillPage(): React.ReactElement {
       const normalizedTargetIds = targetIds.filter(Boolean);
       const keywordForSync =
         typeof syncKeyword === 'undefined' ? keywordRef.current : syncKeyword;
-      message.open({
+      message.loading({
         key: messageKey,
-        type: 'loading',
         content: loadingText,
         duration: 0,
       });
@@ -561,15 +561,15 @@ function SkillPage(): React.ReactElement {
     }
     submittingRef.current = true;
     setSubmitting(true);
+    setDirectoryUploading(true);
     setLoading(true);
     const messageKey = 'skill-directory-upload';
-    message.open({
-      key: messageKey,
-      type: 'loading',
-      content: '正在上传目录并同步文件树...',
-      duration: 0,
-    });
     try {
+      message.loading({
+        key: messageKey,
+        content: '正在上传目录并同步文件树...',
+        duration: 0,
+      });
       const uploadResult = await uploadSkillDirectory(Array.from(files));
       const uploadedNodes = uploadResult.uploadedNodes || [];
       const nextTreeData = uploadResult.tree || [];
@@ -602,6 +602,7 @@ function SkillPage(): React.ReactElement {
       throw error;
     } finally {
       setLoading(false);
+      setDirectoryUploading(false);
       submittingRef.current = false;
       setSubmitting(false);
       if (directoryUploadRef.current) {
@@ -854,7 +855,7 @@ function SkillPage(): React.ReactElement {
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                loading={submitting}
+                disabled={submitting}
                 onClick={() => {
                   form.resetFields();
                   setDialogParentId(0);
@@ -865,7 +866,8 @@ function SkillPage(): React.ReactElement {
               </Button>
               <Button
                 icon={<UploadOutlined />}
-                loading={submitting}
+                loading={directoryUploading}
+                disabled={submitting && !directoryUploading}
                 onClick={() => directoryUploadRef.current?.click()}
               >
                 上传目录
