@@ -7,6 +7,7 @@ import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.util.S3ClientUtil;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
+import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillDirectoryUploadResultDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillFileContentDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillFileTreeNodeDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillImportDto;
@@ -166,7 +167,7 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     }
 
     @Transactional
-    public List<SkillFileTreeNodeDto> uploadDirectory(List<String> paths, MultipartFile[] files) {
+    public SkillDirectoryUploadResultDto uploadDirectory(List<String> paths, MultipartFile[] files) {
         if (files == null || files.length == 0 || paths == null || paths.size() != files.length) {
             throw new BusinessException(ResponseEnum.PARAM_ERROR);
         }
@@ -194,12 +195,15 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             updateById(file);
             uploadedNodes.add(toTreeNode(file));
         }
-        return uploadedNodes.stream()
+        SkillDirectoryUploadResultDto result = new SkillDirectoryUploadResultDto();
+        result.setUploadedNodes(uploadedNodes.stream()
                 .sorted(Comparator
                         .comparing((SkillFileTreeNodeDto node) -> ENTRY_TYPE_FILE.equals(node.getEntryType()))
                         .thenComparing(node -> node.getSortOrder() == null ? 0 : node.getSortOrder())
                         .thenComparing(node -> StringUtils.defaultString(node.getName()), String.CASE_INSENSITIVE_ORDER))
-                .toList();
+                .toList());
+        result.setTree(listTree(null));
+        return result;
     }
 
     @Transactional

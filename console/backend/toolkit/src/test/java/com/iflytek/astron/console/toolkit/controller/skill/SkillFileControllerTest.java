@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.iflytek.astron.console.commons.response.ApiResult;
+import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillDirectoryUploadResultDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillFileContentDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillFileTreeNodeDto;
 import com.iflytek.astron.console.toolkit.service.skill.SkillFileService;
@@ -40,13 +41,17 @@ class SkillFileControllerTest {
         root.setId(1L);
         root.setName("demo");
         root.setEntryType("folder");
-        when(skillFileService.uploadDirectory(same(paths), same(files))).thenReturn(List.of(root));
+        SkillDirectoryUploadResultDto uploadResult = new SkillDirectoryUploadResultDto();
+        uploadResult.setTree(List.of(root));
+        uploadResult.setUploadedNodes(List.of(root));
+        when(skillFileService.uploadDirectory(same(paths), same(files))).thenReturn(uploadResult);
 
-        ApiResult<List<SkillFileTreeNodeDto>> result =
+        ApiResult<SkillDirectoryUploadResultDto> result =
                 skillFileController.uploadDirectory(paths, files);
 
         assertThat(result.code()).isEqualTo(0);
-        assertThat(result.data()).containsExactly(root);
+        assertThat(result.data().getTree()).containsExactly(root);
+        assertThat(result.data().getUploadedNodes()).containsExactly(root);
         verify(skillFileService, times(1)).uploadDirectory(same(paths), same(files));
     }
 

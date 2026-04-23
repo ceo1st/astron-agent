@@ -4,6 +4,7 @@ import {
   CreateSkillFolderParams,
   MoveSkillEntryParams,
   RenameSkillEntryParams,
+  SkillDirectoryUploadResult,
   SkillFileContent,
   SkillImportItem,
   SkillTreeNode,
@@ -52,7 +53,7 @@ export async function uploadSkillFiles(
 
 export async function uploadSkillDirectory(
   files: File[]
-): Promise<SkillTreeNode[]> {
+): Promise<SkillDirectoryUploadResult> {
   const formData = new FormData();
   files.forEach(file => {
     const relativePath =

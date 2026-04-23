@@ -561,30 +561,47 @@ function SkillPage(): React.ReactElement {
     }
     submittingRef.current = true;
     setSubmitting(true);
+    setLoading(true);
+    const messageKey = 'skill-directory-upload';
+    message.open({
+      key: messageKey,
+      type: 'loading',
+      content: '正在上传目录并同步文件树...',
+      duration: 0,
+    });
     try {
-      const uploadedNodes = await uploadSkillDirectory(Array.from(files));
+      const uploadResult = await uploadSkillDirectory(Array.from(files));
+      const uploadedNodes = uploadResult.uploadedNodes || [];
+      const nextTreeData = uploadResult.tree || [];
+      const existingIds = new Set(
+        flattenNodes(nextTreeData).map(node => node.id)
+      );
+      const uploadedFolderIds = uploadedNodes
+        .filter(node => node.entryType === 'folder')
+        .map(node => node.id);
       setKeyword('');
+      setTreeData(nextTreeData);
       setExpandedKeys(prev =>
         mergeExpandedKeys(
-          prev,
-          uploadedNodes
-            .filter(node => node.entryType === 'folder')
-            .map(node => node.id)
+          prev.filter(key => existingIds.has(Number(key))),
+          uploadedFolderIds
         )
       );
-      await syncTreeAfterMutation({
-        targetIds: uploadedNodes.map(node => node.id),
-        expandIds: uploadedNodes
-          .filter(node => node.entryType === 'folder')
-          .map(node => node.id),
-        selectedId: selectedIdRef.current,
-        keyword: '',
-        settleMs: 800,
-        alwaysRefresh: true,
-        loadingText: '正在同步上传目录...',
-        successText: `目录上传完成，共导入 ${files.length} 个文件`,
+      if (selectedIdRef.current && !existingIds.has(selectedIdRef.current)) {
+        setSelectedId(null);
+        setCurrentFile(null);
+        setEditorValue('');
+        setDirty(false);
+      }
+      message.success({
+        key: messageKey,
+        content: `目录上传完成，共导入 ${files.length} 个文件`,
       });
+    } catch (error) {
+      message.destroy(messageKey);
+      throw error;
     } finally {
+      setLoading(false);
       submittingRef.current = false;
       setSubmitting(false);
       if (directoryUploadRef.current) {

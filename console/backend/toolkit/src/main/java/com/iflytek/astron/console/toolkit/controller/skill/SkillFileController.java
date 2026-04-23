@@ -2,6 +2,7 @@ package com.iflytek.astron.console.toolkit.controller.skill;
 
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.toolkit.common.anno.ResponseResultBody;
+import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillDirectoryUploadResultDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillFileContentDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillFileTreeNodeDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillImportDto;
@@ -61,7 +62,7 @@ public class SkillFileController {
     }
 
     @PostMapping("/upload-directory")
-    public ApiResult<List<SkillFileTreeNodeDto>> uploadDirectory(
+    public ApiResult<SkillDirectoryUploadResultDto> uploadDirectory(
             @RequestParam("paths") List<String> paths,
             @RequestPart("files") MultipartFile[] files) {
         return ApiResult.success(skillFileService.uploadDirectory(paths, files));

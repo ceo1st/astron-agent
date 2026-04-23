@@ -13,6 +13,11 @@ export interface SkillTreeNode {
   children?: SkillTreeNode[];
 }
 
+export interface SkillDirectoryUploadResult {
+  tree: SkillTreeNode[];
+  uploadedNodes: SkillTreeNode[];
+}
+
 export interface SkillFileContent {
   id: number;
   parentId: number;
