@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -170,6 +170,65 @@ function SkillPage(): React.ReactElement {
     [loadTree]
   );
 
+  const syncTreeAfterMutation = useCallback(
+    async ({
+      targetIds,
+      expandIds = [],
+      selectedId: nextSelectedId,
+      loadingText,
+      successText,
+    }: {
+      targetIds: number[];
+      expandIds?: Array<number | null | undefined>;
+      selectedId?: number | null;
+      loadingText: string;
+      successText: string;
+    }): Promise<void> => {
+      const messageKey = 'skill-tree-sync';
+      const normalizedTargetIds = targetIds.filter(Boolean);
+      message.open({
+        key: messageKey,
+        type: 'loading',
+        content: loadingText,
+        duration: 0,
+      });
+      try {
+        let synced = false;
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const nextTreeData = await listSkillTree(keywordRef.current || undefined);
+          const flattened = flattenNodes(nextTreeData);
+          const existingIds = new Set(flattened.map(node => node.id));
+          setTreeData(nextTreeData);
+          setExpandedKeys(prev =>
+            mergeExpandedKeys(
+              prev.filter(key => existingIds.has(Number(key))),
+              expandIds
+            )
+          );
+          if (
+            normalizedTargetIds.length === 0 ||
+            normalizedTargetIds.every(id => existingIds.has(id))
+          ) {
+            synced = true;
+            break;
+          }
+          await wait(300);
+        }
+        if (!synced) {
+          await refreshTree(keywordRef.current, nextSelectedId);
+        }
+        message.success({
+          key: messageKey,
+          content: successText,
+        });
+      } catch (error) {
+        message.destroy(messageKey);
+        throw error;
+      }
+    },
+    [message, refreshTree]
+  );
+
   const scheduleRevalidate = useCallback(
     (nextKeyword?: string, nextSelectedId?: number | null): void => {
       if (revalidateTimerRef.current !== null) {
@@ -335,8 +394,13 @@ function SkillPage(): React.ReactElement {
         setExpandedKeys(prev =>
           mergeExpandedKeys(prev, [resolvedParentId, createdFolder.id])
         );
-        message.success('文件夹已创建');
-        await refreshTree(keywordRef.current);
+        await syncTreeAfterMutation({
+          targetIds: [createdFolder.id],
+          expandIds: [resolvedParentId, createdFolder.id],
+          selectedId: createdFolder.id,
+          loadingText: '正在同步目录...',
+          successText: '文件夹已创建',
+        });
       } else if (dialogMode === 'file') {
         const created = await createSkillFile({
           parentId: resolvedParentId,
@@ -346,7 +410,6 @@ function SkillPage(): React.ReactElement {
         setDialogMode(null);
         setDialogParentId(null);
         form.resetFields();
-        message.success('文件已创建');
         setSelectedId(created.id);
         setCurrentFile(created);
         setEditorValue(created.content || '');
@@ -356,6 +419,13 @@ function SkillPage(): React.ReactElement {
           insertTreeNode(prev, toTreeNode(created, resolvedParentId, true))
         );
         setExpandedKeys(prev => mergeExpandedKeys(prev, [resolvedParentId]));
+        await syncTreeAfterMutation({
+          targetIds: [created.id],
+          expandIds: [resolvedParentId],
+          selectedId: created.id,
+          loadingText: '正在同步文件...',
+          successText: '文件已创建',
+        });
       } else if (dialogMode === 'rename' && selectedNode) {
         const renamed = await renameSkillEntry({
           id: selectedNode.id,
@@ -444,7 +514,7 @@ function SkillPage(): React.ReactElement {
     setSubmitting(true);
     try {
       const uploaded = await uploadSkillFiles(parentId, Array.from(files));
-      message.success(`已上传 ${uploaded.length} 个文件`);
+      
       setTreeData(prev =>
         uploaded.reduce(
           (nextTree, file) =>
@@ -453,7 +523,13 @@ function SkillPage(): React.ReactElement {
         )
       );
       setExpandedKeys(prev => mergeExpandedKeys(prev, [parentId]));
-      await refreshTree(keywordRef.current, parentId);
+      await syncTreeAfterMutation({
+        targetIds: uploaded.map(file => file.id),
+        expandIds: [parentId],
+        selectedId: parentId,
+        loadingText: '正在同步上传文件...',
+        successText: `已上传 ${uploaded.length} 个文件`,
+      });
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -473,7 +549,6 @@ function SkillPage(): React.ReactElement {
     setSubmitting(true);
     try {
       const createdRoots = await uploadSkillDirectory(Array.from(files));
-      message.success(`Directory upload success: ${files.length} files`);
       setExpandedKeys(prev =>
         mergeExpandedKeys(
           prev,
@@ -482,7 +557,15 @@ function SkillPage(): React.ReactElement {
             .map(node => node.id)
         )
       );
-      await refreshTree(keywordRef.current, selectedIdRef.current);
+      await syncTreeAfterMutation({
+        targetIds: createdRoots.map(node => node.id),
+        expandIds: createdRoots
+          .filter(node => node.entryType === 'folder')
+          .map(node => node.id),
+        selectedId: selectedIdRef.current,
+        loadingText: '正在同步上传目录...',
+        successText: `目录上传完成，共导入 ${files.length} 个文件`,
+      });
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -553,9 +636,8 @@ function SkillPage(): React.ReactElement {
         </div>
         <div className={styles.emptyTitle}>用文件组织你的 Agent 技能</div>
         <div className={styles.emptyDesc}>
-          推荐以“技能目录 + `SKILL.md` + 辅助脚本/参考文件”的结构管理内容。 这样
-          Agent 节点只注入 `name` 与 `description`，需要细节时再通过 skill
-          工具按需读取完整 `SKILL.md`。
+          推荐使用“技能目录 + SKILL.md + 脚本或参考文件”的结构管理内容。
+          Agent 节点只注入必要的 skill 信息，详细内容按需从目录中读取。
         </div>
         <div className={styles.folderActions}>
           <Button
@@ -569,7 +651,7 @@ function SkillPage(): React.ReactElement {
             新建文件夹
           </Button>
           <Typography.Text type="secondary">
-            先选中一个目录，再在右侧创建文件。
+            先选中一个目录，再在右侧创建文件或上传文件。
           </Typography.Text>
         </div>
       </div>
@@ -585,8 +667,8 @@ function SkillPage(): React.ReactElement {
         </div>
         <div className={styles.emptyTitle}>{selectedNode?.name}</div>
         <div className={styles.emptyDesc}>
-          在这个目录下创建 `SKILL.md`、说明文档、脚本和参考资源。目录中存在
-          `SKILL.md` 时，它会出现在 Agent 节点的 skill 导入列表中。
+          在这个目录下创建 SKILL.md、说明文档、脚本和参考资源。
+          当目录中存在 SKILL.md 时，它会出现在 Agent 节点的 skill 导入列表里。
         </div>
         <div className={styles.folderActions}>
           <Button
@@ -643,7 +725,7 @@ function SkillPage(): React.ReactElement {
           </div>
           <div className={styles.editorSub}>
             {currentFile?.skillName ? (
-              <span>技能名: {currentFile.skillName}</span>
+              <span>鎶€鑳藉悕: {currentFile.skillName}</span>
             ) : null}
             {currentFile?.skillDescription ? (
               <span>{currentFile.skillDescription}</span>
@@ -658,15 +740,14 @@ function SkillPage(): React.ReactElement {
             value={mode}
             onChange={value => setMode(value as 'edit' | 'preview')}
             options={[
-              { label: '编辑', value: 'edit' },
-              { label: '预览', value: 'preview' },
+              { label: '缂栬緫', value: 'edit' },
+              { label: '棰勮', value: 'preview' },
             ]}
           />
           <Button icon={<EditOutlined />} onClick={handleRename}>
-            重命名
-          </Button>
+            閲嶅懡鍚?          </Button>
           <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
-            删除
+            鍒犻櫎
           </Button>
           <Button
             type="primary"
@@ -674,7 +755,7 @@ function SkillPage(): React.ReactElement {
             loading={submitting}
             onClick={() => void handleSave()}
           >
-            保存
+            淇濆瓨
           </Button>
         </div>
       </div>
@@ -729,11 +810,10 @@ function SkillPage(): React.ReactElement {
               <span className={styles.statusDot}></span>
               Resource / Skill
             </div>
-            <div className={styles.title}>Skill 文件系统</div>
+            <div className={styles.title}>Skill 鏂囦欢绯荤粺</div>
             <div className={styles.desc}>
-              用目录组织 `SKILL.md`、脚本和参考文件，支持在线编辑与 Agent
-              节点渐进式加载。
-            </div>
+              鐢ㄧ洰褰曠粍缁?`SKILL.md`銆佽剼鏈拰鍙傝€冩枃浠讹紝鏀寔鍦ㄧ嚎缂栬緫涓?Agent
+              鑺傜偣娓愯繘寮忓姞杞姐€?            </div>
             <div className={styles.toolbar}>
               <Button
                 type="primary"
@@ -744,20 +824,19 @@ function SkillPage(): React.ReactElement {
                   setDialogMode('folder');
                 }}
               >
-                文件夹
-              </Button>
+                鏂囦欢澶?              </Button>
               <Button
                 icon={<UploadOutlined />}
                 onClick={() => directoryUploadRef.current?.click()}
               >
-                上传目录
+                涓婁紶鐩綍
               </Button>
             </div>
             {loading ? (
-              <Typography.Text type="secondary">加载中...</Typography.Text>
+              <Typography.Text type="secondary">鍔犺浇涓?..</Typography.Text>
             ) : keyword ? (
               <Typography.Text type="secondary">
-                当前筛选: {keyword}
+                褰撳墠绛涢€? {keyword}
               </Typography.Text>
             ) : null}
           </div>
@@ -795,7 +874,7 @@ function SkillPage(): React.ReactElement {
         open={deleteTarget !== null}
         title={
           deleteTarget
-            ? `删除${deleteTarget.entryType === 'folder' ? '文件夹' : '文件'}？`
+            ? `删除${deleteTarget.entryType === 'folder' ? '文件夹' : '文件'}`
             : '删除'
         }
         okText="删除"
@@ -812,7 +891,7 @@ function SkillPage(): React.ReactElement {
       >
         <Typography.Text>
           {deleteTarget?.entryType === 'folder'
-            ? '删除后会同时移除其下所有 Skill 文件。'
+            ? '删除后会同时移除该目录下的全部文件和子目录。'
             : '删除后不可恢复。'}
         </Typography.Text>
       </Modal>
@@ -877,6 +956,12 @@ function mergeExpandedKeys(
     }
   });
   return Array.from(keySet);
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise(resolve => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 function toTreeNode(
@@ -1073,3 +1158,4 @@ function resolveLanguage(fileExt?: string): string {
 }
 
 export default SkillPage;
+
