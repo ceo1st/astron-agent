@@ -179,7 +179,6 @@ function SkillPage(): React.ReactElement {
       keyword: syncKeyword,
       settleMs = 0,
       alwaysRefresh = false,
-      loadingText,
       successText,
     }: {
       targetIds: number[];
@@ -188,13 +187,11 @@ function SkillPage(): React.ReactElement {
       keyword?: string;
       settleMs?: number;
       alwaysRefresh?: boolean;
-      loadingText: string;
       successText: string;
     }): Promise<void> => {
       const normalizedTargetIds = targetIds.filter(Boolean);
       const keywordForSync =
         typeof syncKeyword === 'undefined' ? keywordRef.current : syncKeyword;
-      const closeLoading = message.loading(loadingText, 0);
       setLoading(true);
       try {
         let synced = false;
@@ -224,11 +221,7 @@ function SkillPage(): React.ReactElement {
         if (!synced || alwaysRefresh) {
           await refreshTree(keywordForSync, nextSelectedId);
         }
-        closeLoading();
         message.success(successText);
-      } catch (error) {
-        closeLoading();
-        throw error;
       } finally {
         setLoading(false);
       }
@@ -405,7 +398,6 @@ function SkillPage(): React.ReactElement {
           targetIds: [createdFolder.id],
           expandIds: [resolvedParentId, createdFolder.id],
           selectedId: createdFolder.id,
-          loadingText: '正在同步目录...',
           successText: '文件夹已创建',
         });
       } else if (dialogMode === 'file') {
@@ -430,7 +422,6 @@ function SkillPage(): React.ReactElement {
           targetIds: [created.id],
           expandIds: [resolvedParentId],
           selectedId: created.id,
-          loadingText: '正在同步文件...',
           successText: '文件已创建',
         });
       } else if (dialogMode === 'rename' && selectedNode) {
@@ -534,7 +525,6 @@ function SkillPage(): React.ReactElement {
         targetIds: uploaded.map(file => file.id),
         expandIds: [parentId],
         selectedId: parentId,
-        loadingText: '正在同步上传文件...',
         successText: `已上传 ${uploaded.length} 个文件`,
       });
     } finally {
@@ -556,7 +546,6 @@ function SkillPage(): React.ReactElement {
     setSubmitting(true);
     setDirectoryUploading(true);
     setLoading(true);
-    const closeLoading = message.loading('正在上传目录并同步文件树...', 0);
     try {
       const uploadResult = await uploadSkillDirectory(Array.from(files));
       const uploadedNodes = uploadResult.uploadedNodes || [];
@@ -581,10 +570,8 @@ function SkillPage(): React.ReactElement {
         setEditorValue('');
         setDirty(false);
       }
-      closeLoading();
       message.success(`目录上传完成，共导入 ${files.length} 个文件`);
     } catch (error) {
-      closeLoading();
       message.error('目录上传失败，请稍后重试');
     } finally {
       setLoading(false);
