@@ -1,6 +1,7 @@
 package com.iflytek.astron.console.toolkit.controller.skill;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -44,15 +45,30 @@ class SkillFileControllerTest {
         SkillDirectoryUploadResultDto uploadResult = new SkillDirectoryUploadResultDto();
         uploadResult.setTree(List.of(root));
         uploadResult.setUploadedNodes(List.of(root));
-        when(skillFileService.uploadDirectory(same(paths), same(files))).thenReturn(uploadResult);
+        when(skillFileService.uploadDirectory(eq(paths), same(files))).thenReturn(uploadResult);
 
         ApiResult<SkillDirectoryUploadResultDto> result =
-                skillFileController.uploadDirectory(paths, files);
+                skillFileController.uploadDirectory(paths, null, files);
 
         assertThat(result.code()).isEqualTo(0);
         assertThat(result.data().getTree()).containsExactly(root);
         assertThat(result.data().getUploadedNodes()).containsExactly(root);
-        verify(skillFileService, times(1)).uploadDirectory(same(paths), same(files));
+        verify(skillFileService, times(1)).uploadDirectory(eq(paths), same(files));
+    }
+
+    @Test
+    @DisplayName("upload directory should parse paths json and delegate to service")
+    void uploadDirectory_shouldParsePathsJsonAndDelegateToService() {
+        List<String> paths = List.of("demo/SKILL.md", "demo/scripts/run.py");
+        MultipartFile[] files = new MultipartFile[] {multipartFile, multipartFile};
+        SkillDirectoryUploadResultDto uploadResult = new SkillDirectoryUploadResultDto();
+        when(skillFileService.uploadDirectory(eq(paths), same(files))).thenReturn(uploadResult);
+
+        ApiResult<SkillDirectoryUploadResultDto> result =
+                skillFileController.uploadDirectory(null, "[\"demo/SKILL.md\",\"demo/scripts/run.py\"]", files);
+
+        assertThat(result.code()).isEqualTo(0);
+        verify(skillFileService, times(1)).uploadDirectory(eq(paths), same(files));
     }
 
     @Test

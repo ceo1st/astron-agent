@@ -55,13 +55,15 @@ export async function uploadSkillDirectory(
   files: File[]
 ): Promise<SkillDirectoryUploadResult> {
   const formData = new FormData();
+  const relativePaths: string[] = [];
   files.forEach(file => {
     const relativePath =
       (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
       file.name;
-    formData.append('paths', relativePath);
+    relativePaths.push(relativePath);
     formData.append('files', file);
   });
+  formData.append('pathsJson', JSON.stringify(relativePaths));
   return await http.post('/skill-file/upload-directory', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });

@@ -1,5 +1,10 @@
 package com.iflytek.astron.console.toolkit.controller.skill;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.iflytek.astron.console.commons.constant.ResponseEnum;
+import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.toolkit.common.anno.ResponseResultBody;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillDirectoryUploadResultDto;
@@ -29,6 +34,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/skill-file")
 @ResponseResultBody
 public class SkillFileController {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Resource
     private SkillFileService skillFileService;
@@ -63,9 +70,10 @@ public class SkillFileController {
 
     @PostMapping("/upload-directory")
     public ApiResult<SkillDirectoryUploadResultDto> uploadDirectory(
-            @RequestParam("paths") List<String> paths,
+            @RequestParam(value = "paths", required = false) List<String> paths,
+            @RequestParam(value = "pathsJson", required = false) String pathsJson,
             @RequestPart("files") MultipartFile[] files) {
-        return ApiResult.success(skillFileService.uploadDirectory(paths, files));
+        return ApiResult.success(skillFileService.uploadDirectory(resolvePaths(paths, pathsJson), files));
     }
 
     @PutMapping("/content")
@@ -94,5 +102,19 @@ public class SkillFileController {
     public ApiResult<List<SkillImportDto>> importable(
             @RequestParam(value = "keyword", required = false) String keyword) {
         return ApiResult.success(skillFileService.listImportableSkills(keyword));
+    }
+
+    private List<String> resolvePaths(List<String> paths, String pathsJson) {
+        if (paths != null && !paths.isEmpty()) {
+            return paths;
+        }
+        if (pathsJson == null || pathsJson.isBlank()) {
+            throw new BusinessException(ResponseEnum.PARAM_ERROR);
+        }
+        try {
+            return OBJECT_MAPPER.readValue(pathsJson, new TypeReference<List<String>>() {});
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ResponseEnum.PARAM_ERROR);
+        }
     }
 }
