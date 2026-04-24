@@ -33,10 +33,18 @@ class CustomCompletionPluginKnowledgeInputs(BaseModel):
 
 
 class CustomCompletionPluginSkillInputs(BaseModel):
+    class ResourceInputs(BaseModel):
+        path: str = Field(..., min_length=1)
+        name: str = Field(default="")
+        download_url: str = Field(default="")
+        file_ext: str = Field(default="")
+        file_size: int = Field(default=0)
+
     skill_id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1, max_length=128)
     description: str = Field(default="", min_length=0, max_length=1024)
     download_url: str = Field(default="")
+    resources: list[ResourceInputs] = Field(default_factory=list)
 
 
 class CustomCompletionPluginInputs(BaseModel):

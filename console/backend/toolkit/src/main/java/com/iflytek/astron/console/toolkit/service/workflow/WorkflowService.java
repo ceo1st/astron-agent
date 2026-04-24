@@ -2408,6 +2408,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 skillObj.put("name", StringUtils.defaultString(importDto.getName()));
                 skillObj.put("description", StringUtils.defaultString(importDto.getDescription()));
                 skillObj.put("downloadUrl", StringUtils.defaultString(importDto.getDownloadUrl()));
+                skillObj.put("resources", importDto.getResources());
             } catch (NumberFormatException ex) {
                 log.warn("Ignore invalid skill id while enriching: {}", skillIdObj);
             }

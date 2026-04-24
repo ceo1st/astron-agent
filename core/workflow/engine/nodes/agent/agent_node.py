@@ -100,12 +100,21 @@ class Skill(BaseModel):
     :param name: Skill display name
     :param description: Short summary injected into system prompt
     :param downloadUrl: Presigned URL for lazily reading full SKILL.md content
+    :param resources: Relative-path resource manifest for referenced files
     """
+
+    class Resource(BaseModel):
+        path: str = Field(min_length=1)
+        name: str = Field(default="")
+        downloadUrl: str = Field(default="")
+        fileExt: str = Field(default="")
+        fileSize: int = Field(default=0)
 
     skillId: str = Field(..., min_length=1)
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(min_length=0, max_length=1024)
     downloadUrl: str = Field(default="")
+    resources: List[Resource] = Field(default_factory=list)
 
     @field_validator("skillId", mode="before")
     @classmethod
@@ -356,7 +365,8 @@ class AgentNode(BaseNode):
         skill_context = (
             "\n\nAvailable Skills:\n"
             + "\n".join(skill_lines)
-            + "\nIf detailed procedures are required, call the corresponding skill tool to read the full SKILL.md content."
+            + "\nIf detailed procedures are required, call the corresponding skill tool to read SKILL.md and the resource manifest."
+            + "\nWhen SKILL.md references a relative file path like references/beijing.md, call the same tool again with that path."
         )
         return reasoning_instruction + skill_context, answer_instruction + skill_context
 

@@ -11,6 +11,7 @@ import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillDirectoryUploadR
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillFileContentDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillFileTreeNodeDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillImportDto;
+import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillImportResourceDto;
 import com.iflytek.astron.console.toolkit.entity.table.skill.SkillFile;
 import com.iflytek.astron.console.toolkit.entity.vo.skill.SkillFileCreateFolderReq;
 import com.iflytek.astron.console.toolkit.entity.vo.skill.SkillFileCreateReq;
@@ -335,7 +336,12 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     }
 
     public List<SkillImportDto> listImportableSkills(String keyword) {
-        List<SkillFile> files = listScopedEntries().stream()
+        List<SkillFile> scopedEntries = listScopedEntries();
+        Map<Long, SkillFile> entryMap = scopedEntries.stream()
+                .collect(Collectors.toMap(SkillFile::getId, item -> item));
+        Map<Long, List<SkillFile>> childrenMap = scopedEntries.stream()
+                .collect(Collectors.groupingBy(SkillFile::getParentId));
+        List<SkillFile> files = scopedEntries.stream()
                 .filter(item -> ENTRY_TYPE_FILE.equals(item.getEntryType()) && isSkillFile(item.getName()))
                 .filter(item -> StringUtils.isBlank(keyword) || matchesSkillKeyword(item, keyword.trim()))
                 .sorted(Comparator.comparing(SkillFile::getUpdateTime, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
@@ -353,6 +359,7 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             if (StringUtils.isNotBlank(file.getObjectKey())) {
                 dto.setDownloadUrl(s3ClientUtil.generatePresignedGetUrl(file.getObjectKey()));
             }
+            dto.setResources(buildSkillResources(file, entryMap, childrenMap));
             result.add(dto);
         }
         return result;
@@ -569,6 +576,70 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         return getOne(scopeQuery()
                 .eq(SkillFile::getParentId, parentId)
                 .eq(SkillFile::getName, name), false);
+    }
+
+    private List<SkillImportResourceDto> buildSkillResources(
+            SkillFile skillFile,
+            Map<Long, SkillFile> entryMap,
+            Map<Long, List<SkillFile>> childrenMap) {
+        if (skillFile == null || skillFile.getParentId() == null || skillFile.getParentId() == 0L) {
+            return Collections.emptyList();
+        }
+        SkillFile rootFolder = entryMap.get(skillFile.getParentId());
+        if (rootFolder == null || !ENTRY_TYPE_FOLDER.equals(rootFolder.getEntryType())) {
+            return Collections.emptyList();
+        }
+
+        List<SkillImportResourceDto> resources = new ArrayList<>();
+        Deque<SkillFile> queue = new ArrayDeque<>(childrenMap.getOrDefault(rootFolder.getId(), Collections.emptyList()));
+        while (!queue.isEmpty()) {
+            SkillFile current = queue.poll();
+            if (current == null || Objects.equals(current.getId(), skillFile.getId())) {
+                continue;
+            }
+            if (ENTRY_TYPE_FOLDER.equals(current.getEntryType())) {
+                queue.addAll(childrenMap.getOrDefault(current.getId(), Collections.emptyList()));
+                continue;
+            }
+            if (!ENTRY_TYPE_FILE.equals(current.getEntryType())
+                    || isSkillFile(current.getName())
+                    || StringUtils.isBlank(current.getObjectKey())) {
+                continue;
+            }
+            String relativePath = buildRelativeResourcePath(current, rootFolder.getId(), entryMap);
+            if (StringUtils.isBlank(relativePath)) {
+                continue;
+            }
+            SkillImportResourceDto dto = new SkillImportResourceDto();
+            dto.setPath(relativePath);
+            dto.setName(current.getName());
+            dto.setDownloadUrl(s3ClientUtil.generatePresignedGetUrl(current.getObjectKey()));
+            dto.setFileExt(current.getFileExt());
+            dto.setFileSize(current.getFileSize());
+            resources.add(dto);
+        }
+        resources.sort(Comparator.comparing(SkillImportResourceDto::getPath, String.CASE_INSENSITIVE_ORDER));
+        return resources;
+    }
+
+    private String buildRelativeResourcePath(
+            SkillFile file,
+            Long rootFolderId,
+            Map<Long, SkillFile> entryMap) {
+        if (file == null || rootFolderId == null) {
+            return "";
+        }
+        Deque<String> segments = new ArrayDeque<>();
+        SkillFile cursor = file;
+        while (cursor != null && !Objects.equals(cursor.getId(), rootFolderId)) {
+            segments.addFirst(cursor.getName());
+            Long parentId = cursor.getParentId();
+            if (parentId == null || parentId == 0L) {
+                return "";
+            }
+            cursor = entryMap.get(parentId);
+        }
+        return cursor == null ? "" : String.join("/", segments);
     }
 
     private String normalizeFolderName(String name) {

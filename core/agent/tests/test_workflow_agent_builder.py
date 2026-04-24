@@ -192,6 +192,7 @@ class TestWorkflowAgentRunnerBuilder:
                 "name": "ui-ux-pro-max",
                 "description": "Design reference skill",
                 "download_url": "https://example.com/skill.md",
+                "resources": [],
             }
         ]
 
