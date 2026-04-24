@@ -8,7 +8,7 @@ Uses Pydantic for data validation and serialization
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class RAGType(str, Enum):
@@ -33,6 +33,7 @@ class FileSplitReq(BaseModel):
         separator: Separator list, optional
         cutOff: Cutoff marker list, optional
         titleSplit: Whether to split by title, default is False
+        documentId: Existing RAGFlow doc id for re-slice upsert, optional
     """
 
     file: str = Field(..., min_length=1, description="Required, minimum length 1")
@@ -48,6 +49,13 @@ class FileSplitReq(BaseModel):
     cutOff: Optional[List[str]] = Field(default=None, description="Cutoff marker list")
     titleSplit: Optional[bool] = Field(
         default=False, description="Whether to split by title"
+    )
+    documentId: Optional[str] = Field(
+        default=None,
+        description=(
+            "Existing RAGFlow doc id, triggers blue-green upsert. "
+            "Omit or leave empty for first-time slicing."
+        ),
     )
 
 
@@ -133,22 +141,93 @@ class QueryMatch(BaseModel):
     flowId: Optional[str] = Field(default=None, description="Flow ID")
 
 
+class RagflowQueryExt(BaseModel):
+    """
+    Optional RAGFlow-specific retrieval parameters.
+
+    Fields are mapped to the RAGFlow retrieval request. Only consumed when
+    ragType=Ragflow-RAG.
+    """
+
+    top_k: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=200,
+        description=(
+            "RAGFlow result limit (1~200). When set, replaces topN as the "
+            "effective result cap."
+        ),
+    )
+    vector_similarity_weight: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Vector-vs-keyword blend weight (0~1).",
+    )
+    keyword: Optional[bool] = Field(
+        default=None,
+        description="Enable keyword (BM25) matching.",
+    )
+    rerank_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="RAGFlow rerank model identifier.",
+    )
+    highlight: Optional[bool] = Field(
+        default=None,
+        description="Return matched-term highlights.",
+    )
+    use_kg: Optional[bool] = Field(
+        default=None,
+        description="Consult RAGFlow knowledge graph during retrieval.",
+    )
+
+
 class ChunkQueryReq(BaseModel):
     """
     Chunk query request model
 
     Attributes:
         query: Query text, required
-        topN: Number of results to return, range 1~5
+        topN: Default result limit (1~5); overridden by ragflow_ext.top_k
+              when provided.
+        rewrite: Whether to rewrite the query before retrieval.
         match: Matching conditions
         ragType: RAG type
+        history: Conversation history used during rewrite
+        ragflow_ext: Optional RAGFlow-specific retrieval parameters;
+                     rejected with other RAG types.
     """
 
     query: str = Field(..., min_length=1, description="Required, minimum length 1")
     topN: int = Field(..., ge=1, le=5, description="Required, range 1~5")
+    rewrite: bool = Field(
+        default=True,
+        description=(
+            "Whether to rewrite the query before retrieval. Set False to "
+            "send the raw query (useful for keyword / highlight matching)."
+        ),
+    )
     match: QueryMatch = Field(..., description="Matching conditions")
     ragType: RAGType = Field(..., description="RAG type")
     history: List[Dict[str, Any]] = Field(default_factory=list)
+    ragflow_ext: Optional[RagflowQueryExt] = Field(
+        default=None,
+        description=(
+            "Optional RAGFlow-specific retrieval parameters. Requires "
+            "ragType=Ragflow-RAG; other RAG types return a validation "
+            "error. When ragflow_ext.top_k is set, it overrides topN."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _ragflow_ext_scope_check(self) -> "ChunkQueryReq":
+        if self.ragflow_ext is not None and self.ragType != RAGType.RagFlow_RAG:
+            raise ValueError(
+                f"ragflow_ext is only allowed when ragType='Ragflow-RAG', "
+                f"got ragType='{self.ragType.value}'"
+            )
+        return self
 
 
 class QueryDocReq(BaseModel):

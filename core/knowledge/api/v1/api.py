@@ -6,7 +6,7 @@ including document splitting, knowledge chunk saving, updating, deleting, queryi
 """
 
 import json
-from typing import Any, Callable, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
@@ -179,6 +179,7 @@ async def file_split(
             separator=split_request.separator,
             titleSplit=split_request.titleSplit,
             cutOff=split_request.cutOff,
+            document_id=split_request.documentId,
         )
 
 
@@ -417,22 +418,36 @@ async def chunk_query(
         span_context.add_info_events(
             {"usr_input": json.dumps(request_dict, ensure_ascii=False)}
         )
+        span_context.add_info_events({"rewrite_enabled": str(query_request.rewrite)})
+
         strategy = RAGStrategyFactory.get_strategy(query_request.ragType)
 
-        new_query = await rewrite_query(
-            query_request.query, history=query_request.history, span=span_context
+        # rewrite=False sends the raw query (for keyword/highlight matching).
+        effective_query = (
+            await rewrite_query(
+                query_request.query, history=query_request.history, span=span_context
+            )
+            if query_request.rewrite
+            else query_request.query
         )
+
+        # Only forward ragflow_ext when set, so other strategies' kwargs
+        # stay unchanged.
+        extra_kwargs: Dict[str, Any] = {}
+        if query_request.ragflow_ext is not None:
+            extra_kwargs["ragflow_ext"] = query_request.ragflow_ext
 
         return await handle_rag_operation(
             span_context=span_context,
             metric=metric,
             operation_callable=strategy.query,
-            query=new_query,
+            query=effective_query,
             doc_ids=query_request.match.docIds,
             repo_ids=query_request.match.repoId,
             top_k=query_request.topN,
             threshold=query_request.match.threshold,
             flow_id=query_request.match.flowId,
+            **extra_kwargs,
         )
 
 

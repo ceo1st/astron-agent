@@ -512,6 +512,55 @@ async def test_split_preserves_custom_exception_from_upsert(
     assert exc_info.value.code == CodeEnum.ChunkDeleteFailed.code
 
 
+@pytest.mark.asyncio
+async def test_split_prefers_kwargs_group_over_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """split() honors kwargs['group'] over the env-loaded default."""
+    strategy = RagflowRAGStrategy()
+    captured: dict[str, Any] = {}
+
+    async def fake_ensure_dataset(group: str) -> str:
+        captured["group"] = group
+        return "ds-1"
+
+    async def fake_get_document_chunks(dataset_id: str, doc_id: str) -> list[Any]:
+        return []
+
+    monkeypatch.setattr(
+        "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_dataset",
+        fake_ensure_dataset,
+    )
+    monkeypatch.setattr(
+        "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_document_chunks",
+        fake_get_document_chunks,
+    )
+    monkeypatch.setattr(
+        "knowledge.service.impl.ragflow_strategy.RagflowUtils.convert_to_standard_format",
+        lambda doc_id, chunks: [],
+    )
+
+    with (
+        patch.object(
+            strategy,
+            "_process_document_upload",
+            new=AsyncMock(return_value="some-doc-id"),
+        ),
+        patch.object(
+            strategy,
+            "_handle_document_parsing",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        await strategy.split(
+            file=object(),
+            document_id=None,
+            group="UserProvidedKB",
+        )
+
+    assert captured["group"] == "UserProvidedKB"
+
+
 # ----------------------------------------------------------------------
 # Section D: /knowledge/v1/document/upload — documentId form field passthrough
 # ----------------------------------------------------------------------
@@ -649,6 +698,88 @@ def test_file_upload_endpoint_with_document_id_passes_value_to_strategy(
     data = {"ragType": "Ragflow-RAG", "documentId": "doc-old"}
 
     resp = client.post("/knowledge/v1/document/upload", files=files, data=data)
+
+    assert (
+        resp.status_code == 200
+    ), f"Expected 200, got {resp.status_code}, body={resp.text}"
+    assert (
+        captured.get("document_id") == "doc-old"
+    ), f"Expected document_id='doc-old', got {captured.get('document_id')!r}"
+
+
+def test_file_split_endpoint_no_document_id_passes_none_to_strategy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POST /knowledge/v1/document/split WITHOUT documentId JSON field =>
+    strategy.split receives document_id=None."""
+    from fastapi.testclient import TestClient
+
+    app, _api_module = _build_test_app_for_upload(monkeypatch)
+
+    captured: dict[str, Any] = {}
+
+    async def fake_split(self: Any, **kwargs: Any) -> list[Any]:
+        captured.update(kwargs)
+        captured.pop("span", None)
+        return []
+
+    from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
+
+    monkeypatch.setattr(RagflowRAGStrategy, "split", fake_split)
+
+    from knowledge.api.v1.api import get_app_id
+
+    app.dependency_overrides[get_app_id] = lambda: "test-app"
+
+    client = TestClient(app)
+    resp = client.post(
+        "/knowledge/v1/document/split",
+        json={"file": "https://example.com/a.txt", "ragType": "Ragflow-RAG"},
+    )
+
+    assert (
+        resp.status_code == 200
+    ), f"Expected 200, got {resp.status_code}, body={resp.text}"
+    assert (
+        "document_id" in captured
+    ), "Expected split() to receive document_id kwarg (value may be None)"
+    assert captured["document_id"] is None
+
+
+def test_file_split_endpoint_with_document_id_passes_value_to_strategy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POST /knowledge/v1/document/split WITH documentId=doc-old =>
+    strategy.split receives document_id='doc-old' so the upsert path
+    deduplicates the re-slice instead of creating a new RAGFlow doc."""
+    from fastapi.testclient import TestClient
+
+    app, _api_module = _build_test_app_for_upload(monkeypatch)
+
+    captured: dict[str, Any] = {}
+
+    async def fake_split(self: Any, **kwargs: Any) -> list[Any]:
+        captured.update(kwargs)
+        captured.pop("span", None)
+        return []
+
+    from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
+
+    monkeypatch.setattr(RagflowRAGStrategy, "split", fake_split)
+
+    from knowledge.api.v1.api import get_app_id
+
+    app.dependency_overrides[get_app_id] = lambda: "test-app"
+
+    client = TestClient(app)
+    resp = client.post(
+        "/knowledge/v1/document/split",
+        json={
+            "file": "https://example.com/a.txt",
+            "ragType": "Ragflow-RAG",
+            "documentId": "doc-old",
+        },
+    )
 
     assert (
         resp.status_code == 200

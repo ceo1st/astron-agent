@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional, Union
 import aiohttp
 from fastapi import UploadFile
 
+from knowledge.consts.error_code import CodeEnum
+from knowledge.exceptions.exception import ThirdPartyException
 from knowledge.infra.ragflow.ragflow_client import (
     create_dataset,
     list_datasets,
@@ -24,6 +26,9 @@ from knowledge.infra.ragflow.ragflow_client import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Fallback dataset name when ``RAGFLOW_DEFAULT_GROUP`` is unset or empty.
+DEFAULT_RAGFLOW_DATASET_NAME = "Stellar Knowledge Base"
 
 # Module-level locks for dataset creation to prevent race conditions
 _dataset_locks: Dict[str, asyncio.Lock] = {}
@@ -35,29 +40,33 @@ class RagflowUtils:
 
     @staticmethod
     def get_default_dataset_name() -> str:
-        """
-        Get default dataset name from environment variable
-        """
-        return os.getenv("RAGFLOW_DEFAULT_GROUP", "Stellar Knowledge Base")
+        """Return ``RAGFLOW_DEFAULT_GROUP`` or ``DEFAULT_RAGFLOW_DATASET_NAME`` (unset/empty fall back)."""
+        return os.getenv("RAGFLOW_DEFAULT_GROUP") or DEFAULT_RAGFLOW_DATASET_NAME
 
     @staticmethod
     async def get_dataset_id_by_name(dataset_name: str) -> Optional[str]:
-        """
-        Get dataset ID by dataset name
-        """
-        try:
-            from knowledge.infra.ragflow import ragflow_client
+        """Look up a dataset ID by name.
 
-            datasets_response = await ragflow_client.list_datasets(name=dataset_name)
-            if datasets_response.get("code") == 0:
-                datasets = datasets_response.get("data", [])
-                for dataset in datasets:
-                    if dataset.get("name") == dataset_name:
-                        return dataset.get("id")
+        Returns ``None`` only when RAGFlow successfully returns no matching
+        dataset (``code == 0`` with empty data). Raises
+        ``ThirdPartyException`` for non-zero RAGFlow codes; transport
+        exceptions propagate.
+        """
+        from knowledge.infra.ragflow import ragflow_client
+
+        datasets_response = await ragflow_client.list_datasets(name=dataset_name)
+        code = datasets_response.get("code")
+        if code == 0:
+            datasets = datasets_response.get("data", [])
+            for dataset in datasets:
+                if dataset.get("name") == dataset_name:
+                    return dataset.get("id")
             return None
-        except Exception as e:
-            logger.error(f"Failed to find dataset: {e}")
-            return None
+        msg = datasets_response.get("message", "Unknown error")
+        raise ThirdPartyException(
+            msg=f"RAGFlow list_datasets name={dataset_name}: code={code} message={msg}",
+            e=CodeEnum.RAGFLOW_RAGError,
+        )
 
     @staticmethod
     def convert_ragflow_query_response(
