@@ -335,6 +335,19 @@ export const exportWorkflowTemplate = (params: {
   return http.post(`/workflow/bot/exportTemplate`, params);
 };
 
+export const exportWorkflowSkill = (params: {
+  botId: number | string;
+  workflowId: number | string;
+  workflowName: string;
+  workflowDescription: string;
+}): Promise<{
+  fileName: string;
+  content: string;
+  aiGeneratedMetadata: boolean;
+}> => {
+  return http.post(`/workflow/bot/exportSkill`, params);
+};
+
 export const deleteWorkflowTemplate = (
   templateId: number | string
 ): Promise<any> => {

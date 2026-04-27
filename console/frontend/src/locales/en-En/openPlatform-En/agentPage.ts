@@ -31,7 +31,12 @@ const transition = {
     copy: 'Copy',
     export: 'Export',
     exportTemplate: 'Export as Template',
+    exportSkill: 'Export as Skill',
     delete: 'Delete',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    workflowName: 'Workflow Name',
+    workflowDescription: 'Workflow Description',
     copySuccess: 'Copy successful!',
     createAgent: 'Create Agent',
     copyToVirtualAgent: 'Copy as Digital Vocal Agent',
@@ -39,6 +44,13 @@ const transition = {
     copyToVirtualSuccess: 'Copy successful',
     exportTemplateSuccess: 'Template exported successfully',
     exportTemplateFailed: 'Failed to export template',
+    exportSkillConfirmTitle: 'Export as Skill',
+    exportSkillConfirmContent:
+      'Confirm that the workflow name and description are accurate and clear. Canceling will stop the Skill export.',
+    exportSkillNameDescRequired:
+      'Please complete the workflow name and description first',
+    exportSkillSuccess: 'Skill exported successfully',
+    exportSkillFailed: 'Failed to export Skill',
   },
   deleteBot: {
     confirmDelete: 'Confirm deletion of agent?',

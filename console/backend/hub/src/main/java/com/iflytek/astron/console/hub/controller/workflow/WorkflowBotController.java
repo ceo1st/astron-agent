@@ -14,9 +14,12 @@ import com.iflytek.astron.console.commons.util.RequestContextUtil;
 import com.iflytek.astron.console.hub.entity.WorkflowTemplateGroup;
 import com.iflytek.astron.console.hub.entity.maas.MaasDuplicate;
 import com.iflytek.astron.console.hub.entity.maas.MaasTemplate;
+import com.iflytek.astron.console.hub.entity.maas.WorkflowSkillExportRequest;
+import com.iflytek.astron.console.hub.entity.maas.WorkflowSkillExportResponse;
 import com.iflytek.astron.console.hub.entity.maas.WorkflowTemplateExportRequest;
 import com.iflytek.astron.console.hub.entity.maas.WorkflowTemplateQueryDto;
 import com.iflytek.astron.console.hub.service.workflow.BotMaasService;
+import com.iflytek.astron.console.hub.service.workflow.WorkflowSkillExportService;
 import com.iflytek.astron.console.hub.service.workflow.WorkflowTemplateGroupService;
 import com.iflytek.astron.console.hub.util.BotPermissionUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,6 +48,9 @@ public class WorkflowBotController {
 
     @Autowired
     private BotMaasService botMaasService;
+
+    @Autowired
+    private WorkflowSkillExportService workflowSkillExportService;
 
     @Autowired
     private BotPermissionUtil botPermissionUtil;
@@ -84,6 +90,13 @@ public class WorkflowBotController {
             @RequestBody WorkflowTemplateExportRequest exportRequest) {
         String uid = RequestContextUtil.getUID();
         return ApiResult.success(botMaasService.exportTemplate(uid, exportRequest));
+    }
+
+    @PostMapping("/exportSkill")
+    @Operation(summary = "workflow skill", description = "Export workflow as Agent Skill")
+    public ApiResult<WorkflowSkillExportResponse> exportSkill(HttpServletRequest request,
+            @RequestBody WorkflowSkillExportRequest exportRequest) {
+        return ApiResult.success(workflowSkillExportService.exportSkill(exportRequest));
     }
 
     @DeleteMapping("/template/{id}")

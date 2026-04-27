@@ -281,6 +281,8 @@ public enum ResponseEnum {
     PROMPT_GROUP_PROMPT_CANNOT_EMPTY(8124, "prompt.group.prompt.cannot.empty"),
     WORKFLOW_DLS_UPLOAD_FAILED(8125, "work.flow.dls.upload.failed"),
     WORKFLOW_MCP_SERVER_REGISTRY_FAILED(8126, "work.flow.mcp.server.registry.failed"),
+    WORKFLOW_SKILL_API_NOT_READY(8127, "workflow.skill.api.not.ready"),
+    WORKFLOW_SKILL_NAME_DESC_EMPTY(8128, "workflow.skill.name.desc.empty"),
 
 
     // Plugins 8300 - 8500

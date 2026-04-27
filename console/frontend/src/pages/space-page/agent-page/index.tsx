@@ -1,12 +1,13 @@
 import React, { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Input, message, Popover, Select, Tooltip } from 'antd';
+import { Input, message, Modal, Popover, Select, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { throttle } from 'lodash';
 import { enableBotFavorite } from '@/services/agent'; // NOTE: 需更换接口
 import { useTranslation } from 'react-i18next';
 import {
+  BotData,
   getAgentList,
   copyBot,
   GetAgentListParams,
@@ -39,11 +40,17 @@ import { PlusOutlined } from '@ant-design/icons';
 
 import VirtualConfig from '@/components/virtual-config-modal';
 import {
+  exportWorkflowSkill,
   exportWorkflowTemplate,
   upgradeWorkflow,
 } from '@/services/spark-common';
 
 dayjs.extend(utc);
+
+type WorkflowSkillAgent = Pick<
+  BotData,
+  'botId' | 'maasId' | 'botName' | 'botDesc'
+>;
 
 function index() {
   const creatorLabel = '\u521b\u5efa\u4eba\uff1a';
@@ -280,6 +287,70 @@ function index() {
     botId: number
   ): Promise<void> => {
     await handleShare(botName, botId, t);
+  };
+
+  const downloadSkillFile = (fileName: string, content: string): void => {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'SKILL.md';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSkill = (
+    e: React.MouseEvent<HTMLDivElement>,
+    bot: WorkflowSkillAgent
+  ): void => {
+    e.stopPropagation();
+    setOperationId(null);
+
+    const workflowName = (bot?.botName || '').trim();
+    const workflowDescription = (bot?.botDesc || '').trim();
+    if (!workflowName || !workflowDescription) {
+      message.warning(t('agentPage.agentPage.exportSkillNameDescRequired'));
+      return;
+    }
+
+    Modal.confirm({
+      title: t('agentPage.agentPage.exportSkillConfirmTitle'),
+      content: (
+        <div>
+          <p>{t('agentPage.agentPage.exportSkillConfirmContent')}</p>
+          <p>
+            {t('agentPage.agentPage.workflowName')}：{workflowName}
+          </p>
+          <p>
+            {t('agentPage.agentPage.workflowDescription')}：
+            {workflowDescription}
+          </p>
+        </div>
+      ),
+      okText: t('agentPage.agentPage.confirm'),
+      cancelText: t('agentPage.agentPage.cancel'),
+      onOk: async () => {
+        try {
+          const res = await exportWorkflowSkill({
+            botId: bot?.botId,
+            workflowId: bot?.maasId,
+            workflowName,
+            workflowDescription,
+          });
+          downloadSkillFile(res?.fileName || 'SKILL.md', res?.content || '');
+          message.success(t('agentPage.agentPage.exportSkillSuccess'));
+        } catch (err: unknown) {
+          const error = err as { message?: string; msg?: string };
+          message.error(
+            error?.message ||
+              error?.msg ||
+              t('agentPage.agentPage.exportSkillFailed')
+          );
+        }
+      },
+    });
   };
 
   return (
@@ -691,6 +762,14 @@ function index() {
                                     }}
                                   >
                                     {t('agentPage.agentPage.exportTemplate')}
+                                  </div>
+                                )}
+                                {k?.version === 3 && (
+                                  <div
+                                    className="p-1 rounded hover:bg-[#F2F5FE] block text-[#666666]"
+                                    onClick={e => handleExportSkill(e, k)}
+                                  >
+                                    {t('agentPage.agentPage.exportSkill')}
                                   </div>
                                 )}
                                 {k?.version === 3 && (
