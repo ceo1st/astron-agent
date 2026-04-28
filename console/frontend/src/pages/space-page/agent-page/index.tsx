@@ -342,7 +342,14 @@ function index() {
           downloadSkillFile(res?.fileName || 'SKILL.md', res?.content || '');
           message.success(t('agentPage.agentPage.exportSkillSuccess'));
         } catch (err: unknown) {
-          const error = err as { message?: string; msg?: string };
+          const error = err as {
+            code?: number;
+            message?: string;
+            msg?: string;
+          };
+          if (typeof error?.code === 'number') {
+            return;
+          }
           message.error(
             error?.message ||
               error?.msg ||
