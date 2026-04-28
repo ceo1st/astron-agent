@@ -222,21 +222,12 @@ class WorkflowLog(BaseModel):
             :param depth: Current depth of the data structure
             :return: Processed data with large strings uploaded to OSS
             """
+            if depth > 4 and not isinstance(data, str):
+                return json.dumps(data, ensure_ascii=False)
+
             if isinstance(data, dict):
-                if depth > 4:
-                    return json.dumps(data, ensure_ascii=False)
                 return {k: process_data(v, depth + 1) for k, v in data.items()}
             elif isinstance(data, list):
-                if depth == 4 and all(is_trace_variable(item) for item in data):
-                    return [
-                        {
-                            "name": process_data(item.get("name"), depth + 1),
-                            "value": process_data(item.get("value"), depth + 1),
-                        }
-                        for item in data
-                    ]
-                if depth > 4:
-                    return json.dumps(data, ensure_ascii=False)
                 return [process_data(item, depth + 1) for item in data]
             elif isinstance(data, str):
                 if is_large_string(data):
@@ -248,17 +239,7 @@ class WorkflowLog(BaseModel):
                 else:
                     return data
             else:
-                if depth > 4:
-                    return json.dumps(data, ensure_ascii=False)
                 return data
-
-        def is_trace_variable(item: Any) -> bool:
-            return (
-                isinstance(item, dict)
-                and "name" in item
-                and "value" in item
-                and isinstance(item.get("name"), str)
-            )
 
         result = process_data(self.model_dump(mode="json"))
 

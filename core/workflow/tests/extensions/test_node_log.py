@@ -26,7 +26,7 @@ def test_node_log_stores_output_variables_without_dynamic_fields():
     assert node_log.data.output_vars[0].value == '["ok"]'
 
 
-def test_workflow_log_keeps_trace_variables_as_stable_objects():
+def test_workflow_log_serializes_trace_variables_for_elasticsearch_mapping():
     node_log = NodeLog(sid="sid")
     node_log.append_input_data("date", "2026-04-28")
     node_log.append_output_data("answer", "ok")
@@ -36,5 +36,5 @@ def test_workflow_log_keeps_trace_variables_as_stable_objects():
     payload = json.loads(workflow_log.to_json())
     data = payload["trace"][0]["data"]
 
-    assert data["input_vars"] == [{"name": "date", "value": "2026-04-28"}]
-    assert data["output_vars"] == [{"name": "answer", "value": "ok"}]
+    assert data["input_vars"] == ['{"name": "date", "value": "2026-04-28"}']
+    assert data["output_vars"] == ['{"name": "answer", "value": "ok"}']
