@@ -50,6 +50,18 @@ public class SplitRequest {
      */
     Integer resourceType;
 
+    /**
+     * RAGFlow dataset group (coreRepoId for Ragflow-RAG). Optional; null falls back to the default
+     * group.
+     */
+    String group;
+
+    /**
+     * Human-readable label written into the RAGFlow dataset description on first creation. Helps
+     * operators identify the dataset in the RAGFlow UI without resolving UUIDs.
+     */
+    String groupDescription;
+
     // Default to AIUI value
     public SplitRequest() {
         this.ragType = ProjectContent.FILE_SOURCE_AIUI_RAG2_STR;

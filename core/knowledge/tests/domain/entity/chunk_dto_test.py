@@ -90,6 +90,34 @@ class TestFileSplitReq:
         )
         assert req.documentId == "doc-abc-123"
 
+    def test_group_default_none(self) -> None:
+        """FileSplitReq.group is Optional, default None for backward compat."""
+        req = FileSplitReq(file="test content", ragType=RAGType.RagFlow_RAG)
+        assert req.group is None
+
+    def test_group_accepts_string(self) -> None:
+        """FileSplitReq.group accepts explicit RAGFlow dataset group/name."""
+        req = FileSplitReq(
+            file="test content",
+            ragType=RAGType.RagFlow_RAG,
+            group="abc-uuid",
+        )
+        assert req.group == "abc-uuid"
+
+    def test_group_description_default_none(self) -> None:
+        """FileSplitReq.groupDescription is Optional, default None."""
+        req = FileSplitReq(file="test content", ragType=RAGType.RagFlow_RAG)
+        assert req.groupDescription is None
+
+    def test_group_description_accepts_string(self) -> None:
+        """FileSplitReq.groupDescription accepts a human-readable label."""
+        req = FileSplitReq(
+            file="test content",
+            ragType=RAGType.RagFlow_RAG,
+            groupDescription="客服知识库",
+        )
+        assert req.groupDescription == "客服知识库"
+
 
 class TestChunkSaveReq:
     """Test ChunkSaveReq model."""
@@ -210,6 +238,21 @@ class TestChunkDeleteReq:
         """Test with empty chunk IDs list."""
         req = ChunkDeleteReq(docId="doc123", chunkIds=[], ragType=RAGType.AIUI_RAG2)
         assert req.chunkIds == []
+
+    def test_group_default_none(self) -> None:
+        """ChunkDeleteReq.group is Optional, default None for backward compat."""
+        req = ChunkDeleteReq(docId="doc123", ragType=RAGType.RagFlow_RAG)
+        assert req.group is None
+
+    def test_group_accepts_string(self) -> None:
+        """ChunkDeleteReq.group accepts explicit RAGFlow dataset group/name."""
+        req = ChunkDeleteReq(
+            docId="doc123",
+            chunkIds=["c1"],
+            ragType=RAGType.RagFlow_RAG,
+            group="abc-uuid",
+        )
+        assert req.group == "abc-uuid"
 
 
 class TestQueryMatch:
@@ -373,6 +416,16 @@ class TestQueryDocReq:
         field_names = [error["loc"][0] for error in errors]
         assert "docId" in field_names
         assert "ragType" in field_names
+
+    def test_group_default_none(self) -> None:
+        """group is Optional, default None for backward compat."""
+        req = QueryDocReq(docId="doc123", ragType=RAGType.RagFlow_RAG)
+        assert req.group is None
+
+    def test_group_accepts_string(self) -> None:
+        """group accepts explicit string value."""
+        req = QueryDocReq(docId="doc123", ragType=RAGType.RagFlow_RAG, group="abc-uuid")
+        assert req.group == "abc-uuid"
 
 
 class TestIntegrationCases:

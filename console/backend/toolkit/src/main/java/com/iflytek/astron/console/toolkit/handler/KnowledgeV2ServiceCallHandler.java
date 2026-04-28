@@ -1,6 +1,7 @@
 package com.iflytek.astron.console.toolkit.handler;
 
 import com.alibaba.fastjson2.JSON;
+import com.iflytek.astron.console.toolkit.common.constant.ProjectContent;
 import com.iflytek.astron.console.toolkit.config.properties.RepoAuthorizedConfig;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
 import com.iflytek.astron.console.toolkit.entity.core.knowledge.*;
@@ -27,10 +28,18 @@ public class KnowledgeV2ServiceCallHandler {
     /**
      * Document parsing and chunking
      *
-     * @param request
-     * @return
+     * @param request the split request describing the document
+     * @param coreRepoId Ragflow-RAG dataset name/group; forwarded as {@code group} so the upstream
+     *        service can resolve the matching dataset. Ignored for non-Ragflow-RAG sources to keep
+     *        CBG/AIUI/Spark behavior intact.
+     * @param repoName human-readable repo display name; written into RAGFlow dataset description on
+     *        first lazy creation. Pass {@code null} to skip.
+     * @return knowledge response from the upstream split API
      */
-    public KnowledgeResponse documentSplit(SplitRequest request) {
+    public KnowledgeResponse documentSplit(
+            SplitRequest request, String coreRepoId, String repoName) {
+        applyGroupToSplitRequest(request, coreRepoId);
+        applyGroupDescriptionToSplitRequest(request, repoName);
         String url = apiUrl.getKnowledgeUrl().concat("/v1/document/split");
         String reqBody = JSON.toJSONString(request);
         log.info("documentSplit url = {}, request = {}", url, reqBody);
@@ -48,12 +57,19 @@ public class KnowledgeV2ServiceCallHandler {
      * @param ragType RAG type
      * @param resourceType resource type (0=file, 1=html)
      * @param oldDocId existing RAGFlow doc id for upsert; null for first slice
+     * @param coreRepoId Ragflow-RAG dataset name/group; forwarded as {@code group} so the upstream
+     *        service can resolve the matching dataset. Ignored for non-Ragflow-RAG sources to keep
+     *        CBG/AIUI/Spark behavior intact.
+     * @param repoName human-readable repo display name; written into RAGFlow dataset description on
+     *        first lazy creation. Pass {@code null} to skip.
      * @return KnowledgeResponse
      */
     public KnowledgeResponse documentUpload(MultipartFile multipartFile,
             List<Integer> lengthRange, List<String> separator,
             String ragType, Integer resourceType,
-            String oldDocId) {
+            String oldDocId,
+            String coreRepoId,
+            String repoName) {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/document/upload");
 
         try {
@@ -75,6 +91,8 @@ public class KnowledgeV2ServiceCallHandler {
             if (StringUtils.isNotBlank(oldDocId)) {
                 params.put("documentId", oldDocId);
             }
+            applyGroupToUploadParams(params, ragType, coreRepoId);
+            applyGroupDescriptionToUploadParams(params, ragType, repoName);
 
             log.info("documentUpload url = {}, ragType = {}, resourceType = {}", url, ragType, resourceType);
             String post = OkHttpUtil.postMultipart(url, new HashMap<>(), null, params, null);
@@ -86,6 +104,63 @@ public class KnowledgeV2ServiceCallHandler {
             errorResponse.setCode(-1);
             errorResponse.setMessage("Upload failed: " + e.getMessage());
             return errorResponse;
+        }
+    }
+
+    /**
+     * Set {@code group} on the split request for Ragflow-RAG when {@code coreRepoId} is non-blank.
+     * No-op otherwise so other RAG strategies stay untouched.
+     */
+    void applyGroupToSplitRequest(SplitRequest request, String coreRepoId) {
+        if (request == null) {
+            return;
+        }
+        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(request.getRagType())
+                && StringUtils.isNotBlank(coreRepoId)) {
+            request.setGroup(coreRepoId);
+        }
+    }
+
+    /**
+     * Add {@code group} to the upload params map for Ragflow-RAG when {@code coreRepoId} is non-blank.
+     * No-op otherwise.
+     */
+    void applyGroupToUploadParams(Map<String, Object> params, String ragType, String coreRepoId) {
+        if (params == null) {
+            return;
+        }
+        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(ragType)
+                && StringUtils.isNotBlank(coreRepoId)) {
+            params.put("group", coreRepoId);
+        }
+    }
+
+    /**
+     * Set {@code groupDescription} on the split request for Ragflow-RAG when {@code repoName} is
+     * non-blank. No-op otherwise.
+     */
+    void applyGroupDescriptionToSplitRequest(SplitRequest request, String repoName) {
+        if (request == null) {
+            return;
+        }
+        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(request.getRagType())
+                && StringUtils.isNotBlank(repoName)) {
+            request.setGroupDescription(repoName);
+        }
+    }
+
+    /**
+     * Add {@code groupDescription} to the upload params map for Ragflow-RAG when {@code repoName} is
+     * non-blank. No-op otherwise.
+     */
+    void applyGroupDescriptionToUploadParams(
+            Map<String, Object> params, String ragType, String repoName) {
+        if (params == null) {
+            return;
+        }
+        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(ragType)
+                && StringUtils.isNotBlank(repoName)) {
+            params.put("groupDescription", repoName);
         }
     }
 

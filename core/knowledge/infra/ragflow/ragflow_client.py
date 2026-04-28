@@ -456,6 +456,19 @@ async def create_dataset(name: str, **kwargs: Any) -> Dict[str, Any]:
     return await _make_request("POST", "/api/v1/datasets", data=data)
 
 
+async def update_dataset(dataset_id: str, **kwargs: Any) -> Dict[str, Any]:
+    """Update dataset metadata via RAGFlow PUT /api/v1/datasets/{id}.
+
+    Args:
+        dataset_id: Dataset ID to update.
+        **kwargs: Fields to patch (description, name, embedding_model, ...).
+
+    Returns:
+        Update response from RAGFlow.
+    """
+    return await _make_request("PUT", f"/api/v1/datasets/{dataset_id}", data=kwargs)
+
+
 # ==================== Document Management APIs ====================
 
 
@@ -463,49 +476,85 @@ async def upload_document_to_dataset(
     dataset_id: str, file_content: bytes, filename: str
 ) -> List[Any]:
     """
-    Upload document to specified dataset API
+    Upload document to the specified dataset.
+
+    Resolution strategy:
+    - When ``dataset_id`` is non-empty, resolve the dataset via SDK id lookup
+      and upload to it. If the SDK returns no matching dataset, raise
+      ``ValueError`` instead of redirecting to the env default group.
+    - When ``dataset_id`` is empty, use the configured
+      ``RAGFLOW_DEFAULT_GROUP`` lookup. Missing or empty default groups fail
+      before any dataset lookup.
 
     Args:
-        dataset_id: Dataset ID
-        file_content: File content
-        filename: File name
+        dataset_id: Dataset ID; empty string triggers configured fallback.
+        file_content: File content bytes.
+        filename: File name.
 
     Returns:
-        Upload response containing document ID
-    """
+        Upload response containing document ID(s).
 
+    Raises:
+        ValueError: If ``dataset_id`` is provided but not resolvable via SDK,
+            or if the configured fallback cannot resolve a dataset.
+    """
+    if dataset_id:
+        rag = get_rag_object()
+        sdk_datasets: List[Any] = rag.list_datasets(id=dataset_id)
+        if not sdk_datasets:
+            raise ValueError(
+                f"Dataset id={dataset_id} not visible to RAGFlow SDK; "
+                "refusing to silently fall back to RAGFLOW_DEFAULT_GROUP "
+                "to avoid cross-repo upload contamination"
+            )
+        return sdk_datasets[0].upload_documents(
+            [{"displayed_name": filename, "blob": file_content}]
+        )
+
+    return await _upload_via_default_group(file_content=file_content, filename=filename)
+
+
+async def _resolve_dataset_via_rest(group_name: str, rag: Any) -> Any:
+    """Fallback: locate default-group dataset via REST when SDK name lookup fails.
+
+    Kept separate to avoid increasing default-group path complexity.
+    """
+    rest_response = await list_datasets(name=group_name)
+    datasets = rest_response.get("data", []) if rest_response else []
+    if not datasets:
+        raise ValueError(f"Dataset '{group_name}' does not exist in RAGFlow")
+    actual_id = datasets[0].get("id")
+    if not actual_id:
+        raise ValueError(f"Dataset '{group_name}' REST response missing id field")
+    sdk_datasets: List[Any] = rag.list_datasets(id=actual_id)
+    if not sdk_datasets:
+        raise ValueError(
+            f"Dataset '{group_name}' (id={actual_id}) not visible to ragflow_sdk"
+        )
+    return sdk_datasets[0]
+
+
+async def _upload_via_default_group(file_content: bytes, filename: str) -> List[Any]:
+    """Legacy upload path using configured ``RAGFLOW_DEFAULT_GROUP``.
+
+    Kept separate to avoid increasing ``upload_document_to_dataset`` complexity.
+    """
     group_name = os.getenv("RAGFLOW_DEFAULT_GROUP", "")
+    if not group_name:
+        raise ValueError(
+            "RAGFLOW_DEFAULT_GROUP is not set; cannot upload without dataset_id"
+        )
     rag = get_rag_object()
 
-    def _pick_first_dataset(datasets: List[Any]) -> Any:
-        if datasets:
-            return datasets[0]
-        raise ValueError(f"Dataset '{group_name}' not found when uploading document")
-
-    dataset_obj: Any
-
-    try:
-        # Preferred path: SDK finds the dataset directly by name
-        dataset_obj = _pick_first_dataset(rag.list_datasets(name=group_name))
-    except ValueError:
+    sdk_hit: List[Any] = rag.list_datasets(name=group_name)
+    if sdk_hit:
+        dataset_obj = sdk_hit[0]
+    else:
         logger.warning(
             "Dataset '%s' not visible via SDK lookup, refreshing via REST API",
             group_name,
         )
-
-        rest_response = await list_datasets(name=group_name)
-        datasets = rest_response.get("data", []) if rest_response else []
-        if not datasets:
-            raise ValueError(f"Dataset '{group_name}' does not exist in RAGFlow")
-
-        # Fall back to locating dataset via ID if REST returned it
-        actual_id = datasets[0].get("id") or dataset_id
-        sdk_datasets: List[Any] = rag.list_datasets(id=actual_id)
-        if not sdk_datasets:
-            raise ValueError(
-                f"Dataset '{group_name}' (id={actual_id}) not visible to ragflow_sdk"
-            )
-        dataset_obj = sdk_datasets[0]
+        dataset_obj = await _resolve_dataset_via_rest(group_name, rag)
 
     return dataset_obj.upload_documents(
         [{"displayed_name": filename, "blob": file_content}]

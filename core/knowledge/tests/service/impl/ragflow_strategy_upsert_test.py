@@ -384,7 +384,7 @@ async def test_split_document_id_none_uses_legacy_create_only_path(
     strategy = RagflowRAGStrategy()
     file_input = object()
 
-    async def fake_ensure_dataset(group: str) -> str:
+    async def fake_ensure_dataset(group: str, description=None) -> str:
         return "ds-1"
 
     async def fake_get_document_chunks(dataset_id: str, doc_id: str) -> list[Any]:
@@ -441,7 +441,7 @@ async def test_split_document_id_set_uses_upsert_path(
     strategy = RagflowRAGStrategy()
     file_input = object()
 
-    async def fake_ensure_dataset(group: str) -> str:
+    async def fake_ensure_dataset(group: str, description=None) -> str:
         return "ds-1"
 
     async def fake_get_document_chunks(dataset_id: str, doc_id: str) -> list[Any]:
@@ -491,7 +491,7 @@ async def test_split_preserves_custom_exception_from_upsert(
     """split() must preserve domain errors so API returns the right code."""
     strategy = RagflowRAGStrategy()
 
-    async def fake_ensure_dataset(group: str) -> str:
+    async def fake_ensure_dataset(group: str, description=None) -> str:
         return "ds-1"
 
     monkeypatch.setattr(
@@ -520,7 +520,7 @@ async def test_split_prefers_kwargs_group_over_default(
     strategy = RagflowRAGStrategy()
     captured: dict[str, Any] = {}
 
-    async def fake_ensure_dataset(group: str) -> str:
+    async def fake_ensure_dataset(group: str, description=None) -> str:
         captured["group"] = group
         return "ds-1"
 

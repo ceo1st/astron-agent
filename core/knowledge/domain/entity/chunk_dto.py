@@ -34,6 +34,7 @@ class FileSplitReq(BaseModel):
         cutOff: Cutoff marker list, optional
         titleSplit: Whether to split by title, default is False
         documentId: Existing RAGFlow doc id for re-slice upsert, optional
+        group: RAGFlow dataset group, optional
     """
 
     file: str = Field(..., min_length=1, description="Required, minimum length 1")
@@ -55,6 +56,21 @@ class FileSplitReq(BaseModel):
         description=(
             "Existing RAGFlow doc id, triggers blue-green upsert. "
             "Omit or leave empty for first-time slicing."
+        ),
+    )
+    group: Optional[str] = Field(
+        default=None,
+        description=(
+            "RAGFlow dataset group (coreRepoId for Ragflow-RAG). "
+            "When omitted, falls back to the default dataset."
+        ),
+    )
+    groupDescription: Optional[str] = Field(
+        default=None,
+        description=(
+            "Human-readable label written into RAGFlow dataset description "
+            "on first creation; helps operators identify the dataset in the "
+            "RAGFlow UI without resolving UUIDs."
         ),
     )
 
@@ -111,11 +127,19 @@ class ChunkDeleteReq(BaseModel):
         docId: Document ID, required
         chunkIds: Chunk ID list, optional
         ragType: RAG type
+        group: RAGFlow dataset group, optional
     """
 
     docId: str = Field(..., min_length=1, description="Required, minimum length 1")
     chunkIds: Optional[List[str]] = Field(default=None, description="Chunk ID list")
     ragType: RAGType = Field(..., description="RAG type")
+    group: Optional[str] = Field(
+        default=None,
+        description=(
+            "RAGFlow dataset group (coreRepoId for Ragflow-RAG). "
+            "When omitted, falls back to the default dataset."
+        ),
+    )
 
 
 class QueryMatch(BaseModel):
@@ -237,7 +261,15 @@ class QueryDocReq(BaseModel):
     Attributes:
         docId: Document ID, required
         ragType: RAG type
+        group: RAGFlow dataset group, optional
     """
 
     docId: str = Field(..., min_length=1, description="Required, minimum length 1")
     ragType: RAGType = Field(..., description="RAG type")
+    group: Optional[str] = Field(
+        default=None,
+        description=(
+            "RAGFlow dataset group (coreRepoId for Ragflow-RAG). "
+            "When omitted, falls back to the default dataset."
+        ),
+    )

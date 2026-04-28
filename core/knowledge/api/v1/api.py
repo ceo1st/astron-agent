@@ -180,6 +180,8 @@ async def file_split(
             titleSplit=split_request.titleSplit,
             cutOff=split_request.cutOff,
             document_id=split_request.documentId,
+            group=split_request.group,
+            groupDescription=split_request.groupDescription,
         )
 
 
@@ -234,6 +236,21 @@ async def file_upload(
             "Omit or leave empty for first-time slicing."
         ),
     ),
+    group: Optional[str] = Form(
+        None,
+        description=(
+            "RAGFlow dataset group (coreRepoId for Ragflow-RAG). "
+            "When omitted, falls back to the default dataset."
+        ),
+    ),
+    groupDescription: Optional[str] = Form(
+        None,
+        description=(
+            "Human-readable label written into RAGFlow dataset description "
+            "on first creation; helps operators identify the dataset in the "
+            "RAGFlow UI without resolving UUIDs."
+        ),
+    ),
     app_id: str = Depends(get_app_id),
 ) -> Union[SuccessDataResponse, ErrorResponse]:
     """
@@ -246,6 +263,10 @@ async def file_upload(
         ragType: RAG type (form-data mode)
         lengthRange: Split length range as JSON string (form-data mode)
         separator: Separator list as JSON string (form-data mode)
+        documentId: Existing RAGFlow doc id for re-slice upsert (form-data mode)
+        group: RAGFlow dataset group (form-data mode)
+        groupDescription: Human-readable label written into the RAGFlow dataset
+            description on first creation (form-data mode)
         app_id: Application identifier
 
     Returns:
@@ -264,6 +285,8 @@ async def file_upload(
                         "lengthRange": lengthRange,
                         "separator": separator,
                         "documentId": documentId,
+                        "group": group,
+                        "groupDescription": groupDescription,
                     },
                     ensure_ascii=False,
                 )
@@ -294,6 +317,8 @@ async def file_upload(
             lengthRange=parsed_length_range,
             separator=parsed_separator,
             document_id=documentId,
+            group=group,
+            groupDescription=groupDescription,
         )
 
 
@@ -394,6 +419,7 @@ async def chunk_delete(
             operation_callable=strategy.chunks_delete,
             docId=delete_request.docId,
             chunkIds=delete_request.chunkIds,
+            group=delete_request.group,
         )
 
 
@@ -476,6 +502,7 @@ async def query_doc(
             metric=metric,
             operation_callable=strategy.query_doc,
             docId=query_request.docId,
+            group=query_request.group,
         )
 
 
@@ -504,4 +531,5 @@ async def query_doc_name(
             metric=metric,
             operation_callable=strategy.query_doc_name,
             docId=query_request.docId,
+            group=query_request.group,
         )

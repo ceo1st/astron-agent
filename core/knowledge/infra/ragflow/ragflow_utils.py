@@ -23,6 +23,7 @@ from knowledge.infra.ragflow.ragflow_client import (
     list_datasets,
     list_document_chunks,
     list_documents_in_dataset,
+    update_dataset,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,9 +48,14 @@ class RagflowUtils:
     async def get_dataset_id_by_name(dataset_name: str) -> Optional[str]:
         """Look up a dataset ID by name.
 
-        Returns ``None`` only when RAGFlow successfully returns no matching
-        dataset (``code == 0`` with empty data). Raises
-        ``ThirdPartyException`` for non-zero RAGFlow codes; transport
+        Returns ``None`` for not-found cases:
+        * ``code == 0`` with empty / non-matching data
+        * ``code == 108`` with a "lacks permission" message — RAGFlow
+          collapses "dataset does not exist" and "no access" into the same
+          response, so callers cannot distinguish them. Treating this as
+          not-found preserves fail-closed semantics for query routing.
+
+        Other non-zero codes raise ``ThirdPartyException``; transport
         exceptions propagate.
         """
         from knowledge.infra.ragflow import ragflow_client
@@ -63,6 +69,14 @@ class RagflowUtils:
                     return dataset.get("id")
             return None
         msg = datasets_response.get("message", "Unknown error")
+        if code == 108 and "lacks permission" in msg.lower():
+            logger.info(
+                "Dataset %r not found on RAGFlow (code=108: %s); "
+                "treating as not-found",
+                dataset_name,
+                msg,
+            )
+            return None
         raise ThirdPartyException(
             msg=f"RAGFlow list_datasets name={dataset_name}: code={code} message={msg}",
             e=CodeEnum.RAGFLOW_RAGError,
@@ -106,28 +120,19 @@ class RagflowUtils:
         return results
 
     @staticmethod
-    async def ensure_dataset(group: str) -> str:
+    async def ensure_dataset(group: str, description: Optional[str] = None) -> str:
+        """Ensure dataset exists, create if missing; return dataset_id.
+
+        ``description`` is written at creation time and best-effort synced when
+        an existing dataset's description differs. Sync failures are swallowed
+        — a friendly label must never block document writes.
         """
-        Ensure dataset exists, create if it doesn't exist
-
-        Uses per-dataset locks to prevent race conditions when multiple concurrent
-        requests try to create the same dataset.
-
-        Args:
-            group: Dataset name
-
-        Returns:
-            Dataset ID
-        """
-        # Get or create a lock for this specific dataset name
         async with _locks_lock:
             if group not in _dataset_locks:
                 _dataset_locks[group] = asyncio.Lock()
 
-        # Acquire the lock for this dataset to ensure serial execution
         async with _dataset_locks[group]:
             try:
-                # 1. Check if dataset exists (Double-Check Locking pattern)
                 logger.info(f"Checking if dataset exists: {group}")
                 datasets_response = await list_datasets(name=group)
 
@@ -139,13 +144,18 @@ class RagflowUtils:
                             logger.info(
                                 f"Found existing dataset: {group}, ID: {dataset_id}"
                             )
+                            await RagflowUtils._sync_description_if_stale(
+                                dataset_id,
+                                current=dataset.get("description"),
+                                desired=description,
+                            )
                             return dataset_id
 
-                # 2. Dataset doesn't exist, create new dataset
                 logger.info(f"Dataset doesn't exist, creating new dataset: {group}")
                 create_response = await create_dataset(
                     name=group,
-                    description=f"Automatically created dataset: {group}",
+                    description=description
+                    or f"Automatically created dataset: {group}",
                     chunk_method="naive",
                 )
 
@@ -161,6 +171,42 @@ class RagflowUtils:
             except Exception as e:
                 logger.error(f"Dataset management failed: {e}")
                 raise Exception(f"Unable to ensure dataset exists: {str(e)}")
+
+    @staticmethod
+    async def _sync_description_if_stale(
+        dataset_id: str, current: Optional[str], desired: Optional[str]
+    ) -> None:
+        """Best-effort lazy sync of a dataset's description.
+
+        Skips when ``desired`` is empty (caller did not supply a label) or
+        when ``current`` already matches. Exceptions are swallowed and logged
+        — a UI-friendly description must never block document writes.
+        """
+        if not desired or current == desired:
+            return
+        try:
+            resp = await update_dataset(dataset_id, description=desired)
+            if resp.get("code") != 0:
+                logger.warning(
+                    "Best-effort description sync rejected by RAGFlow for "
+                    "dataset %s: code=%s message=%s",
+                    dataset_id,
+                    resp.get("code"),
+                    resp.get("message", "Unknown error"),
+                )
+                return
+            logger.info(
+                "Updated dataset %s description: %r -> %r",
+                dataset_id,
+                current,
+                desired,
+            )
+        except Exception as e:
+            logger.warning(
+                "Best-effort description sync failed for dataset %s: %s",
+                dataset_id,
+                e,
+            )
 
     @staticmethod
     async def _download_url_file(file: str) -> tuple[bytes, str]:
