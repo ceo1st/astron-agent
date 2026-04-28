@@ -358,6 +358,7 @@ public class WorkflowTraceClient {
 
     private Map<String, Object> buildNodeInput(JsonNode data, Map<String, Object> config) {
         Map<String, Object> nodeInput = toMap(data.get("input"));
+        mergeTraceVariables(nodeInput, data.get("input_vars"));
         if (!nodeInput.isEmpty()) {
             return nodeInput;
         }
@@ -389,6 +390,7 @@ public class WorkflowTraceClient {
 
     private Map<String, Object> buildNodeOutput(JsonNode data, Map<String, Object> config) {
         Map<String, Object> nodeOutput = toMap(data.get("output"));
+        mergeTraceVariables(nodeOutput, data.get("output_vars"));
         if (!nodeOutput.isEmpty()) {
             return nodeOutput;
         }
@@ -400,6 +402,22 @@ public class WorkflowTraceClient {
             return output;
         }
         return new LinkedHashMap<>();
+    }
+
+    private void mergeTraceVariables(Map<String, Object> target, @Nullable JsonNode variables) {
+        if (variables == null || !variables.isArray()) {
+            return;
+        }
+        for (JsonNode variable : variables) {
+            String name = asText(variable.get("name"));
+            if (name.isBlank()) {
+                continue;
+            }
+            Object value = variable.has("value")
+                    ? objectMapper.convertValue(variable.get("value"), Object.class)
+                    : null;
+            target.put(name, parseStructuredValue(value));
+        }
     }
 
     private Object parseStructuredValue(@Nullable Object value) {

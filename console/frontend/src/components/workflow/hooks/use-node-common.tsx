@@ -587,6 +587,7 @@ const useNodeOutputRender = ({ id, data }): UseNodeOutputRenderReturn => {
         return;
       }
       setNode(id, old => {
+        old.data.nodeParam.setAnswerContentErrMsg = '';
         if (old?.data?.retryConfig) {
           const newSetAnswerContent = JSON.stringify(
             generateOrUpdateObject(
@@ -599,7 +600,6 @@ const useNodeOutputRender = ({ id, data }): UseNodeOutputRenderReturn => {
             2
           );
           old.data.retryConfig.customOutput = newSetAnswerContent;
-          old.data.nodeParam.setAnswerContentErrMsg = '';
         }
         return {
           ...cloneDeep(old),

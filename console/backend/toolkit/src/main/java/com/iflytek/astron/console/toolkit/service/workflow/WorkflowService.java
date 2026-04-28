@@ -2551,8 +2551,11 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 .fluentPut("name", saveDto.getName())
                 .fluentPut("description", saveDto.getDescription())
                 .fluentPut("status", saveDto.getStatus());
+        JSONObject protocolJson = null;
         if (protocol != null) {
-            jsonObject.fluentPut("data", protocol);
+            protocolJson = JSON.parseObject(JSON.toJSONString(protocol));
+            removeWorkflowUiValidationFields(protocolJson);
+            jsonObject.fluentPut("data", protocolJson);
         }
         String body = jsonObject.toString();
 
@@ -2569,7 +2572,22 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         // Flow protocol temporary storage
         saveFlowProtocolTemp(flowId,
                 saveDto.getData() == null ? null : JSON.toJSONString(saveDto.getData()),
-                saveDto.getData() == null ? null : JSON.toJSONString(protocol.getData()));
+                protocolJson == null || protocolJson.get("data") == null ? null : JSON.toJSONString(protocolJson.get("data")));
+    }
+
+    private void removeWorkflowUiValidationFields(Object value) {
+        if (value instanceof JSONObject jsonObject) {
+            jsonObject.remove("setAnswerContentErrMsg");
+            for (Object child : jsonObject.values()) {
+                removeWorkflowUiValidationFields(child);
+            }
+            return;
+        }
+        if (value instanceof JSONArray jsonArray) {
+            for (Object child : jsonArray) {
+                removeWorkflowUiValidationFields(child);
+            }
+        }
     }
 
     private Property bizPropertyToProperty(BizProperty bizProperty) {
