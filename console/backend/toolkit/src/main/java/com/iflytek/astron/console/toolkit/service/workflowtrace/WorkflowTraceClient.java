@@ -409,6 +409,9 @@ public class WorkflowTraceClient {
             return;
         }
         for (JsonNode variable : variables) {
+            if (variable.isTextual()) {
+                variable = parseJsonNode(variable.asText(""));
+            }
             String name = asText(variable.get("name"));
             if (name.isBlank()) {
                 continue;
@@ -417,6 +420,17 @@ public class WorkflowTraceClient {
                     ? objectMapper.convertValue(variable.get("value"), Object.class)
                     : null;
             target.put(name, parseStructuredValue(value));
+        }
+    }
+
+    private JsonNode parseJsonNode(String value) {
+        if (value == null || value.isBlank()) {
+            return objectMapper.createObjectNode();
+        }
+        try {
+            return objectMapper.readTree(value);
+        } catch (JsonProcessingException e) {
+            return objectMapper.createObjectNode();
         }
     }
 
