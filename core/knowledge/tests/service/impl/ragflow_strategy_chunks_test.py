@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Tests for RagflowRAGStrategy chunks_save / chunks_update / chunks_delete
-group routing behavior."""
+dataset routing behavior."""
 
 import logging
 from unittest.mock import AsyncMock, patch
@@ -15,23 +15,20 @@ _ENSURE_DATASET = "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_d
 _GET_DATASET_NAME = (
     "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_default_dataset_name"
 )
-_GET_DATASET_ID = (
-    "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_dataset_id_by_name"
-)
 
 
 # ----------------------------------------------------------------------
-# chunks_save (lazy create via ensure_dataset)
+# chunks_save
 # ----------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_chunks_save_routes_to_group_dataset_with_lazy_create() -> None:
-    """chunks_save with explicit group calls ensure_dataset(group)."""
+async def test_chunks_save_passes_through_explicit_dataset_id() -> None:
+    """chunks_save with non-empty datasetId skips ensure_dataset."""
     strategy = RagflowRAGStrategy()
     with patch(
         _ENSURE_DATASET,
-        new=AsyncMock(return_value="ds-abc"),
+        new=AsyncMock(),
     ) as mock_ensure, patch.object(
         strategy,
         "_validate_document_exists",
@@ -43,24 +40,28 @@ async def test_chunks_save_routes_to_group_dataset_with_lazy_create() -> None:
     ), patch.object(
         strategy,
         "_process_chunks_batch",
-        new=AsyncMock(return_value=([{"id": "c1"}], [])),
-    ), patch.object(
+        new=AsyncMock(
+            return_value=([{"id": "c1", "datasetId": "ds-explicit-123"}], [])
+        ),
+    ) as mock_batch, patch.object(
         strategy,
         "_handle_chunk_results",
         new=AsyncMock(return_value=[{"id": "c1"}]),
     ):
         await strategy.chunks_save(
             docId="doc-1",
-            group="abc-uuid",
+            group=None,
             uid="user-1",
             chunks=[{"content": "hello"}],
+            datasetId="ds-explicit-123",
         )
-        mock_ensure.assert_awaited_once_with("abc-uuid", description=None)
+        mock_ensure.assert_not_called()
+        assert mock_batch.await_args.args[1] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio
-async def test_chunks_save_with_null_group_falls_back_to_default() -> None:
-    """chunks_save with group=None falls back to RAGFLOW_DEFAULT_GROUP."""
+async def test_chunks_save_with_null_dataset_id_falls_back_to_default() -> None:
+    """chunks_save with datasetId=None ensures the default dataset exists."""
     strategy = RagflowRAGStrategy()
     with patch(
         _GET_DATASET_NAME,
@@ -90,79 +91,71 @@ async def test_chunks_save_with_null_group_falls_back_to_default() -> None:
             group=None,
             uid="user-1",
             chunks=[{"content": "hello"}],
+            datasetId=None,
         )
-        mock_ensure.assert_awaited_once_with("default-group", description=None)
+        mock_ensure.assert_awaited_once_with("default-group")
 
 
 @pytest.mark.asyncio
-async def test_chunks_save_lazy_creates_when_group_dataset_missing() -> None:
-    """chunks_save uses ensure_dataset which lazy creates if missing."""
-    strategy = RagflowRAGStrategy()
-    with patch(
-        _ENSURE_DATASET,
-        new=AsyncMock(return_value="ds-newly-created"),
-    ) as mock_ensure, patch.object(
-        strategy,
-        "_validate_document_exists",
-        new=AsyncMock(return_value=None),
-    ), patch.object(
-        strategy,
-        "_get_existing_chunks",
-        new=AsyncMock(return_value={}),
-    ), patch.object(
-        strategy,
-        "_process_chunks_batch",
-        new=AsyncMock(return_value=([{"id": "c1"}], [])),
-    ), patch.object(
-        strategy,
-        "_handle_chunk_results",
-        new=AsyncMock(return_value=[{"id": "c1"}]),
-    ):
-        await strategy.chunks_save(
-            docId="doc-1",
-            group="brand-new-repo",
-            uid="user-1",
-            chunks=[{"content": "hello"}],
-        )
-        mock_ensure.assert_awaited_once_with("brand-new-repo", description=None)
-
-
-# ----------------------------------------------------------------------
-# chunks_update (no-create, raise on missing)
-# ----------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_chunks_update_routes_to_group_dataset() -> None:
-    """chunks_update with explicit group resolves dataset by group."""
-    strategy = RagflowRAGStrategy()
-    with patch(
-        _GET_DATASET_ID,
-        new=AsyncMock(return_value="ds-abc"),
-    ) as mock_lookup, patch(
-        "knowledge.service.impl.ragflow_strategy.ragflow_client.update_chunk",
-        new=AsyncMock(return_value={"code": 0}),
-    ):
-        await strategy.chunks_update(
-            docId="doc-1",
-            group="abc-uuid",
-            uid="user-1",
-            chunks=[{"chunkId": "c1", "content": "new"}],
-        )
-        mock_lookup.assert_awaited_once_with("abc-uuid")
-
-
-@pytest.mark.asyncio
-async def test_chunks_update_with_null_group_falls_back_to_default() -> None:
-    """chunks_update with group=None falls back to default."""
+async def test_chunks_save_raises_when_default_group_unresolvable() -> None:
+    """ensure_dataset returning falsy raises ChunkSaveFailed."""
     strategy = RagflowRAGStrategy()
     with patch(
         _GET_DATASET_NAME,
         return_value="default-group",
     ), patch(
-        _GET_DATASET_ID,
+        _ENSURE_DATASET,
+        new=AsyncMock(return_value=None),
+    ):
+        with pytest.raises(CustomException) as exc_info:
+            await strategy.chunks_save(
+                docId="doc-1",
+                group=None,
+                uid="user-1",
+                chunks=[{"content": "hello"}],
+                datasetId=None,
+            )
+        assert "Unable to resolve" in str(exc_info.value)
+
+
+# ----------------------------------------------------------------------
+# chunks_update
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_chunks_update_passes_through_explicit_dataset_id() -> None:
+    """chunks_update with non-empty datasetId skips ensure_dataset."""
+    strategy = RagflowRAGStrategy()
+    with patch(
+        _ENSURE_DATASET,
+        new=AsyncMock(),
+    ) as mock_ensure, patch(
+        "knowledge.service.impl.ragflow_strategy.ragflow_client.update_chunk",
+        new=AsyncMock(return_value={"code": 0}),
+    ) as mock_update_chunk:
+        await strategy.chunks_update(
+            docId="doc-1",
+            group=None,
+            uid="user-1",
+            chunks=[{"chunkId": "c1", "content": "new"}],
+            datasetId="ds-explicit-123",
+        )
+        mock_ensure.assert_not_called()
+        assert mock_update_chunk.await_args.kwargs["dataset_id"] == "ds-explicit-123"
+
+
+@pytest.mark.asyncio
+async def test_chunks_update_with_null_dataset_id_falls_back_to_default() -> None:
+    """chunks_update with datasetId=None ensures the default dataset exists."""
+    strategy = RagflowRAGStrategy()
+    with patch(
+        _GET_DATASET_NAME,
+        return_value="default-group",
+    ), patch(
+        _ENSURE_DATASET,
         new=AsyncMock(return_value="ds-default"),
-    ) as mock_lookup, patch(
+    ) as mock_ensure, patch(
         "knowledge.service.impl.ragflow_strategy.ragflow_client.update_chunk",
         new=AsyncMock(return_value={"code": 0}),
     ):
@@ -171,86 +164,93 @@ async def test_chunks_update_with_null_group_falls_back_to_default() -> None:
             group=None,
             uid="user-1",
             chunks=[{"chunkId": "c1", "content": "new"}],
+            datasetId=None,
         )
-        mock_lookup.assert_awaited_once_with("default-group")
+        mock_ensure.assert_awaited_once_with("default-group")
 
 
 @pytest.mark.asyncio
-async def test_chunks_update_raises_when_dataset_missing() -> None:
-    """chunks_update raises when dataset not found in RAGFlow."""
+async def test_chunks_update_raises_when_default_group_unresolvable() -> None:
+    """ensure_dataset returning falsy raises ChunkUpdateFailed."""
     strategy = RagflowRAGStrategy()
     with patch(
-        _GET_DATASET_ID,
+        _GET_DATASET_NAME,
+        return_value="default-group",
+    ), patch(
+        _ENSURE_DATASET,
         new=AsyncMock(return_value=None),
     ):
         with pytest.raises(CustomException) as exc_info:
             await strategy.chunks_update(
                 docId="doc-1",
-                group="ghost-uuid",
+                group=None,
                 uid="user-1",
                 chunks=[{"chunkId": "c1", "content": "x"}],
+                datasetId=None,
             )
-        # Strong assertion: error message must mention all three signals
         msg = str(exc_info.value).lower()
-        assert "not found" in msg
+        assert "unable to resolve" in msg
         assert "update" in msg
-        assert "ghost-uuid" in msg
 
 
 # ----------------------------------------------------------------------
-# chunks_delete (signature add group + silent skip)
+# chunks_delete
 # ----------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_chunks_delete_routes_to_group_dataset() -> None:
-    """chunks_delete with explicit group resolves dataset by group."""
+async def test_chunks_delete_passes_through_explicit_dataset_id() -> None:
+    """chunks_delete with non-empty datasetId skips ensure_dataset."""
     strategy = RagflowRAGStrategy()
     with patch(
-        _GET_DATASET_ID,
-        new=AsyncMock(return_value="ds-abc"),
-    ) as mock_lookup, patch(
+        _ENSURE_DATASET,
+        new=AsyncMock(),
+    ) as mock_ensure, patch(
         "knowledge.service.impl.ragflow_strategy.ragflow_client.delete_chunks",
         new=AsyncMock(return_value={"code": 0}),
-    ):
+    ) as mock_delete:
         await strategy.chunks_delete(
             docId="doc-1",
             chunkIds=["c1", "c2"],
-            group="abc-uuid",
+            datasetId="ds-explicit-123",
         )
-        mock_lookup.assert_awaited_once_with("abc-uuid")
+        mock_ensure.assert_not_called()
+        assert mock_delete.await_args.kwargs["dataset_id"] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio
-async def test_chunks_delete_with_null_group_falls_back_to_default() -> None:
-    """chunks_delete with group=None falls back to default."""
+async def test_chunks_delete_with_null_dataset_id_falls_back_to_default() -> None:
+    """chunks_delete with datasetId=None ensures the default dataset exists."""
     strategy = RagflowRAGStrategy()
     with patch(
         _GET_DATASET_NAME,
         return_value="default-group",
     ), patch(
-        _GET_DATASET_ID,
+        _ENSURE_DATASET,
         new=AsyncMock(return_value="ds-default"),
-    ) as mock_lookup, patch(
+    ) as mock_ensure, patch(
         "knowledge.service.impl.ragflow_strategy.ragflow_client.delete_chunks",
         new=AsyncMock(return_value={"code": 0}),
     ):
         await strategy.chunks_delete(
             docId="doc-1",
             chunkIds=["c1"],
-            group=None,
+            datasetId=None,
         )
-        mock_lookup.assert_awaited_once_with("default-group")
+        mock_ensure.assert_awaited_once_with("default-group")
 
 
 @pytest.mark.asyncio
-async def test_chunks_delete_silent_skip_when_dataset_missing(
+async def test_chunks_delete_silent_skip_when_dataset_unresolvable(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """chunks_delete returns no-op + logs info when dataset missing."""
+    """chunks_delete is a no-op when ensure_dataset cannot resolve the default."""
     strategy = RagflowRAGStrategy()
     with patch(
-        _GET_DATASET_ID,
+        _GET_DATASET_NAME,
+        return_value="default-group",
+    ), patch(
+        _ENSURE_DATASET,
         new=AsyncMock(return_value=None),
     ), patch(
         "knowledge.service.impl.ragflow_strategy.ragflow_client.delete_chunks",
@@ -263,7 +263,7 @@ async def test_chunks_delete_silent_skip_when_dataset_missing(
             await strategy.chunks_delete(
                 docId="doc-1",
                 chunkIds=["c1"],
-                group="ghost-uuid",
+                datasetId=None,
             )
         mock_delete.assert_not_called()
         assert any(

@@ -362,6 +362,7 @@ class TestWorkflowAgentRunnerBuilder:
         params = KnowledgeQueryParams(
             repo_ids=["repo1"],
             doc_ids=["doc1"],
+            dataset_ids=["dataset1"],
             top_k=3,
             score_threshold=0.3,
             rag_type="AIUI-RAG2",
@@ -379,6 +380,15 @@ class TestWorkflowAgentRunnerBuilder:
             result = await builder.exec_query_knowledge(params, span)
 
             assert result == mock_result
+            mock_factory.assert_called_once_with(
+                query=builder.inputs.get_last_message_content(),
+                top_k=3,
+                repo_ids=["repo1"],
+                doc_ids=["doc1"],
+                dataset_ids=["dataset1"],
+                score_threshold=0.3,
+                rag_type="AIUI-RAG2",
+            )
 
 
 class TestKnowledgeQueryParams:
@@ -389,6 +399,7 @@ class TestKnowledgeQueryParams:
         params = KnowledgeQueryParams(
             repo_ids=["repo1"],
             doc_ids=["doc1"],
+            dataset_ids=[],
             top_k=3,
             score_threshold=0.3,
             rag_type="AIUI-RAG2",
@@ -396,6 +407,7 @@ class TestKnowledgeQueryParams:
 
         assert params.repo_ids == ["repo1"]
         assert params.doc_ids == ["doc1"]
+        assert params.dataset_ids == []
         assert params.top_k == 3
         assert params.score_threshold == 0.3
         assert params.rag_type == "AIUI-RAG2"

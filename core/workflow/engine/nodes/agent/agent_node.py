@@ -65,6 +65,7 @@ class Match(BaseModel):
 
     repoIds: List[str] = Field(min_length=1)
     docIds: List[str] | None = Field(default=None, min_length=1)
+    datasetIds: List[str] | None = Field(default=None, min_length=1)
 
 
 class Knowledge(BaseModel):

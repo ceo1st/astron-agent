@@ -395,6 +395,7 @@ public enum ResponseEnum {
     REPO_KNOWLEDGE_QUERY_FAILED(8737, "repo.knowledge.query.failed"),
     REPO_DELETE_FAILED_BOT_USED(8738, "repo.delete.failed.bot.used"),
     REPO_FILE_UPLOAD_TYPE_NOT_EXIST(8739, "repo.file.upload.type.not.exist"),
+    REPO_CREATE_RAGFLOW_FAILED(8740, "repo.create.ragflow.failed"),
 
     // 8900 - 9000 (Model related)
     MODEL_NOT_COMPATIBLE_OPENAI(8900, "model.not.compatible.openai"),

@@ -21,9 +21,7 @@ from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
 _GET_DATASET_NAME = (
     "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_default_dataset_name"
 )
-_GET_DATASET_ID = (
-    "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_dataset_id_by_name"
-)
+_ENSURE_DATASET = "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_dataset"
 _LIST_CHUNKS = (
     "knowledge.service.impl.ragflow_strategy.ragflow_client.list_document_chunks"
 )
@@ -33,10 +31,6 @@ _GET_DOC_INFO = (
 _RETRIEVAL = (
     "knowledge.service.impl.ragflow_strategy.ragflow_client.retrieval_with_dataset"
 )
-# Reach all the way to the client so the dataset-lookup helper runs for
-# real; lets the full ``/chunk/query`` path be exercised when RAGFlow fails
-# during the dataset-lookup stage.
-_LIST_DATASETS = "knowledge.infra.ragflow.ragflow_client.list_datasets"
 
 
 # ----------------------------------------------------------------------
@@ -50,7 +44,7 @@ async def test_query_raises_on_transport_exception() -> None:
     strategy = RagflowRAGStrategy()
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(
             _RETRIEVAL,
             new=AsyncMock(
@@ -73,7 +67,7 @@ async def test_query_raises_on_ragflow_error_code() -> None:
     }
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(_RETRIEVAL, new=AsyncMock(return_value=bad_response)),
     ):
         with pytest.raises(ThirdPartyException) as exc_info:
@@ -91,55 +85,8 @@ async def test_query_returns_empty_results_when_no_chunks_matched() -> None:
     }
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(_RETRIEVAL, new=AsyncMock(return_value=empty_response)),
-    ):
-        result = await strategy.query("hello", top_k=6)
-    assert result == {"query": "hello", "count": 0, "results": []}
-
-
-@pytest.mark.asyncio
-async def test_query_raises_when_dataset_lookup_transport_fails() -> None:
-    """Dataset-lookup transport failures propagate through the query path."""
-    strategy = RagflowRAGStrategy()
-    with (
-        patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(
-            _LIST_DATASETS,
-            new=AsyncMock(side_effect=aiohttp.ClientConnectionError("down")),
-        ),
-    ):
-        with pytest.raises(ThirdPartyException):
-            await strategy.query("hello", top_k=6)
-
-
-@pytest.mark.asyncio
-async def test_query_raises_when_dataset_lookup_returns_non_zero_code() -> None:
-    """Non-zero ``list_datasets`` code propagates as ThirdPartyException
-    instead of being treated as 'dataset not configured'."""
-    strategy = RagflowRAGStrategy()
-    failing_list: Dict[str, Any] = {
-        "code": 109,
-        "message": "Authentication failed",
-    }
-    with (
-        patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_LIST_DATASETS, new=AsyncMock(return_value=failing_list)),
-    ):
-        with pytest.raises(ThirdPartyException) as exc_info:
-            await strategy.query("hello", top_k=6)
-    assert "Authentication failed" in str(exc_info.value)
-
-
-@pytest.mark.asyncio
-async def test_query_returns_empty_results_when_dataset_not_configured() -> None:
-    """``list_datasets`` reporting no matching name (code=0, empty data)
-    keeps the empty-results response instead of raising."""
-    strategy = RagflowRAGStrategy()
-    no_match: Dict[str, Any] = {"code": 0, "data": []}
-    with (
-        patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_LIST_DATASETS, new=AsyncMock(return_value=no_match)),
     ):
         result = await strategy.query("hello", top_k=6)
     assert result == {"query": "hello", "count": 0, "results": []}
@@ -156,7 +103,7 @@ async def test_query_doc_raises_on_transport_exception() -> None:
     strategy = RagflowRAGStrategy()
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(
             _LIST_CHUNKS,
             new=AsyncMock(
@@ -179,7 +126,7 @@ async def test_query_doc_raises_on_ragflow_error_code() -> None:
     }
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(_LIST_CHUNKS, new=AsyncMock(return_value=bad_response)),
     ):
         with pytest.raises(ThirdPartyException) as exc_info:
@@ -189,7 +136,7 @@ async def test_query_doc_raises_on_ragflow_error_code() -> None:
 
 @pytest.mark.asyncio
 async def test_query_doc_preserves_third_party_exception() -> None:
-    """Existing ThirdPartyException instances propagate unchanged."""
+    """Existing ThirdPartyException instances from dataset resolution propagate."""
     strategy = RagflowRAGStrategy()
     original = ThirdPartyException(
         msg="dataset lookup failed",
@@ -197,7 +144,7 @@ async def test_query_doc_preserves_third_party_exception() -> None:
     )
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(side_effect=original)),
+        patch(_ENSURE_DATASET, new=AsyncMock(side_effect=original)),
     ):
         with pytest.raises(ThirdPartyException) as exc_info:
             await strategy.query_doc("doc-x")
@@ -214,7 +161,7 @@ async def test_query_doc_returns_empty_list_when_document_has_no_chunks() -> Non
     }
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(_LIST_CHUNKS, new=AsyncMock(return_value=empty_response)),
     ):
         result = await strategy.query_doc("doc-x")
@@ -232,7 +179,7 @@ async def test_query_doc_name_raises_on_transport_exception() -> None:
     strategy = RagflowRAGStrategy()
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(
             _GET_DOC_INFO,
             new=AsyncMock(side_effect=aiohttp.ClientError("connection reset")),
@@ -253,7 +200,7 @@ async def test_query_doc_name_preserves_third_party_exception() -> None:
     )
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(_GET_DOC_INFO, new=AsyncMock(side_effect=original)),
     ):
         with pytest.raises(ThirdPartyException) as exc_info:
@@ -267,7 +214,7 @@ async def test_query_doc_name_returns_none_when_document_truly_missing() -> None
     strategy = RagflowRAGStrategy()
     with (
         patch(_GET_DATASET_NAME, return_value="ds-name"),
-        patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+        patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
         patch(_GET_DOC_INFO, new=AsyncMock(return_value=None)),
     ):
         result = await strategy.query_doc_name("doc-x")

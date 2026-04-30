@@ -10,6 +10,21 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+_GROUP_DESC = (
+    "Knowledge base group used by non-Ragflow strategies (CBG/SparkDesk/AIUI). "
+    "Ignored by Ragflow-RAG, which routes via datasetId."
+)
+
+_DATASET_ID_DESC = (
+    "RAGFlow dataset.id for Ragflow-RAG routing; "
+    "None or empty uses the default dataset."
+)
+
+_DATASET_ID_LIST_DESC = (
+    "RAGFlow dataset.id values for Ragflow-RAG routing; "
+    "None or empty uses the default dataset."
+)
+
 
 class RAGType(str, Enum):
     """Define RAG type enumeration"""
@@ -18,6 +33,11 @@ class RAGType(str, Enum):
     CBG_RAG = "CBG-RAG"
     SparkDesk_RAG = "SparkDesk-RAG"
     RagFlow_RAG = "Ragflow-RAG"
+
+
+def _require_group_for_non_ragflow(rag_type: RAGType, group: Optional[str]) -> None:
+    if rag_type != RAGType.RagFlow_RAG and not group:
+        raise ValueError("group is required when ragType is not Ragflow-RAG")
 
 
 class FileSplitReq(BaseModel):
@@ -34,7 +54,8 @@ class FileSplitReq(BaseModel):
         cutOff: Cutoff marker list, optional
         titleSplit: Whether to split by title, default is False
         documentId: Existing RAGFlow doc id for re-slice upsert, optional
-        group: RAGFlow dataset group, optional
+        group: Knowledge base group used by non-Ragflow strategies, optional
+        datasetId: RAGFlow dataset.id for direct routing, optional
     """
 
     file: str = Field(..., min_length=1, description="Required, minimum length 1")
@@ -60,18 +81,11 @@ class FileSplitReq(BaseModel):
     )
     group: Optional[str] = Field(
         default=None,
-        description=(
-            "RAGFlow dataset group (coreRepoId for Ragflow-RAG). "
-            "When omitted, falls back to the default dataset."
-        ),
+        description=_GROUP_DESC,
     )
-    groupDescription: Optional[str] = Field(
+    datasetId: Optional[str] = Field(
         default=None,
-        description=(
-            "Human-readable label written into RAGFlow dataset description "
-            "on first creation; helps operators identify the dataset in the "
-            "RAGFlow UI without resolving UUIDs."
-        ),
+        description=_DATASET_ID_DESC,
     )
 
 
@@ -81,19 +95,32 @@ class ChunkSaveReq(BaseModel):
 
     Attributes:
         docId: Document ID, required
-        group: Group identifier, required
+        group: Knowledge base group used by non-Ragflow strategies, optional
         uid: User ID, optional
         chunks: Chunk list, must contain at least one element
         ragType: RAG type
+        datasetId: RAGFlow dataset.id for direct routing, optional
     """
 
     docId: str = Field(..., min_length=1, description="Required, minimum length 1")
-    group: str = Field(..., min_length=1, description="Required, minimum length 1")
+    group: Optional[str] = Field(
+        default=None,
+        description=_GROUP_DESC,
+    )
     uid: Optional[str] = Field(default=None, description="User ID")
     chunks: List[Any] = Field(
         ..., min_length=1, description="Chunk list, must contain at least one element"
     )
     ragType: RAGType = Field(..., description="RAG type")
+    datasetId: Optional[str] = Field(
+        default=None,
+        description=_DATASET_ID_DESC,
+    )
+
+    @model_validator(mode="after")
+    def _group_required_for_non_ragflow(self) -> "ChunkSaveReq":
+        _require_group_for_non_ragflow(self.ragType, self.group)
+        return self
 
 
 class ChunkUpdateReq(BaseModel):
@@ -102,14 +129,18 @@ class ChunkUpdateReq(BaseModel):
 
     Attributes:
         docId: Document ID, required
-        group: Group identifier, required
+        group: Knowledge base group used by non-Ragflow strategies, optional
         uid: User ID, optional
         chunks: Chunk dictionary list, must contain at least one element
         ragType: RAG type
+        datasetId: RAGFlow dataset.id for direct routing, optional
     """
 
     docId: str = Field(..., min_length=1, description="Required, minimum length 1")
-    group: str = Field(..., min_length=1, description="Required, minimum length 1")
+    group: Optional[str] = Field(
+        default=None,
+        description=_GROUP_DESC,
+    )
     uid: Optional[str] = Field(default=None, description="User ID")
     chunks: List[dict] = Field(
         ...,
@@ -117,6 +148,15 @@ class ChunkUpdateReq(BaseModel):
         description="Chunk dictionary list, must contain at least one element",
     )
     ragType: RAGType = Field(..., description="RAG type")
+    datasetId: Optional[str] = Field(
+        default=None,
+        description=_DATASET_ID_DESC,
+    )
+
+    @model_validator(mode="after")
+    def _group_required_for_non_ragflow(self) -> "ChunkUpdateReq":
+        _require_group_for_non_ragflow(self.ragType, self.group)
+        return self
 
 
 class ChunkDeleteReq(BaseModel):
@@ -127,7 +167,8 @@ class ChunkDeleteReq(BaseModel):
         docId: Document ID, required
         chunkIds: Chunk ID list, optional
         ragType: RAG type
-        group: RAGFlow dataset group, optional
+        group: Knowledge base group used by non-Ragflow strategies, optional
+        datasetId: RAGFlow dataset.id for direct routing, optional
     """
 
     docId: str = Field(..., min_length=1, description="Required, minimum length 1")
@@ -135,10 +176,11 @@ class ChunkDeleteReq(BaseModel):
     ragType: RAGType = Field(..., description="RAG type")
     group: Optional[str] = Field(
         default=None,
-        description=(
-            "RAGFlow dataset group (coreRepoId for Ragflow-RAG). "
-            "When omitted, falls back to the default dataset."
-        ),
+        description=_GROUP_DESC,
+    )
+    datasetId: Optional[str] = Field(
+        default=None,
+        description=_DATASET_ID_DESC,
     )
 
 
@@ -158,6 +200,10 @@ class QueryMatch(BaseModel):
         ...,
         min_length=1,
         description="Knowledge base ID list, must contain at least one element",
+    )
+    datasetId: Optional[List[str]] = Field(
+        default=None,
+        description=_DATASET_ID_LIST_DESC,
     )
     threshold: float = Field(
         default=0, ge=0, le=1, description="Optional, default value 0, range 0~1"
@@ -261,15 +307,17 @@ class QueryDocReq(BaseModel):
     Attributes:
         docId: Document ID, required
         ragType: RAG type
-        group: RAGFlow dataset group, optional
+        group: Knowledge base group used by non-Ragflow strategies, optional
+        datasetId: RAGFlow dataset.id for direct routing, optional
     """
 
     docId: str = Field(..., min_length=1, description="Required, minimum length 1")
     ragType: RAGType = Field(..., description="RAG type")
     group: Optional[str] = Field(
         default=None,
-        description=(
-            "RAGFlow dataset group (coreRepoId for Ragflow-RAG). "
-            "When omitted, falls back to the default dataset."
-        ),
+        description=_GROUP_DESC,
+    )
+    datasetId: Optional[str] = Field(
+        default=None,
+        description=_DATASET_ID_DESC,
     )

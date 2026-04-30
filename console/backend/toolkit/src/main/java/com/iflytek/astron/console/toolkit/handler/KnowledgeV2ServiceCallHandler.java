@@ -1,6 +1,9 @@
 package com.iflytek.astron.console.toolkit.handler;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import com.iflytek.astron.console.commons.constant.ResponseEnum;
+import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.toolkit.common.constant.ProjectContent;
 import com.iflytek.astron.console.toolkit.config.properties.RepoAuthorizedConfig;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
@@ -25,25 +28,63 @@ public class KnowledgeV2ServiceCallHandler {
     @Resource
     private RepoAuthorizedConfig repoAuthorizedConfig;
 
+    private static final String DATASET_ID_FIELD = "datasetId";
+
+    /**
+     * Create or reuse a RAGFlow dataset and return its id.
+     *
+     * @param name RAGFlow dataset.name
+     * @param description RAGFlow dataset.description; nullable
+     */
+    public String createRagflowDataset(String name, String description) {
+        String url = apiUrl.getKnowledgeUrl().concat("/v1/dataset/create");
+        DatasetCreateRequest req = new DatasetCreateRequest(name, description);
+        String reqBody = JSON.toJSONString(req);
+        log.info("createRagflowDataset url = {}, name = {}", url, name);
+        String resp = postJson(url, reqBody);
+        log.info("createRagflowDataset response = {}", resp);
+        KnowledgeResponse parsed = JSON.parseObject(resp, KnowledgeResponse.class);
+        if (parsed == null || parsed.getCode() == null || parsed.getCode() != 0) {
+            String msg = (parsed == null) ? "blank response" : parsed.getMessage();
+            throw new BusinessException(ResponseEnum.REPO_CREATE_RAGFLOW_FAILED, msg);
+        }
+        return extractDatasetId(parsed.getData());
+    }
+
+    private String extractDatasetId(Object data) {
+        JSONObject dataObj = toJsonObject(data);
+        String datasetId = dataObj == null ? null : dataObj.getString(DATASET_ID_FIELD);
+        if (StringUtils.isBlank(datasetId)) {
+            throw new BusinessException(ResponseEnum.REPO_CREATE_RAGFLOW_FAILED,
+                    "RAGFlow returned blank datasetId");
+        }
+        return datasetId;
+    }
+
+    private JSONObject toJsonObject(Object data) {
+        if (data instanceof JSONObject) {
+            return (JSONObject) data;
+        }
+        if (data instanceof String) {
+            return JSON.parseObject((String) data);
+        }
+        throw new BusinessException(ResponseEnum.REPO_CREATE_RAGFLOW_FAILED,
+                "RAGFlow returned non-object data");
+    }
+
     /**
      * Document parsing and chunking
      *
      * @param request the split request describing the document
-     * @param coreRepoId Ragflow-RAG dataset name/group; forwarded as {@code group} so the upstream
-     *        service can resolve the matching dataset. Ignored for non-Ragflow-RAG sources to keep
-     *        CBG/AIUI/Spark behavior intact.
-     * @param repoName human-readable repo display name; written into RAGFlow dataset description on
-     *        first lazy creation. Pass {@code null} to skip.
+     * @param datasetId RAGFlow dataset.id; ignored when blank or non-Ragflow
      * @return knowledge response from the upstream split API
      */
-    public KnowledgeResponse documentSplit(
-            SplitRequest request, String coreRepoId, String repoName) {
-        applyGroupToSplitRequest(request, coreRepoId);
-        applyGroupDescriptionToSplitRequest(request, repoName);
+    public KnowledgeResponse documentSplit(SplitRequest request, String datasetId) {
+        applyDatasetIdToSplitRequest(request, datasetId);
         String url = apiUrl.getKnowledgeUrl().concat("/v1/document/split");
         String reqBody = JSON.toJSONString(request);
         log.info("documentSplit url = {}, request = {}", url, reqBody);
-        String post = OkHttpUtil.post(url, reqBody);
+        String post = postJson(url, reqBody);
         log.info("documentSplit response = {}", post);
         return JSON.parseObject(post, KnowledgeResponse.class);
     }
@@ -57,19 +98,14 @@ public class KnowledgeV2ServiceCallHandler {
      * @param ragType RAG type
      * @param resourceType resource type (0=file, 1=html)
      * @param oldDocId existing RAGFlow doc id for upsert; null for first slice
-     * @param coreRepoId Ragflow-RAG dataset name/group; forwarded as {@code group} so the upstream
-     *        service can resolve the matching dataset. Ignored for non-Ragflow-RAG sources to keep
-     *        CBG/AIUI/Spark behavior intact.
-     * @param repoName human-readable repo display name; written into RAGFlow dataset description on
-     *        first lazy creation. Pass {@code null} to skip.
+     * @param datasetId RAGFlow dataset.id; ignored when blank or non-Ragflow
      * @return KnowledgeResponse
      */
     public KnowledgeResponse documentUpload(MultipartFile multipartFile,
             List<Integer> lengthRange, List<String> separator,
             String ragType, Integer resourceType,
             String oldDocId,
-            String coreRepoId,
-            String repoName) {
+            String datasetId) {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/document/upload");
 
         try {
@@ -91,11 +127,10 @@ public class KnowledgeV2ServiceCallHandler {
             if (StringUtils.isNotBlank(oldDocId)) {
                 params.put("documentId", oldDocId);
             }
-            applyGroupToUploadParams(params, ragType, coreRepoId);
-            applyGroupDescriptionToUploadParams(params, ragType, repoName);
+            applyDatasetIdToUploadParams(params, ragType, datasetId);
 
             log.info("documentUpload url = {}, ragType = {}, resourceType = {}", url, ragType, resourceType);
-            String post = OkHttpUtil.postMultipart(url, new HashMap<>(), null, params, null);
+            String post = OkHttpUtil.postMultipart(url, null, null, params, null);
             log.info("documentUpload response = {}", post);
             return JSON.parseObject(post, KnowledgeResponse.class);
         } catch (Exception e) {
@@ -107,60 +142,24 @@ public class KnowledgeV2ServiceCallHandler {
         }
     }
 
-    /**
-     * Set {@code group} on the split request for Ragflow-RAG when {@code coreRepoId} is non-blank.
-     * No-op otherwise so other RAG strategies stay untouched.
-     */
-    void applyGroupToSplitRequest(SplitRequest request, String coreRepoId) {
+    void applyDatasetIdToSplitRequest(SplitRequest request, String datasetId) {
         if (request == null) {
             return;
         }
         if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(request.getRagType())
-                && StringUtils.isNotBlank(coreRepoId)) {
-            request.setGroup(coreRepoId);
+                && StringUtils.isNotBlank(datasetId)) {
+            request.setDatasetId(datasetId);
         }
     }
 
-    /**
-     * Add {@code group} to the upload params map for Ragflow-RAG when {@code coreRepoId} is non-blank.
-     * No-op otherwise.
-     */
-    void applyGroupToUploadParams(Map<String, Object> params, String ragType, String coreRepoId) {
+    void applyDatasetIdToUploadParams(
+            Map<String, Object> params, String ragType, String datasetId) {
         if (params == null) {
             return;
         }
         if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(ragType)
-                && StringUtils.isNotBlank(coreRepoId)) {
-            params.put("group", coreRepoId);
-        }
-    }
-
-    /**
-     * Set {@code groupDescription} on the split request for Ragflow-RAG when {@code repoName} is
-     * non-blank. No-op otherwise.
-     */
-    void applyGroupDescriptionToSplitRequest(SplitRequest request, String repoName) {
-        if (request == null) {
-            return;
-        }
-        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(request.getRagType())
-                && StringUtils.isNotBlank(repoName)) {
-            request.setGroupDescription(repoName);
-        }
-    }
-
-    /**
-     * Add {@code groupDescription} to the upload params map for Ragflow-RAG when {@code repoName} is
-     * non-blank. No-op otherwise.
-     */
-    void applyGroupDescriptionToUploadParams(
-            Map<String, Object> params, String ragType, String repoName) {
-        if (params == null) {
-            return;
-        }
-        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(ragType)
-                && StringUtils.isNotBlank(repoName)) {
-            params.put("groupDescription", repoName);
+                && StringUtils.isNotBlank(datasetId)) {
+            params.put(DATASET_ID_FIELD, datasetId);
         }
     }
 
@@ -168,7 +167,7 @@ public class KnowledgeV2ServiceCallHandler {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/chunks/save");
         String reqBody = JSON.toJSONString(request);
         log.info("saveChunk url = {}, request = {}", url, reqBody);
-        String post = OkHttpUtil.post(url, reqBody);
+        String post = postJson(url, reqBody);
         log.info("saveChunk response = {}", post);
         return JSON.parseObject(post, KnowledgeResponse.class);
     }
@@ -177,7 +176,7 @@ public class KnowledgeV2ServiceCallHandler {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/chunk/update");
         String reqBody = JSON.toJSONString(request);
         log.info("updateChunk url = {}, request = {}", url, reqBody);
-        String post = OkHttpUtil.post(url, reqBody);
+        String post = postJson(url, reqBody);
         log.info("updateChunk response = {}", post);
         return JSON.parseObject(post, KnowledgeResponse.class);
     }
@@ -186,7 +185,7 @@ public class KnowledgeV2ServiceCallHandler {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/chunk/delete");
         String reqBody = JSON.toJSONString(request);
         log.info("deleteDocOrChunk url = {}, request = {}", url, reqBody);
-        String post = OkHttpUtil.post(url, reqBody);
+        String post = postJson(url, reqBody);
         log.info("deleteDocOrChunk response = {}", post);
         return JSON.parseObject(post, KnowledgeResponse.class);
     }
@@ -195,8 +194,12 @@ public class KnowledgeV2ServiceCallHandler {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/chunk/query");
         String reqBody = JSON.toJSONString(request);
         log.info("knowledgeQuery request url:{}\ndata:{}", url, reqBody);
-        String respData = OkHttpUtil.post(url, reqBody);
+        String respData = postJson(url, reqBody);
         log.info("knowledgeQuery response data:{}", respData);
         return JSON.parseObject(respData, KnowledgeResponse.class);
+    }
+
+    private String postJson(String url, String reqBody) {
+        return OkHttpUtil.post(url, reqBody);
     }
 }

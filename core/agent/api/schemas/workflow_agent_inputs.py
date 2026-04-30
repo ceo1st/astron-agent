@@ -20,6 +20,7 @@ class CustomCompletionInstructionInputs(BaseModel):
 class CustomCompletionPluginKnowledgeMatchInputs(BaseModel):
     repo_ids: list[str] = Field(default_factory=list[str])
     doc_ids: list[str] = Field(default_factory=list[str])
+    dataset_ids: list[str] = Field(default_factory=list[str])
 
 
 class CustomCompletionPluginKnowledgeInputs(BaseModel):

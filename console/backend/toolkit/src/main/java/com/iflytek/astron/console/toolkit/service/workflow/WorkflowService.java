@@ -67,6 +67,7 @@ import com.iflytek.astron.console.toolkit.entity.table.relation.FlowDbRel;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowRepoRel;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowToolRel;
 import com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2;
+import com.iflytek.astron.console.toolkit.entity.table.repo.Repo;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillImportDto;
 import com.iflytek.astron.console.toolkit.entity.table.tool.*;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.*;
@@ -83,6 +84,7 @@ import com.iflytek.astron.console.toolkit.mapper.relation.FlowDbRelMapper;
 import com.iflytek.astron.console.toolkit.mapper.relation.FlowRepoRelMapper;
 import com.iflytek.astron.console.toolkit.mapper.relation.FlowToolRelMapper;
 import com.iflytek.astron.console.toolkit.mapper.repo.FileInfoV2Mapper;
+import com.iflytek.astron.console.toolkit.mapper.repo.RepoMapper;
 import com.iflytek.astron.console.toolkit.mapper.tool.*;
 import com.iflytek.astron.console.toolkit.mapper.trace.ChatInfoMapper;
 import com.iflytek.astron.console.toolkit.mapper.trace.NodeInfoMapper;
@@ -240,6 +242,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     McpServerHandler mcpServerHandler;
     @Resource
     FileInfoV2Mapper fileInfoV2Mapper;
+    @Resource
+    RepoMapper repoMapper;
     @Autowired
     private UserLangChainInfoMapper userLangChainInfoDao;
     @Autowired
@@ -2311,9 +2315,9 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     private void setDocIds(BizNodeData bizNodeData, JSONArray repoIds) {
         if (!CollUtil.isEmpty(repoIds)) {
+            List<String> coreRepoIds = extractRepoIds(repoIds);
             JSONArray docIds = new JSONArray();
-            for (int i = 0; i < repoIds.size(); i++) {
-                String repoId = repoIds.getString(i);
+            for (String repoId : coreRepoIds) {
                 List<FileInfoV2> fileInfoList = fileInfoV2Mapper.getFileInfoV2ByCoreRepoId(repoId);
                 if (CollUtil.isNotEmpty(fileInfoList)) {
                     log.info("get file info list ,{}", fileInfoList);
@@ -2322,6 +2326,12 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 }
             }
             bizNodeData.getNodeParam().put("docIds", docIds);
+            JSONArray datasetIds = getDatasetIdsForRepos(coreRepoIds);
+            if (!datasetIds.isEmpty()) {
+                bizNodeData.getNodeParam().put("datasetIds", datasetIds);
+            } else {
+                bizNodeData.getNodeParam().remove("datasetIds");
+            }
         }
     }
 
@@ -2489,6 +2499,12 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             if (!allDocIds.isEmpty()) {
                 match.put("docIds", allDocIds);
             }
+            JSONArray datasetIds = getDatasetIdsForRepos(repoIds);
+            if (!datasetIds.isEmpty()) {
+                match.put("datasetIds", datasetIds);
+            } else {
+                match.remove("datasetIds");
+            }
         }
     }
 
@@ -2522,6 +2538,28 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             }
         }
         return allDocIds;
+    }
+
+    private JSONArray getDatasetIdsForRepos(List<String> repoIds) {
+        JSONArray datasetIds = new JSONArray();
+        if (CollUtil.isEmpty(repoIds)) {
+            return datasetIds;
+        }
+        List<Repo> repos = repoMapper.listInRepoCoreIds(repoIds);
+        if (CollUtil.isEmpty(repos)) {
+            return datasetIds;
+        }
+        Map<String, String> datasetIdMap = repos.stream()
+                .filter(repo -> StringUtils.isNotBlank(repo.getCoreRepoId()))
+                .filter(repo -> StringUtils.isNotBlank(repo.getRagflowDatasetId()))
+                .collect(Collectors.toMap(Repo::getCoreRepoId, Repo::getRagflowDatasetId, (a, b) -> a));
+        for (String repoId : repoIds) {
+            String datasetId = datasetIdMap.get(repoId);
+            if (StringUtils.isNotBlank(datasetId)) {
+                datasetIds.add(datasetId);
+            }
+        }
+        return datasetIds;
     }
 
     private void dealWithUrl(JSONObject modelConfig, String serviceId) {
