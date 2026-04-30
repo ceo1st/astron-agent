@@ -15,6 +15,7 @@ from common.service.otlp.metric.metric_service import OtlpMetricService
 from common.service.otlp.span.span_service import OtlpSpanService
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from loguru import logger
+from pydantic import BaseModel, Field
 
 from knowledge.consts.error_code import CodeEnum
 from knowledge.domain.entity.chunk_dto import (
@@ -32,6 +33,7 @@ from knowledge.exceptions.exception import (
     ProtocolParamException,
     ThirdPartyException,
 )
+from knowledge.infra.ragflow.ragflow_utils import RagflowUtils
 from knowledge.service.rag_strategy_factory import RAGStrategyFactory
 from knowledge.service.rq.rewrite_query import rewrite_query
 
@@ -143,9 +145,56 @@ async def handle_rag_operation(
 
 
 # --- Route Handler Functions ---
+
+
+class DatasetCreateRequest(BaseModel):
+    """Request body for POST /v1/dataset/create."""
+
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Dataset name (readable and unique)",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        max_length=1024,
+        description="Human-readable label for the dataset UI",
+    )
+
+
+@rag_router.post("/dataset/create")
+async def create_dataset_endpoint(
+    req: DatasetCreateRequest,
+) -> Union[SuccessDataResponse, ErrorResponse]:
+    """Create or reuse a RAGFlow dataset and return its id."""
+    try:
+        dataset_id = await RagflowUtils.ensure_dataset(
+            req.name, description=req.description
+        )
+        return SuccessDataResponse(data={"datasetId": dataset_id})
+    except ThirdPartyException as e:
+        logger.error(f"create_dataset_endpoint ThirdParty err: {e}")
+        error_code = type("ErrorCode", (), {"code": e.code, "msg": e.message})()
+        return ErrorResponse(code_enum=error_code, message=e.message)
+    except CustomException as e:
+        logger.error(f"create_dataset_endpoint Custom err: {e}")
+        error_code = type("ErrorCode", (), {"code": e.code, "msg": e.message})()
+        return ErrorResponse(code_enum=error_code, message=e.message)
+    except Exception as e:  # pylint: disable=W0718
+        logger.exception(
+            f"create_dataset_endpoint unexpected err for name={req.name}: {e}"
+        )
+        return ErrorResponse(
+            code_enum=CodeEnum.RAGFLOW_RAGError,
+            message=f"{CodeEnum.RAGFLOW_RAGError.msg}({str(e)})",
+        )
+
+
 @rag_router.post("/document/split")
 async def file_split(
-    split_request: FileSplitReq, app_id: str = Depends(get_app_id)
+    split_request: FileSplitReq,
+    app_id: str = Depends(get_app_id),
 ) -> Union[SuccessDataResponse, ErrorResponse]:
     """
     Parse the text provided by the user first, then perform chunking.
@@ -181,7 +230,7 @@ async def file_split(
             cutOff=split_request.cutOff,
             document_id=split_request.documentId,
             group=split_request.group,
-            groupDescription=split_request.groupDescription,
+            datasetId=split_request.datasetId,
         )
 
 
@@ -239,16 +288,15 @@ async def file_upload(
     group: Optional[str] = Form(
         None,
         description=(
-            "RAGFlow dataset group (coreRepoId for Ragflow-RAG). "
-            "When omitted, falls back to the default dataset."
+            "Knowledge base group used by non-Ragflow strategies "
+            "(CBG/SparkDesk/AIUI). Ignored by Ragflow-RAG."
         ),
     ),
-    groupDescription: Optional[str] = Form(
+    datasetId: Optional[str] = Form(
         None,
         description=(
-            "Human-readable label written into RAGFlow dataset description "
-            "on first creation; helps operators identify the dataset in the "
-            "RAGFlow UI without resolving UUIDs."
+            "RAGFlow dataset.id for Ragflow-RAG routing; "
+            "None or empty uses the default dataset."
         ),
     ),
     app_id: str = Depends(get_app_id),
@@ -264,9 +312,8 @@ async def file_upload(
         lengthRange: Split length range as JSON string (form-data mode)
         separator: Separator list as JSON string (form-data mode)
         documentId: Existing RAGFlow doc id for re-slice upsert (form-data mode)
-        group: RAGFlow dataset group (form-data mode)
-        groupDescription: Human-readable label written into the RAGFlow dataset
-            description on first creation (form-data mode)
+        group: Knowledge base group for non-Ragflow strategies (form-data mode)
+        datasetId: RAGFlow dataset.id for Ragflow-RAG routing (form-data mode)
         app_id: Application identifier
 
     Returns:
@@ -286,7 +333,7 @@ async def file_upload(
                         "separator": separator,
                         "documentId": documentId,
                         "group": group,
-                        "groupDescription": groupDescription,
+                        "datasetId": datasetId,
                     },
                     ensure_ascii=False,
                 )
@@ -318,13 +365,14 @@ async def file_upload(
             separator=parsed_separator,
             document_id=documentId,
             group=group,
-            groupDescription=groupDescription,
+            datasetId=datasetId,
         )
 
 
 @rag_router.post("/chunks/save")
 async def chunk_save(
-    save_request: ChunkSaveReq, app_id: str = Depends(get_app_id)
+    save_request: ChunkSaveReq,
+    app_id: str = Depends(get_app_id),
 ) -> Union[SuccessDataResponse, ErrorResponse]:
     """
     Save the chunked data to the database, or add new chunks.
@@ -353,12 +401,14 @@ async def chunk_save(
             group=save_request.group,
             uid=save_request.uid,
             chunks=save_request.chunks,
+            datasetId=save_request.datasetId,
         )
 
 
 @rag_router.post("/chunk/update")
 async def chunk_update(
-    update_request: ChunkUpdateReq, app_id: str = Depends(get_app_id)
+    update_request: ChunkUpdateReq,
+    app_id: str = Depends(get_app_id),
 ) -> Union[SuccessDataResponse, ErrorResponse]:
     """
     Update knowledge chunks.
@@ -387,12 +437,14 @@ async def chunk_update(
             group=update_request.group,
             uid=update_request.uid,
             chunks=update_request.chunks,
+            datasetId=update_request.datasetId,
         )
 
 
 @rag_router.post("/chunk/delete")
 async def chunk_delete(
-    delete_request: ChunkDeleteReq, app_id: str = Depends(get_app_id)
+    delete_request: ChunkDeleteReq,
+    app_id: str = Depends(get_app_id),
 ) -> Union[SuccessDataResponse, ErrorResponse]:
     """
     Delete knowledge chunks.
@@ -420,12 +472,14 @@ async def chunk_delete(
             docId=delete_request.docId,
             chunkIds=delete_request.chunkIds,
             group=delete_request.group,
+            datasetId=delete_request.datasetId,
         )
 
 
 @rag_router.post("/chunk/query")
 async def chunk_query(
-    query_request: ChunkQueryReq, app_id: str = Depends(get_app_id)
+    query_request: ChunkQueryReq,
+    app_id: str = Depends(get_app_id),
 ) -> Union[SuccessDataResponse, ErrorResponse]:
     """
     Retrieve similar document chunks based on user input content.
@@ -462,6 +516,8 @@ async def chunk_query(
         extra_kwargs: Dict[str, Any] = {}
         if query_request.ragflow_ext is not None:
             extra_kwargs["ragflow_ext"] = query_request.ragflow_ext
+        if query_request.match.datasetId is not None:
+            extra_kwargs["datasetId"] = query_request.match.datasetId
 
         return await handle_rag_operation(
             span_context=span_context,
@@ -479,7 +535,8 @@ async def chunk_query(
 
 @rag_router.post("/document/chunk")
 async def query_doc(
-    query_request: QueryDocReq, app_id: str = Depends(get_app_id)
+    query_request: QueryDocReq,
+    app_id: str = Depends(get_app_id),
 ) -> Union[SuccessDataResponse, ErrorResponse]:
     """
     Query document chunk information.
@@ -503,12 +560,14 @@ async def query_doc(
             operation_callable=strategy.query_doc,
             docId=query_request.docId,
             group=query_request.group,
+            datasetId=query_request.datasetId,
         )
 
 
 @rag_router.post("/document/name")
 async def query_doc_name(
-    query_request: QueryDocReq, app_id: str = Depends(get_app_id)
+    query_request: QueryDocReq,
+    app_id: str = Depends(get_app_id),
 ) -> Union[SuccessDataResponse, ErrorResponse]:
     """
     Query document name information.
@@ -532,4 +591,5 @@ async def query_doc_name(
             operation_callable=strategy.query_doc_name,
             docId=query_request.docId,
             group=query_request.group,
+            datasetId=query_request.datasetId,
         )

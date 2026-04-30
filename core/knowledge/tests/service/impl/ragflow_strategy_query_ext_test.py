@@ -20,15 +20,11 @@ from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
 _GET_DATASET_NAME = (
     "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_default_dataset_name"
 )
-_GET_DATASET_ID = (
-    "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_dataset_id_by_name"
-)
+_ENSURE_DATASET = "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_dataset"
 _RETRIEVAL = (
     "knowledge.service.impl.ragflow_strategy.ragflow_client.retrieval_with_dataset"
 )
-_CONVERT = (
-    "knowledge.service.impl.ragflow_strategy.RagflowUtils.convert_ragflow_query_response"
-)
+_CONVERT = "knowledge.service.impl.ragflow_strategy.RagflowUtils.convert_ragflow_query_response"
 
 
 class TestRagflowQueryPayloadBaseline:
@@ -42,7 +38,7 @@ class TestRagflowQueryPayloadBaseline:
         )
         with (
             patch(_GET_DATASET_NAME, return_value="ds-name"),
-            patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+            patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
             patch(_RETRIEVAL, new=mock_retrieval),
             patch(_CONVERT, return_value=[]),
         ):
@@ -66,7 +62,7 @@ class TestRagflowQueryPayloadBaseline:
         )
         with (
             patch(_GET_DATASET_NAME, return_value="ds-name"),
-            patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+            patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
             patch(_RETRIEVAL, new=mock_retrieval),
             patch(_CONVERT, return_value=[]),
         ):
@@ -87,7 +83,7 @@ class TestRagflowQueryTopKSemantics:
         )
         with (
             patch(_GET_DATASET_NAME, return_value="ds-name"),
-            patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+            patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
             patch(_RETRIEVAL, new=mock_retrieval),
             patch(_CONVERT, return_value=[]),
         ):
@@ -107,7 +103,7 @@ class TestRagflowQueryTopKSemantics:
         )
         with (
             patch(_GET_DATASET_NAME, return_value="ds-name"),
-            patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+            patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
             patch(_RETRIEVAL, new=mock_retrieval),
             patch(_CONVERT, return_value=[]),
         ):
@@ -128,7 +124,7 @@ class TestRagflowQueryTopKSemantics:
         ]
         with (
             patch(_GET_DATASET_NAME, return_value="ds-name"),
-            patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+            patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
             patch(
                 _RETRIEVAL,
                 new=AsyncMock(
@@ -154,7 +150,7 @@ class TestRagflowQueryTopKSemantics:
         ]
         with (
             patch(_GET_DATASET_NAME, return_value="ds-name"),
-            patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+            patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
             patch(
                 _RETRIEVAL,
                 new=AsyncMock(
@@ -178,7 +174,7 @@ class TestRagflowQueryPayloadWithExt:
         )
         with (
             patch(_GET_DATASET_NAME, return_value="ds-name"),
-            patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-1")),
+            patch(_ENSURE_DATASET, new=AsyncMock(return_value="ds-1")),
             patch(_RETRIEVAL, new=mock_retrieval),
             patch(_CONVERT, return_value=[]),
         ):

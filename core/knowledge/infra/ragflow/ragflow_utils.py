@@ -16,8 +16,6 @@ from typing import Any, Dict, List, Optional, Union
 import aiohttp
 from fastapi import UploadFile
 
-from knowledge.consts.error_code import CodeEnum
-from knowledge.exceptions.exception import ThirdPartyException
 from knowledge.infra.ragflow.ragflow_client import (
     create_dataset,
     list_datasets,
@@ -43,44 +41,6 @@ class RagflowUtils:
     def get_default_dataset_name() -> str:
         """Return ``RAGFLOW_DEFAULT_GROUP`` or ``DEFAULT_RAGFLOW_DATASET_NAME`` (unset/empty fall back)."""
         return os.getenv("RAGFLOW_DEFAULT_GROUP") or DEFAULT_RAGFLOW_DATASET_NAME
-
-    @staticmethod
-    async def get_dataset_id_by_name(dataset_name: str) -> Optional[str]:
-        """Look up a dataset ID by name.
-
-        Returns ``None`` for not-found cases:
-        * ``code == 0`` with empty / non-matching data
-        * ``code == 108`` with a "lacks permission" message — RAGFlow
-          collapses "dataset does not exist" and "no access" into the same
-          response, so callers cannot distinguish them. Treating this as
-          not-found preserves fail-closed semantics for query routing.
-
-        Other non-zero codes raise ``ThirdPartyException``; transport
-        exceptions propagate.
-        """
-        from knowledge.infra.ragflow import ragflow_client
-
-        datasets_response = await ragflow_client.list_datasets(name=dataset_name)
-        code = datasets_response.get("code")
-        if code == 0:
-            datasets = datasets_response.get("data", [])
-            for dataset in datasets:
-                if dataset.get("name") == dataset_name:
-                    return dataset.get("id")
-            return None
-        msg = datasets_response.get("message", "Unknown error")
-        if code == 108 and "lacks permission" in msg.lower():
-            logger.info(
-                "Dataset %r not found on RAGFlow (code=108: %s); "
-                "treating as not-found",
-                dataset_name,
-                msg,
-            )
-            return None
-        raise ThirdPartyException(
-            msg=f"RAGFlow list_datasets name={dataset_name}: code={code} message={msg}",
-            e=CodeEnum.RAGFLOW_RAGError,
-        )
 
     @staticmethod
     def convert_ragflow_query_response(

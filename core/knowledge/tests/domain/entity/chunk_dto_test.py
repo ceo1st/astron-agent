@@ -90,33 +90,33 @@ class TestFileSplitReq:
         )
         assert req.documentId == "doc-abc-123"
 
-    def test_group_default_none(self) -> None:
-        """FileSplitReq.group is Optional, default None for backward compat."""
+    def test_dataset_id_default_none(self) -> None:
+        """FileSplitReq.datasetId is Optional, default None."""
         req = FileSplitReq(file="test content", ragType=RAGType.RagFlow_RAG)
+        assert req.datasetId is None
+
+    def test_dataset_id_accepts_string(self) -> None:
+        """FileSplitReq.datasetId accepts an explicit RAGFlow dataset.id."""
+        req = FileSplitReq(
+            file="test content",
+            ragType=RAGType.RagFlow_RAG,
+            datasetId="ds-abc-uuid",
+        )
+        assert req.datasetId == "ds-abc-uuid"
+
+    def test_group_default_none(self) -> None:
+        """FileSplitReq.group is Optional, default None."""
+        req = FileSplitReq(file="test content", ragType=RAGType.AIUI_RAG2)
         assert req.group is None
 
     def test_group_accepts_string(self) -> None:
-        """FileSplitReq.group accepts explicit RAGFlow dataset group/name."""
+        """FileSplitReq.group accepts a knowledge base group name."""
         req = FileSplitReq(
             file="test content",
-            ragType=RAGType.RagFlow_RAG,
-            group="abc-uuid",
+            ragType=RAGType.AIUI_RAG2,
+            group="legacy-name",
         )
-        assert req.group == "abc-uuid"
-
-    def test_group_description_default_none(self) -> None:
-        """FileSplitReq.groupDescription is Optional, default None."""
-        req = FileSplitReq(file="test content", ragType=RAGType.RagFlow_RAG)
-        assert req.groupDescription is None
-
-    def test_group_description_accepts_string(self) -> None:
-        """FileSplitReq.groupDescription accepts a human-readable label."""
-        req = FileSplitReq(
-            file="test content",
-            ragType=RAGType.RagFlow_RAG,
-            groupDescription="客服知识库",
-        )
-        assert req.groupDescription == "客服知识库"
+        assert req.group == "legacy-name"
 
 
 class TestChunkSaveReq:
@@ -126,33 +126,64 @@ class TestChunkSaveReq:
         """Test valid creation with required fields."""
         req = ChunkSaveReq(
             docId="doc123",
-            group="test-group",
+            group="group1",
             chunks=[{"content": "test chunk"}],
             ragType=RAGType.AIUI_RAG2,
         )
         assert req.docId == "doc123"
-        assert req.group == "test-group"
         assert req.chunks == [{"content": "test chunk"}]
         assert req.ragType == RAGType.AIUI_RAG2
         assert req.uid is None  # default value
+        assert req.datasetId is None  # default value
 
     def test_with_uid(self) -> None:
         """Test creation with optional uid field."""
         req = ChunkSaveReq(
             docId="doc123",
-            group="test-group",
+            group="group1",
             uid="user456",
             chunks=[{"content": "test chunk"}],
             ragType=RAGType.AIUI_RAG2,
         )
         assert req.uid == "user456"
 
+    def test_with_dataset_id(self) -> None:
+        """Test creation with explicit datasetId for direct routing."""
+        req = ChunkSaveReq(
+            docId="doc123",
+            chunks=[{"content": "test chunk"}],
+            ragType=RAGType.RagFlow_RAG,
+            datasetId="ds-abc-123",
+        )
+        assert req.datasetId == "ds-abc-123"
+
+    def test_group_required_for_non_ragflow(self) -> None:
+        """ChunkSaveReq requires group for non-Ragflow strategies."""
+        with pytest.raises(ValidationError) as exc_info:
+            ChunkSaveReq(
+                docId="doc123",
+                chunks=[{"content": "test"}],
+                ragType=RAGType.AIUI_RAG2,
+            )
+
+        assert "group is required when ragType is not Ragflow-RAG" in str(
+            exc_info.value
+        )
+
+    def test_group_accepts_string(self) -> None:
+        """ChunkSaveReq.group accepts a knowledge base group name."""
+        req = ChunkSaveReq(
+            docId="doc123",
+            group="legacy-name",
+            chunks=[{"content": "test"}],
+            ragType=RAGType.AIUI_RAG2,
+        )
+        assert req.group == "legacy-name"
+
     def test_empty_chunks_validation(self) -> None:
         """Test chunks list empty validation."""
         with pytest.raises(ValidationError) as exc_info:
-            ChunkSaveReq(
-                docId="doc123", group="test-group", chunks=[], ragType=RAGType.AIUI_RAG2
-            )
+            ChunkSaveReq(docId="doc123", chunks=[], ragType=RAGType.AIUI_RAG2)
 
         errors = exc_info.value.errors()
         assert len(errors) == 1
@@ -167,7 +198,10 @@ class TestChunkSaveReq:
             {"content": "chunk 3"},
         ]
         req = ChunkSaveReq(
-            docId="doc123", group="test-group", chunks=chunks, ragType=RAGType.AIUI_RAG2
+            docId="doc123",
+            group="group1",
+            chunks=chunks,
+            ragType=RAGType.AIUI_RAG2,
         )
         assert req.chunks == chunks
 
@@ -176,7 +210,6 @@ class TestChunkSaveReq:
         with pytest.raises(ValidationError) as exc_info:
             ChunkSaveReq(
                 docId="",
-                group="test-group",
                 chunks=[{"content": "test"}],
                 ragType=RAGType.AIUI_RAG2,
             )
@@ -194,25 +227,58 @@ class TestChunkUpdateReq:
         """Test valid creation."""
         req = ChunkUpdateReq(
             docId="doc123",
-            group="test-group",
+            group="group1",
             chunks=[{"id": "chunk1", "content": "updated content"}],
             ragType=RAGType.AIUI_RAG2,
         )
         assert req.docId == "doc123"
-        assert req.group == "test-group"
         assert req.chunks == [{"id": "chunk1", "content": "updated content"}]
         assert req.ragType == RAGType.AIUI_RAG2
+        assert req.datasetId is None
 
     def test_chunks_must_be_dict(self) -> None:
         """Test chunks must be dictionary objects."""
         req = ChunkUpdateReq(
             docId="doc123",
-            group="test-group",
+            group="group1",
             chunks=[{"id": "chunk1"}, {"id": "chunk2"}],
             ragType=RAGType.AIUI_RAG2,
         )
         assert len(req.chunks) == 2
         assert all(isinstance(chunk, dict) for chunk in req.chunks)
+
+    def test_with_dataset_id(self) -> None:
+        """Test creation with explicit datasetId for direct routing."""
+        req = ChunkUpdateReq(
+            docId="doc123",
+            chunks=[{"id": "chunk1", "content": "x"}],
+            ragType=RAGType.RagFlow_RAG,
+            datasetId="ds-abc-123",
+        )
+        assert req.datasetId == "ds-abc-123"
+
+    def test_group_required_for_non_ragflow(self) -> None:
+        """ChunkUpdateReq requires group for non-Ragflow strategies."""
+        with pytest.raises(ValidationError) as exc_info:
+            ChunkUpdateReq(
+                docId="doc123",
+                chunks=[{"id": "c1"}],
+                ragType=RAGType.AIUI_RAG2,
+            )
+
+        assert "group is required when ragType is not Ragflow-RAG" in str(
+            exc_info.value
+        )
+
+    def test_group_accepts_string(self) -> None:
+        """ChunkUpdateReq.group accepts a knowledge base group name."""
+        req = ChunkUpdateReq(
+            docId="doc123",
+            group="legacy-name",
+            chunks=[{"id": "c1"}],
+            ragType=RAGType.AIUI_RAG2,
+        )
+        assert req.group == "legacy-name"
 
 
 class TestChunkDeleteReq:
@@ -239,20 +305,35 @@ class TestChunkDeleteReq:
         req = ChunkDeleteReq(docId="doc123", chunkIds=[], ragType=RAGType.AIUI_RAG2)
         assert req.chunkIds == []
 
-    def test_group_default_none(self) -> None:
-        """ChunkDeleteReq.group is Optional, default None for backward compat."""
+    def test_dataset_id_default_none(self) -> None:
+        """ChunkDeleteReq.datasetId is Optional, default None."""
         req = ChunkDeleteReq(docId="doc123", ragType=RAGType.RagFlow_RAG)
-        assert req.group is None
+        assert req.datasetId is None
 
-    def test_group_accepts_string(self) -> None:
-        """ChunkDeleteReq.group accepts explicit RAGFlow dataset group/name."""
+    def test_dataset_id_accepts_string(self) -> None:
+        """ChunkDeleteReq.datasetId accepts an explicit RAGFlow dataset.id."""
         req = ChunkDeleteReq(
             docId="doc123",
             chunkIds=["c1"],
             ragType=RAGType.RagFlow_RAG,
-            group="abc-uuid",
+            datasetId="ds-abc-123",
         )
-        assert req.group == "abc-uuid"
+        assert req.datasetId == "ds-abc-123"
+
+    def test_group_default_none(self) -> None:
+        """ChunkDeleteReq.group is Optional, default None."""
+        req = ChunkDeleteReq(docId="doc123", ragType=RAGType.AIUI_RAG2)
+        assert req.group is None
+
+    def test_group_accepts_string(self) -> None:
+        """ChunkDeleteReq.group accepts a knowledge base group name."""
+        req = ChunkDeleteReq(
+            docId="doc123",
+            chunkIds=["c1"],
+            ragType=RAGType.AIUI_RAG2,
+            group="legacy-name",
+        )
+        assert req.group == "legacy-name"
 
 
 class TestQueryMatch:
@@ -417,15 +498,29 @@ class TestQueryDocReq:
         assert "docId" in field_names
         assert "ragType" in field_names
 
-    def test_group_default_none(self) -> None:
-        """group is Optional, default None for backward compat."""
+    def test_dataset_id_default_none(self) -> None:
+        """QueryDocReq.datasetId is Optional, default None."""
         req = QueryDocReq(docId="doc123", ragType=RAGType.RagFlow_RAG)
+        assert req.datasetId is None
+
+    def test_dataset_id_accepts_string(self) -> None:
+        """QueryDocReq.datasetId accepts an explicit RAGFlow dataset.id."""
+        req = QueryDocReq(
+            docId="doc123", ragType=RAGType.RagFlow_RAG, datasetId="ds-abc-123"
+        )
+        assert req.datasetId == "ds-abc-123"
+
+    def test_group_default_none(self) -> None:
+        """QueryDocReq.group is Optional, default None."""
+        req = QueryDocReq(docId="doc123", ragType=RAGType.AIUI_RAG2)
         assert req.group is None
 
     def test_group_accepts_string(self) -> None:
-        """group accepts explicit string value."""
-        req = QueryDocReq(docId="doc123", ragType=RAGType.RagFlow_RAG, group="abc-uuid")
-        assert req.group == "abc-uuid"
+        """QueryDocReq.group accepts a knowledge base group name."""
+        req = QueryDocReq(
+            docId="doc123", ragType=RAGType.AIUI_RAG2, group="legacy-name"
+        )
+        assert req.group == "legacy-name"
 
 
 class TestIntegrationCases:
@@ -639,3 +734,33 @@ class TestChunkQueryReqScopeValidator:
         ):
             req = ChunkQueryReq(**self._kwargs_for(rag_type))
             assert req.ragflow_ext is None
+
+
+class TestMatchDatasetId:
+    """Tests for QueryMatch.datasetId (by-id routing field)."""
+
+    def test_dataset_id_default_none(self) -> None:
+        from knowledge.domain.entity.chunk_dto import ChunkQueryReq
+
+        req = ChunkQueryReq(
+            query="q",
+            topN=3,
+            match={"repoId": ["r1"], "threshold": 0.5},
+            ragType="Ragflow-RAG",
+        )
+        assert req.match.datasetId is None
+
+    def test_dataset_id_accepts_list(self) -> None:
+        from knowledge.domain.entity.chunk_dto import ChunkQueryReq
+
+        req = ChunkQueryReq(
+            query="q",
+            topN=3,
+            match={
+                "repoId": ["r1"],
+                "datasetId": ["ds-1", "ds-2"],
+                "threshold": 0.5,
+            },
+            ragType="Ragflow-RAG",
+        )
+        assert req.match.datasetId == ["ds-1", "ds-2"]

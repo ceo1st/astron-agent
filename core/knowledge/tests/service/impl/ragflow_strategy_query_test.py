@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tests for RagflowRAGStrategy.query() multi-repo dataset routing."""
+"""Tests for RagflowRAGStrategy.query() datasetId routing."""
 
 import logging
 from unittest.mock import AsyncMock, patch
@@ -14,9 +14,7 @@ from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
 _GET_DATASET_NAME = (
     "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_default_dataset_name"
 )
-_GET_DATASET_ID = (
-    "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_dataset_id_by_name"
-)
+_ENSURE_DATASET = "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_dataset"
 _RETRIEVAL = (
     "knowledge.service.impl.ragflow_strategy.ragflow_client.retrieval_with_dataset"
 )
@@ -32,71 +30,51 @@ _CONVERT = (
 
 
 @pytest.mark.asyncio
-async def test_resolve_query_datasets_no_repo_ids_uses_default() -> None:
-    """repo_ids=None falls back to default group dataset."""
+async def test_resolve_query_datasets_no_ids_uses_default() -> None:
+    """datasetId=None uses the default dataset."""
     strategy = RagflowRAGStrategy()
     with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
-        _GET_DATASET_ID, new=AsyncMock(return_value="ds-default")
-    ):
-        dataset_ids, missing = await strategy._resolve_query_datasets(None)
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as ensure_mock:
+        dataset_ids = await strategy._resolve_query_datasets(None)
         assert dataset_ids == ["ds-default"]
-        assert missing == []
-
-
-@pytest.mark.asyncio
-async def test_resolve_query_datasets_no_repo_ids_default_missing() -> None:
-    """Default dataset missing returns ([], [])."""
-    strategy = RagflowRAGStrategy()
-    with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
-        _GET_DATASET_ID, new=AsyncMock(return_value=None)
-    ):
-        dataset_ids, missing = await strategy._resolve_query_datasets(None)
-        assert dataset_ids == []
-        assert missing == []
+        ensure_mock.assert_awaited_once_with("default-group")
 
 
 @pytest.mark.asyncio
 async def test_resolve_query_datasets_empty_list_uses_default() -> None:
-    """Empty repo_ids list also falls to default."""
+    """Empty list also uses the default dataset."""
     strategy = RagflowRAGStrategy()
     with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
-        _GET_DATASET_ID, new=AsyncMock(return_value="ds-default")
-    ):
-        dataset_ids, missing = await strategy._resolve_query_datasets([])
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as ensure_mock:
+        dataset_ids = await strategy._resolve_query_datasets([])
         assert dataset_ids == ["ds-default"]
-        assert missing == []
+        ensure_mock.assert_awaited_once_with("default-group")
 
 
 @pytest.mark.asyncio
-async def test_resolve_query_datasets_single_repo_present() -> None:
-    """Single repo_ids, dataset exists."""
+async def test_resolve_query_datasets_explicit_ids_passthrough() -> None:
+    """Explicit dataset_ids are returned unchanged; ensure_dataset is NOT awaited."""
     strategy = RagflowRAGStrategy()
-    with patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-abc")):
-        dataset_ids, missing = await strategy._resolve_query_datasets(["abc-uuid"])
+    with patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as ensure_mock:
+        dataset_ids = await strategy._resolve_query_datasets(["ds-1", "ds-2"])
+        assert dataset_ids == ["ds-1", "ds-2"]
+        ensure_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_resolve_query_datasets_single_id_passthrough() -> None:
+    """Single dataset id is returned unchanged."""
+    strategy = RagflowRAGStrategy()
+    with patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as ensure_mock:
+        dataset_ids = await strategy._resolve_query_datasets(["ds-abc"])
         assert dataset_ids == ["ds-abc"]
-        assert missing == []
-
-
-@pytest.mark.asyncio
-async def test_resolve_query_datasets_multi_repo_partial_missing() -> None:
-    """Multiple repo_ids, some datasets missing."""
-    strategy = RagflowRAGStrategy()
-    with patch(_GET_DATASET_ID, new=AsyncMock(side_effect=["ds-abc", None])):
-        dataset_ids, missing = await strategy._resolve_query_datasets(
-            ["abc-uuid", "def-not-exist"]
-        )
-        assert dataset_ids == ["ds-abc"]
-        assert missing == ["def-not-exist"]
-
-
-@pytest.mark.asyncio
-async def test_resolve_query_datasets_all_missing() -> None:
-    """All repo_ids datasets missing returns ([], [...all])."""
-    strategy = RagflowRAGStrategy()
-    with patch(_GET_DATASET_ID, new=AsyncMock(side_effect=[None, None])):
-        dataset_ids, missing = await strategy._resolve_query_datasets(["xxx", "yyy"])
-        assert dataset_ids == []
-        assert missing == ["xxx", "yyy"]
+        ensure_mock.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -206,13 +184,8 @@ async def test_execute_retrieval_returns_converted_results() -> None:
 
 
 @pytest.mark.asyncio
-async def test_query_single_repo_routes_to_repo_dataset() -> None:
-    """Single repo_ids runs full query pipeline and returns hits.
-
-    Discriminates repo-routing vs default-routing: default name maps to a
-    different dataset id, so a query() that ignores repo_ids would fail
-    this assertion.
-    """
+async def test_query_with_explicit_dataset_ids_skips_ensure() -> None:
+    """Caller-supplied datasetId is forwarded as-is."""
     strategy = RagflowRAGStrategy()
     fake_resp = {
         "code": 0,
@@ -221,74 +194,92 @@ async def test_query_single_repo_routes_to_repo_dataset() -> None:
         },
     }
     converted = [{"docId": "d1", "content": "hit", "score": 0.9}]
-
-    async def _resolve(name: str) -> str:
-        # Distinct ids per name — proves we routed via repo_ids, not default.
-        return "ds-abc" if name == "abc-uuid" else "ds-DEFAULT"
-
-    with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
-        _GET_DATASET_ID, new=AsyncMock(side_effect=_resolve)
-    ), patch(
+    with patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as ensure_mock, patch(
         _RETRIEVAL, new=AsyncMock(return_value=fake_resp)
     ) as mock_retrieval, patch(
         _CONVERT, return_value=converted
     ):
         result = await strategy.query(
             query="hello",
-            repo_ids=["abc-uuid"],
             doc_ids=None,
             top_k=5,
+            datasetId=["ds-real-1", "ds-real-2"],
         )
+        ensure_mock.assert_not_called()
         sent_payload = mock_retrieval.await_args.kwargs["request_data"]
-        # Routes to the repo's dataset, not the default one.
-        assert sent_payload["dataset_ids"] == ["ds-abc"]
+        assert sent_payload["dataset_ids"] == ["ds-real-1", "ds-real-2"]
         assert result["count"] == 1
         assert result["results"][0]["docId"] == "d1"
 
 
 @pytest.mark.asyncio
-async def test_query_all_missing_datasets_returns_empty(caplog) -> None:
-    """All repo datasets missing returns empty + warning, no RAGFlow call."""
+async def test_query_falls_back_to_default_group_when_dataset_id_none() -> None:
+    """datasetId=None uses the default dataset."""
     strategy = RagflowRAGStrategy()
-    with patch(_GET_DATASET_ID, new=AsyncMock(return_value=None)), patch(
-        _RETRIEVAL, new=AsyncMock()
-    ) as mock_retrieval:
-        with caplog.at_level(
-            logging.WARNING, logger="knowledge.service.impl.ragflow_strategy"
-        ):
-            result = await strategy.query(
-                query="hello",
-                repo_ids=["xxx", "yyy"],
-                doc_ids=None,
-                top_k=5,
-            )
-        mock_retrieval.assert_not_called()
-        assert result == {"query": "hello", "count": 0, "results": []}
-        assert any("missing" in r.message.lower() for r in caplog.records)
+    fake_resp = {"code": 0, "data": {"chunks": []}}
+    with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as ensure_mock, patch(
+        _RETRIEVAL, new=AsyncMock(return_value=fake_resp)
+    ) as mock_retrieval, patch(
+        _CONVERT, return_value=[]
+    ):
+        await strategy.query(query="hello", doc_ids=None, top_k=5, datasetId=None)
+        ensure_mock.assert_awaited_once_with("default-group")
+        sent_payload = mock_retrieval.await_args.kwargs["request_data"]
+        assert sent_payload["dataset_ids"] == ["ds-default"]
 
 
 @pytest.mark.asyncio
-async def test_query_repo_and_doc_ids_double_filter() -> None:
-    """repo_ids + doc_ids: payload has both repo dataset and docs."""
+async def test_query_falls_back_to_default_group_when_dataset_id_omitted() -> None:
+    """Omitting datasetId is equivalent to datasetId=None."""
     strategy = RagflowRAGStrategy()
     fake_resp = {"code": 0, "data": {"chunks": []}}
-
-    async def _resolve(name: str) -> str:
-        return "ds-abc" if name == "abc-uuid" else "ds-DEFAULT"
-
     with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
-        _GET_DATASET_ID, new=AsyncMock(side_effect=_resolve)
-    ), patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as ensure_mock, patch(_RETRIEVAL, new=AsyncMock(return_value=fake_resp)), patch(
+        _CONVERT, return_value=[]
+    ):
+        await strategy.query(query="hello", top_k=5)
+        ensure_mock.assert_awaited_once_with("default-group")
+
+
+@pytest.mark.asyncio
+async def test_query_default_dataset_unresolvable_returns_empty(caplog) -> None:
+    """When ensure_dataset returns falsy, query yields empty."""
+    strategy = RagflowRAGStrategy()
+    with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value=None)
+    ), patch(_RETRIEVAL, new=AsyncMock()) as mock_retrieval:
+        with caplog.at_level(
+            logging.INFO, logger="knowledge.service.impl.ragflow_strategy"
+        ):
+            result = await strategy.query(query="hello", top_k=5)
+        mock_retrieval.assert_not_called()
+        assert result == {"query": "hello", "count": 0, "results": []}
+
+
+@pytest.mark.asyncio
+async def test_query_doc_ids_passthrough_with_explicit_dataset_id() -> None:
+    """doc_ids combine with explicit datasetId for double filter."""
+    strategy = RagflowRAGStrategy()
+    fake_resp = {"code": 0, "data": {"chunks": []}}
+    with patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as ensure_mock, patch(
         _RETRIEVAL, new=AsyncMock(return_value=fake_resp)
     ) as mock_retrieval, patch(
         _CONVERT, return_value=[]
     ):
         await strategy.query(
             query="hello",
-            repo_ids=["abc-uuid"],
             doc_ids=["doc1", "doc2"],
             top_k=5,
+            datasetId=["ds-abc"],
         )
+        ensure_mock.assert_not_called()
         sent_payload = mock_retrieval.await_args.kwargs["request_data"]
         assert sent_payload["dataset_ids"] == ["ds-abc"]
         assert sent_payload["document_ids"] == ["doc1", "doc2"]
@@ -298,20 +289,18 @@ async def test_query_repo_and_doc_ids_double_filter() -> None:
 async def test_query_propagates_ragflow_errors() -> None:
     """RAGFlow exception bubbles as ThirdPartyException, NOT empty."""
     strategy = RagflowRAGStrategy()
-    with patch(_GET_DATASET_ID, new=AsyncMock(return_value="ds-abc")), patch(
-        _RETRIEVAL, new=AsyncMock(side_effect=RuntimeError("RAGFlow 5xx"))
-    ):
+    with patch(_RETRIEVAL, new=AsyncMock(side_effect=RuntimeError("RAGFlow 5xx"))):
         with pytest.raises(ThirdPartyException):
             await strategy.query(
                 query="hello",
-                repo_ids=["abc-uuid"],
                 doc_ids=None,
                 top_k=5,
+                datasetId=["ds-abc"],
             )
 
 
 # ---------------------------------------------------------------------------
-# query_doc / query_doc_name (read paths) — group routing
+# query_doc / query_doc_name
 # ---------------------------------------------------------------------------
 
 _LIST_CHUNKS = (
@@ -323,78 +312,76 @@ _GET_DOC_INFO = (
 
 
 @pytest.mark.asyncio
-async def test_query_doc_routes_to_group_dataset() -> None:
-    """query_doc with explicit group resolves dataset by group, not default."""
+async def test_query_doc_passes_through_explicit_dataset_id() -> None:
+    """query_doc with non-empty datasetId skips ensure_dataset."""
     strategy = RagflowRAGStrategy()
-    with patch(
-        _GET_DATASET_ID, new=AsyncMock(return_value="ds-abc")
-    ) as mock_lookup, patch(
+    with patch(_ENSURE_DATASET, new=AsyncMock()) as mock_ensure, patch(
         _LIST_CHUNKS,
         new=AsyncMock(return_value={"code": 0, "data": {"total": 0, "chunks": []}}),
-    ):
-        await strategy.query_doc(docId="doc-1", group="abc-uuid")
-        mock_lookup.assert_awaited_once_with("abc-uuid")
+    ) as mock_list:
+        await strategy.query_doc(docId="doc-1", datasetId="ds-explicit-123")
+        mock_ensure.assert_not_called()
+        assert mock_list.await_args.args[0] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio
-async def test_query_doc_with_null_group_falls_back_to_default() -> None:
-    """query_doc with group=None falls back to default group."""
+async def test_query_doc_with_null_dataset_id_falls_back_to_default() -> None:
+    """query_doc with datasetId=None ensures the default dataset exists."""
     strategy = RagflowRAGStrategy()
     with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
-        _GET_DATASET_ID, new=AsyncMock(return_value="ds-default")
-    ) as mock_lookup, patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as mock_ensure, patch(
         _LIST_CHUNKS,
         new=AsyncMock(return_value={"code": 0, "data": {"total": 0, "chunks": []}}),
     ):
-        await strategy.query_doc(docId="doc-1", group=None)
-        mock_lookup.assert_awaited_once_with("default-group")
+        await strategy.query_doc(docId="doc-1", datasetId=None)
+        mock_ensure.assert_awaited_once_with("default-group")
 
 
 @pytest.mark.asyncio
-async def test_query_doc_returns_empty_when_dataset_missing() -> None:
-    """query_doc returns [] when dataset for group not found."""
+async def test_query_doc_returns_empty_when_default_unresolvable() -> None:
+    """query_doc returns [] when ensure_dataset cannot resolve the default."""
     strategy = RagflowRAGStrategy()
-    with patch(_GET_DATASET_ID, new=AsyncMock(return_value=None)), patch(
-        _LIST_CHUNKS, new=AsyncMock()
-    ) as mock_list:
-        result = await strategy.query_doc(docId="doc-1", group="ghost-uuid")
+    with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value=None)
+    ), patch(_LIST_CHUNKS, new=AsyncMock()) as mock_list:
+        result = await strategy.query_doc(docId="doc-1", datasetId=None)
         assert result == []
         mock_list.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_query_doc_name_routes_to_group_dataset() -> None:
-    """query_doc_name with explicit group resolves dataset by group."""
+async def test_query_doc_name_passes_through_explicit_dataset_id() -> None:
+    """query_doc_name with non-empty datasetId skips ensure_dataset."""
     strategy = RagflowRAGStrategy()
-    with patch(
-        _GET_DATASET_ID, new=AsyncMock(return_value="ds-abc")
-    ) as mock_lookup, patch(
+    with patch(_ENSURE_DATASET, new=AsyncMock()) as mock_ensure, patch(
         _GET_DOC_INFO, new=AsyncMock(return_value={"name": "f.pdf", "run": "DONE"})
-    ):
-        await strategy.query_doc_name(docId="doc-1", group="abc-uuid")
-        mock_lookup.assert_awaited_once_with("abc-uuid")
+    ) as mock_info:
+        await strategy.query_doc_name(docId="doc-1", datasetId="ds-explicit-123")
+        mock_ensure.assert_not_called()
+        assert mock_info.await_args.args[0] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio
-async def test_query_doc_name_with_null_group_falls_back_to_default() -> None:
-    """query_doc_name with group=None falls back to default group."""
+async def test_query_doc_name_with_null_dataset_id_falls_back_to_default() -> None:
+    """query_doc_name with datasetId=None ensures the default dataset exists."""
     strategy = RagflowRAGStrategy()
     with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
-        _GET_DATASET_ID, new=AsyncMock(return_value="ds-default")
-    ) as mock_lookup, patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value="ds-default")
+    ) as mock_ensure, patch(
         _GET_DOC_INFO, new=AsyncMock(return_value={"name": "f.pdf", "run": "DONE"})
     ):
-        await strategy.query_doc_name(docId="doc-1", group=None)
-        mock_lookup.assert_awaited_once_with("default-group")
+        await strategy.query_doc_name(docId="doc-1", datasetId=None)
+        mock_ensure.assert_awaited_once_with("default-group")
 
 
 @pytest.mark.asyncio
-async def test_query_doc_name_returns_none_when_dataset_missing() -> None:
-    """query_doc_name returns None when dataset for group not found."""
+async def test_query_doc_name_returns_none_when_default_unresolvable() -> None:
+    """query_doc_name returns None when ensure_dataset cannot resolve."""
     strategy = RagflowRAGStrategy()
-    with patch(_GET_DATASET_ID, new=AsyncMock(return_value=None)), patch(
-        _GET_DOC_INFO, new=AsyncMock()
-    ) as mock_info:
-        result = await strategy.query_doc_name(docId="doc-1", group="ghost-uuid")
+    with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
+        _ENSURE_DATASET, new=AsyncMock(return_value=None)
+    ), patch(_GET_DOC_INFO, new=AsyncMock()) as mock_info:
+        result = await strategy.query_doc_name(docId="doc-1", datasetId=None)
         assert result is None
         mock_info.assert_not_called()

@@ -190,6 +190,28 @@ async def test_ragflow_ext_not_in_kwargs_when_unset(
 
 
 @pytest.mark.asyncio
+async def test_dataset_id_forwarded_as_internal_contract(
+    app: Any, infra_mocks: Tuple[MagicMock, MagicMock]
+) -> None:
+    """Service-injected datasetId is forwarded to the Ragflow strategy."""
+    from fastapi.testclient import TestClient
+
+    strategy_mock = _make_strategy_mock()
+    with (
+        patch(_GET_SPAN_AND_METRIC, return_value=infra_mocks),
+        patch(_REWRITE_QUERY, new=AsyncMock(return_value="rewritten-query")),
+        patch(_GET_STRATEGY, return_value=strategy_mock),
+    ):
+        client = TestClient(app)
+        body = _base_request_body()
+        body["match"]["datasetId"] = ["ds-console"]
+        response = client.post("/knowledge/v1/chunk/query", json=body)
+
+    assert response.status_code == 200
+    assert strategy_mock.query.await_args.kwargs["datasetId"] == ["ds-console"]
+
+
+@pytest.mark.asyncio
 async def test_validation_error_when_ragflow_ext_with_non_ragflow_ragtype(
     app: Any,
 ) -> None:

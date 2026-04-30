@@ -24,6 +24,7 @@ class KnowledgeQueryParams:
 
     repo_ids: list[str]
     doc_ids: list[str]
+    dataset_ids: list[str]
     top_k: int
     score_threshold: float
     rag_type: str
@@ -126,6 +127,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
         for knowledge in knowledge_list:
             repo_ids = knowledge.match.repo_ids or []
             doc_ids = knowledge.match.doc_ids or []
+            dataset_ids = knowledge.match.dataset_ids or []
 
             # 添加调试日志
             span.add_info_events(
@@ -134,6 +136,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     "repo_type": knowledge.repo_type,
                     "repo_ids": repo_ids,
                     "doc_ids": doc_ids,
+                    "dataset_ids": dataset_ids,
                 }
             )
 
@@ -155,6 +158,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             params = KnowledgeQueryParams(
                 repo_ids=repo_ids,
                 doc_ids=doc_ids,
+                dataset_ids=dataset_ids,
                 top_k=top_k,
                 score_threshold=score_threshold,
                 rag_type=repo_type,
@@ -228,6 +232,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             top_k=params.top_k,
             repo_ids=params.repo_ids,
             doc_ids=params.doc_ids,
+            dataset_ids=params.dataset_ids,
             score_threshold=params.score_threshold,
             rag_type=params.rag_type,
         ).gen()
