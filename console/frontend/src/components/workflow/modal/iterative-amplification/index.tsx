@@ -94,7 +94,9 @@ const useKeyboardHandlers = ({
     lastSelection.nodes = lastSelection?.nodes?.filter(
       node =>
         node.nodeType !== 'iteration-node-start' &&
-        node.nodeType !== 'iteration-node-end'
+        node.nodeType !== 'iteration-node-end' &&
+        node.nodeType !== 'loop-node-start' &&
+        node.nodeType !== 'loop-node-end'
     );
     const edgeIds = lastSelection?.edges?.map(edge => edge?.id);
     const leftEdges = edges.filter(edge => !edgeIds?.includes(edge?.id));
@@ -129,7 +131,9 @@ const useKeyboardHandlers = ({
           }
           return (
             node.nodeType !== 'iteration-node-start' &&
-            node.nodeType !== 'iteration-node-end'
+            node.nodeType !== 'iteration-node-end' &&
+            node.nodeType !== 'loop-node-start' &&
+            node.nodeType !== 'loop-node-end'
           );
         });
         try {
@@ -521,6 +525,12 @@ function IterativeAmplificationModal(): React.ReactElement {
     return iteratorNode?.data?.nodeParam?.runMode === 'parallel';
   }, [iteratorId, mainFlowNodes]);
 
+  const isLoopContainer = useMemo(() => {
+    if (!iteratorId) return false;
+    const iteratorNode = mainFlowNodes?.find(n => n?.id === iteratorId);
+    return iteratorNode?.nodeType === 'loop';
+  }, [iteratorId, mainFlowNodes]);
+
   const handleAddNode = useMemoizedFn(
     (addNode: AddNodeType, position: PositionType) => {
       if (isParallelIterator && addNode?.idType === 'question-answer') {
@@ -548,6 +558,11 @@ function IterativeAmplificationModal(): React.ReactElement {
             {showNodeList && (
               <NodeList
                 noIterator={true}
+                hiddenIdTypes={
+                  isLoopContainer
+                    ? ['iteration', 'loop']
+                    : ['iteration', 'loop', 'loop-exit']
+                }
                 hiddenAliasNames={isParallelIterator ? ['问答节点'] : []}
                 handleAddNode={handleAddNode}
               />

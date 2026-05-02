@@ -33,6 +33,7 @@ interface NodeCategory {
 
 interface NodeListProps {
   noIterator?: boolean;
+  hiddenIdTypes?: string[];
   hiddenAliasNames?: string[];
   handleAddNode?: (
     addNode: AddNodeType,
@@ -43,6 +44,7 @@ interface NodeListProps {
 // ========= 组件 =========
 const NodeList: React.FC<NodeListProps> = ({
   noIterator = false,
+  hiddenIdTypes = [],
   hiddenAliasNames = [],
   handleAddNode: handleAddNodeProp,
 }): React.ReactElement => {
@@ -109,6 +111,7 @@ const NodeList: React.FC<NodeListProps> = ({
                         <div className="flex flex-col gap-3.5">
                           {nodeCategory.nodes.map((item, idx) =>
                             (!noIterator || item?.idType !== 'iteration') &&
+                            !hiddenIdTypes?.includes(item?.idType) &&
                             !hiddenAliasNames?.includes(item?.aliasName) ? (
                               <Tooltip
                                 key={idx}

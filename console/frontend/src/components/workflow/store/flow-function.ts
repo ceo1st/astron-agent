@@ -264,7 +264,7 @@ const copyNode = (
     y: copyNode.position.y + 50,
   };
   copyNode.selected = true;
-  if (currentNode?.nodeType === 'iteration') {
+  if (['iteration', 'loop'].includes(currentNode?.nodeType)) {
     const idsMap = {};
     const childNodes = get()?.nodes?.filter(
       node => node?.data?.parentId === currentNode?.id
@@ -285,11 +285,20 @@ const copyNode = (
       }),
       idsMap
     );
+    const startNodeType =
+      currentNode?.nodeType === 'loop'
+        ? 'loop-node-start'
+        : 'iteration-node-start';
     const iterationNodeStartKey = Object.keys(idsMap)?.find(item =>
-      item?.startsWith('iteration-node-start')
+      item?.startsWith(startNodeType)
     );
-    copyNode.data.nodeParam.IterationStartNodeId =
-      idsMap[iterationNodeStartKey as string];
+    if (currentNode?.nodeType === 'loop') {
+      copyNode.data.nodeParam.LoopStartNodeId =
+        idsMap[iterationNodeStartKey as string];
+    } else {
+      copyNode.data.nodeParam.IterationStartNodeId =
+        idsMap[iterationNodeStartKey as string];
+    }
     get().setNodes(old => {
       return cloneDeep([
         ...old.map(item => ({ ...item, selected: false })),
@@ -356,7 +365,7 @@ const deleteNode = (
     }
   });
   get().setNodes(
-    currentNode?.nodeType !== 'iteration'
+    !['iteration', 'loop'].includes(currentNode?.nodeType)
       ? get().nodes.filter(node =>
           typeof nodeId === 'string'
             ? node.id !== nodeId
@@ -528,6 +537,9 @@ const updateNodeRef = (id: string, get): void => {
       if (item?.nodeType === 'iteration') {
         updateIterationOutputs(item, old);
       }
+      if (item?.nodeType === 'loop') {
+        updateLoopOutputs(item, old);
+      }
     });
 
     return cloneDeep(old);
@@ -623,6 +635,26 @@ function updateIterationOutputs(item, old): void {
 
   if (iteratorStartNode) {
     iteratorStartNode.data.outputs = outputs;
+  }
+}
+
+function updateLoopOutputs(item, old): void {
+  const loopVariables = item?.data?.nodeParam?.loopVariables || [];
+  const outputs = loopVariables?.map(variable => ({
+    id: variable?.id || uuid(),
+    name: variable?.name,
+    schema: variable?.schema || {
+      type: 'string',
+      default: '',
+    },
+  }));
+
+  const loopStartNode = old?.find(
+    node => node?.data?.parentId === item?.id && node?.nodeType === 'loop-node-start'
+  );
+
+  if (loopStartNode) {
+    loopStartNode.data.outputs = outputs;
   }
 }
 
