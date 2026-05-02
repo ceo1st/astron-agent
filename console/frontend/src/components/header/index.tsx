@@ -60,6 +60,15 @@ const tabs = [
     createButtonText: 'common.create',
     createButtonKey: 'create-skill',
   },
+  {
+    key: 'automation',
+    path: '/resource/automation',
+    iconClass: 'plugin-icon',
+    title: 'automation.title',
+    searchPlaceholder: 'common.inputPlaceholder',
+    createButtonText: 'automation.createTask',
+    createButtonKey: 'create-automation',
+  },
 ];
 
 interface HeaderProps {
