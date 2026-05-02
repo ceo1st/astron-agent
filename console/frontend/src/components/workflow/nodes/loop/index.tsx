@@ -7,13 +7,20 @@ import Inputs from '@/components/workflow/nodes/components/inputs';
 import Outputs from '@/components/workflow/nodes/components/outputs';
 import FLowContainer from '@/components/workflow/nodes/iterator/components/flow-container';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
-import { FLowCollapse } from '@/components/workflow/ui';
+import { FlowCascader, FLowCollapse } from '@/components/workflow/ui';
 import { NodeCommonProps } from '@/components/workflow/types/hooks';
+import { generateReferences } from '@/components/workflow/utils/reactflowUtils';
 
 interface LoopConditionConfig {
   leftVarIndex?: string;
   rightVarIndex?: string;
+  rightValue?: ValueConfig;
   compareOperator?: string;
+}
+
+interface ValueConfig {
+  type: 'literal' | 'ref';
+  content: any;
 }
 
 const typeOptions = [
@@ -48,6 +55,32 @@ const defaultValueByType = (type: string): unknown => {
   return '';
 };
 
+const getValueConfig = (value: any, fallbackType = 'string'): ValueConfig => {
+  if (value?.type === 'ref' || value?.type === 'literal') {
+    return value;
+  }
+  return {
+    type: 'literal',
+    content:
+      typeof value !== 'undefined' ? value : defaultValueByType(fallbackType),
+  };
+};
+
+const getReferenceValue = (value: ValueConfig): string[] => {
+  return value?.type === 'ref' && value?.content?.nodeId
+    ? [value.content.nodeId, value.content.name]
+    : [];
+};
+
+const buildRefValue = (node: any): ValueConfig => ({
+  type: 'ref',
+  content: {
+    id: node.id,
+    nodeId: node.originId,
+    name: node.value,
+  },
+});
+
 export const LoopDetail = memo(
   (props: NodeCommonProps & { selected?: boolean }): React.ReactElement => {
     const { id, data, selected } = props;
@@ -55,6 +88,7 @@ export const LoopDetail = memo(
     const getCurrentStore = useFlowsManager(state => state.getCurrentStore);
     const currentStore = getCurrentStore();
     const nodes = currentStore(state => state.nodes);
+    const edges = currentStore(state => state.edges);
     const setNode = currentStore(state => state.setNode);
     const setNodes = currentStore(state => state.setNodes);
     const setEdges = currentStore(state => state.setEdges);
@@ -70,6 +104,10 @@ export const LoopDetail = memo(
     const loopVariables = useMemo(() => {
       return (nodeParam?.loopVariables || []) as any[];
     }, [nodeParam?.loopVariables]);
+
+    const references = useMemo(() => {
+      return generateReferences(nodes, edges, id);
+    }, [nodes, edges, id]);
 
     const termination = useMemo(() => {
       return (
@@ -200,6 +238,7 @@ export const LoopDetail = memo(
                     <div key={variable.id} className="flex items-center gap-2">
                       <Input
                         className="flow-input"
+                        style={{ width: 120 }}
                         value={variable.name}
                         onChange={event => {
                           const nextVariables = cloneDeep(loopVariables);
@@ -221,6 +260,84 @@ export const LoopDetail = memo(
                           updateLoopVariables(nextVariables);
                         }}
                       />
+                      <Select
+                        className="flow-select w-[96px]"
+                        value={
+                          getValueConfig(
+                            variable.value,
+                            variable.schema?.type || 'string'
+                          ).type
+                        }
+                        options={[
+                          {
+                            label: t('workflow.nodes.common.input'),
+                            value: 'literal',
+                          },
+                          {
+                            label: t('workflow.nodes.common.reference'),
+                            value: 'ref',
+                          },
+                        ]}
+                        onChange={value => {
+                          const nextVariables = cloneDeep(loopVariables);
+                          nextVariables[index].value =
+                            value === 'literal'
+                              ? {
+                                  type: 'literal',
+                                  content: defaultValueByType(
+                                    nextVariables[index].schema?.type ||
+                                      'string'
+                                  ),
+                                }
+                              : {
+                                  type: 'ref',
+                                  content: {},
+                                };
+                          updateLoopVariables(nextVariables);
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        {getValueConfig(
+                          variable.value,
+                          variable.schema?.type || 'string'
+                        ).type === 'ref' ? (
+                          <FlowCascader
+                            value={getReferenceValue(
+                              getValueConfig(
+                                variable.value,
+                                variable.schema?.type || 'string'
+                              )
+                            )}
+                            options={references}
+                            handleTreeSelect={node => {
+                              const nextVariables = cloneDeep(loopVariables);
+                              nextVariables[index].value = buildRefValue(node);
+                              nextVariables[index].schema = {
+                                type: node.type || 'string',
+                              };
+                              updateLoopVariables(nextVariables);
+                            }}
+                          />
+                        ) : (
+                          <Input
+                            className="flow-input"
+                            value={
+                              getValueConfig(
+                                variable.value,
+                                variable.schema?.type || 'string'
+                              ).content
+                            }
+                            onChange={event => {
+                              const nextVariables = cloneDeep(loopVariables);
+                              nextVariables[index].value = {
+                                type: 'literal',
+                                content: event.target.value,
+                              };
+                              updateLoopVariables(nextVariables);
+                            }}
+                          />
+                        )}
+                      </div>
                       <Button
                         disabled={loopVariables.length <= 1}
                         onClick={() => {
@@ -321,17 +438,95 @@ export const LoopDetail = memo(
                             })
                           }
                         />
-                        <Input
-                          className="flow-input"
-                          value={condition.rightVarIndex}
-                          onChange={event =>
+                        <Select
+                          className="flow-select w-[96px]"
+                          value={
+                            getValueConfig(
+                              condition.rightValue,
+                              'string'
+                            ).type
+                          }
+                          options={[
+                            {
+                              label: t('workflow.nodes.common.input'),
+                              value: 'literal',
+                            },
+                            {
+                              label: t('workflow.nodes.common.reference'),
+                              value: 'ref',
+                            },
+                          ]}
+                          onChange={value =>
                             updateNodeParam(param => {
+                              const nextValue =
+                                value === 'literal'
+                                  ? {
+                                      type: 'literal',
+                                      content:
+                                        condition.rightVarIndex || '',
+                                    }
+                                  : {
+                                      type: 'ref',
+                                      content: {},
+                                    };
+                              param.termination.conditions[index].rightValue =
+                                nextValue;
                               param.termination.conditions[
                                 index
-                              ].rightVarIndex = event.target.value;
+                              ].rightVarIndex =
+                                value === 'literal' ? nextValue.content : '';
                             })
                           }
                         />
+                        <div className="flex-1 min-w-0">
+                          {getValueConfig(
+                            condition.rightValue ||
+                              condition.rightVarIndex,
+                            'string'
+                          ).type === 'ref' ? (
+                            <FlowCascader
+                              value={getReferenceValue(
+                                getValueConfig(condition.rightValue, 'string')
+                              )}
+                              options={references}
+                              handleTreeSelect={node =>
+                                updateNodeParam(param => {
+                                  const nextValue = buildRefValue(node);
+                                  param.termination.conditions[
+                                    index
+                                  ].rightValue = nextValue;
+                                  param.termination.conditions[
+                                    index
+                                  ].rightVarIndex = node.value;
+                                })
+                              }
+                            />
+                          ) : (
+                            <Input
+                              className="flow-input"
+                              value={
+                                getValueConfig(
+                                  condition.rightValue ||
+                                    condition.rightVarIndex,
+                                  'string'
+                                ).content
+                              }
+                              onChange={event =>
+                                updateNodeParam(param => {
+                                  param.termination.conditions[
+                                    index
+                                  ].rightValue = {
+                                    type: 'literal',
+                                    content: event.target.value,
+                                  };
+                                  param.termination.conditions[
+                                    index
+                                  ].rightVarIndex = event.target.value;
+                                })
+                              }
+                            />
+                          )}
+                        </div>
                         <Button
                           onClick={() =>
                             updateNodeParam(param => {
@@ -362,6 +557,10 @@ export const LoopDetail = memo(
                               loopVariables?.[0]?.id ||
                               loopVariables?.[0]?.name,
                             rightVarIndex: '',
+                            rightValue: {
+                              type: 'literal',
+                              content: '',
+                            },
                             compareOperator: 'eq',
                           },
                         ];
