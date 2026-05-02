@@ -171,7 +171,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     public static final String CLONED_SUFFIX_PATTERN = "[(]\\d+[)]$";
 
     private static final String JSON_KEY_BOT_ID = "botId";
-    private static final String PUBLISH_SUCCESS = "成功";
+    private static final String PUBLISH_SUCCESS = WorkflowConst.PublishResult.SUCCESS;
     private static final int DEFAULT_ORDER = 0;
     private static final String NP_PROJECT_ID = "projectId";
     private static final String NP_ASSISTANT_ID = "assistantId";
@@ -438,7 +438,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 Long count = workflowVersionMapper.selectCount(
                         Wrappers.lambdaQuery(WorkflowVersion.class)
                                 .eq(WorkflowVersion::getFlowId, workflow.getFlowId())
-                                .eq(WorkflowVersion::getPublishResult, PUBLISH_SUCCESS));
+                                .in(WorkflowVersion::getPublishResult,
+                                        PUBLISH_SUCCESS, WorkflowConst.PublishResult.LEGACY_SUCCESS));
                 if (count > 0) {
                     statusFlag = 1;
                     final WorkflowVo maxVersionByFlowId = getMaxVersionByFlowId(workflow.getFlowId());
@@ -940,7 +941,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             WorkflowVersion workflowVersion = workflowVersionMapper.selectOne(
                     Wrappers.lambdaQuery(WorkflowVersion.class)
                             .eq(WorkflowVersion::getFlowId, flowId)
-                            .eq(WorkflowVersion::getPublishResult, PUBLISH_SUCCESS)
+                            .in(WorkflowVersion::getPublishResult,
+                                    PUBLISH_SUCCESS, WorkflowConst.PublishResult.LEGACY_SUCCESS)
                             .orderByDesc(WorkflowVersion::getCreatedTime)
                             .last("LIMIT 1"));
 

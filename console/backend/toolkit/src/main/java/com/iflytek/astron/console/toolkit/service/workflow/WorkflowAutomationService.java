@@ -11,6 +11,7 @@ import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
+import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
 import com.iflytek.astron.console.toolkit.entity.biz.external.app.AkSk;
 import com.iflytek.astron.console.toolkit.entity.common.PageData;
@@ -18,10 +19,12 @@ import com.iflytek.astron.console.toolkit.entity.core.workflow.sse.ChatSysReq;
 import com.iflytek.astron.console.toolkit.entity.dto.automation.WorkflowAutomationTaskReq;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowAutomationRun;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowAutomationTask;
+import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion;
 import com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowAutomationRunMapper;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowAutomationTaskMapper;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowMapper;
+import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowVersionMapper;
 import com.iflytek.astron.console.toolkit.service.extra.AppService;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import com.iflytek.astron.console.toolkit.util.JacksonUtil;
@@ -63,6 +66,7 @@ public class WorkflowAutomationService
 
     private final WorkflowAutomationRunMapper runMapper;
     private final WorkflowMapper workflowMapper;
+    private final WorkflowVersionMapper workflowVersionMapper;
     private final DataPermissionCheckTool dataPermissionCheckTool;
     private final RedisUtil redisUtil;
     private final ApiUrl apiUrl;
@@ -213,7 +217,7 @@ public class WorkflowAutomationService
         task.setTaskName(StringUtils.trim(req.getTaskName()));
         task.setFlowId(req.getFlowId());
         task.setWorkflowName(workflow.getName());
-        task.setVersion(req.getVersion());
+        task.setVersion(StringUtils.defaultIfBlank(req.getVersion(), latestPublishedVersionName(workflow.getFlowId())));
         task.setCronExpression(StringUtils.trim(req.getCronExpression()));
         task.setScheduleType(StringUtils.defaultIfBlank(req.getScheduleType(), "CUSTOM"));
         task.setTimezone(timezone);
@@ -232,7 +236,7 @@ public class WorkflowAutomationService
         if (workflow == null) {
             throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
         }
-        if (!Objects.equals(workflow.getStatus(), 1)) {
+        if (!isPublished(workflow)) {
             throw new BusinessException(ResponseEnum.WORKFLOW_NOT_PUBLISH);
         }
         dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
@@ -406,7 +410,7 @@ public class WorkflowAutomationService
         if (workflow == null) {
             throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
         }
-        if (!Objects.equals(workflow.getStatus(), 1)) {
+        if (!isPublished(workflow)) {
             throw new BusinessException(ResponseEnum.WORKFLOW_NOT_PUBLISH);
         }
         boolean denied = task.getSpaceId() == null
@@ -422,6 +426,28 @@ public class WorkflowAutomationService
             return null;
         }
         return StringUtils.abbreviate(value, MAX_RESPONSE_SUMMARY_LENGTH);
+    }
+
+    private boolean isPublished(Workflow workflow) {
+        if (Objects.equals(workflow.getStatus(), WorkflowConst.Status.PUBLISHED)) {
+            return true;
+        }
+        return latestPublishedVersion(workflow.getFlowId()) != null;
+    }
+
+    private String latestPublishedVersionName(String flowId) {
+        WorkflowVersion version = latestPublishedVersion(flowId);
+        return version == null ? null : version.getName();
+    }
+
+    private WorkflowVersion latestPublishedVersion(String flowId) {
+        return workflowVersionMapper.selectOne(Wrappers.lambdaQuery(WorkflowVersion.class)
+                .eq(WorkflowVersion::getFlowId, flowId)
+                .in(WorkflowVersion::getPublishResult,
+                        WorkflowConst.PublishResult.SUCCESS,
+                        WorkflowConst.PublishResult.LEGACY_SUCCESS)
+                .orderByDesc(WorkflowVersion::getCreatedTime)
+                .last("limit 1"));
     }
 
     private <T> PageData<T> toPageData(Page<T> page) {
