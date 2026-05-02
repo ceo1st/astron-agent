@@ -364,6 +364,15 @@ const translation = {
       cannotSwitchToParallelWithQa:
         'Cannot switch to parallel mode while a question-answer node exists in the sub-canvas',
     },
+    loopNode: {
+      type: 'Loop',
+      variables: 'Loop Variables',
+      addVariable: 'Add Variable',
+      termination: 'Termination',
+      maxLoopCount: 'Max Loop Count',
+      addCondition: 'Add Condition',
+      output: 'Output',
+    },
     codeNode: {
       type: 'Code',
       code: 'Code',

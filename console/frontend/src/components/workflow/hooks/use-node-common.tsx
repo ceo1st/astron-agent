@@ -65,7 +65,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
 
   const isIteratorStart = useMemo(() => {
-    return nodeType === 'iteration-node-start';
+    return ['iteration-node-start', 'loop-node-start'].includes(nodeType);
   }, [nodeType]);
 
   const isEndNode = useMemo(() => {
@@ -73,7 +73,9 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
 
   const isIteratorEnd = useMemo(() => {
-    return nodeType === 'iteration-node-end';
+    return ['iteration-node-end', 'loop-node-end', 'loop-exit'].includes(
+      nodeType
+    );
   }, [nodeType]);
 
   const isKnowledgeNode = useMemo(() => {
@@ -96,6 +98,10 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     return nodeType === 'iteration';
   }, [nodeType]);
 
+  const isLoopNode = useMemo(() => {
+    return nodeType === 'loop';
+  }, [nodeType]);
+
   const isIteratorChildNode = useMemo(() => {
     return !showIterativeModal && data?.parentId;
   }, [showIterativeModal, data?.parentId]);
@@ -105,8 +111,13 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
 
   const isStartOrEndNode = useMemo(() => {
-    return nodeType === 'node-start' || nodeType === 'node-end';
-  }, [nodeType]);
+    return (
+      nodeType === 'node-start' ||
+      nodeType === 'node-end' ||
+      isIteratorStart ||
+      isIteratorEnd
+    );
+  }, [nodeType, isIteratorStart, isIteratorEnd]);
 
   const isCodeNode = useMemo(() => {
     return nodeType === 'ifly-code';
@@ -165,9 +176,11 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
 
   const nodeIcon = useMemo(() => {
     let nodeFinallyType = '';
-    if (nodeType === 'iteration-node-start') {
+    if (['iteration-node-start', 'loop-node-start'].includes(nodeType)) {
       nodeFinallyType = 'node-start';
-    } else if (nodeType === 'iteration-node-end') {
+    } else if (
+      ['iteration-node-end', 'loop-node-end', 'loop-exit'].includes(nodeType)
+    ) {
       nodeFinallyType = 'node-end';
     } else {
       nodeFinallyType = nodeType;
@@ -210,11 +223,11 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     return data?.nodeParam?.mode === 1;
   }, [data?.nodeParam?.mode]);
   const allowAddInput = useMemo(() => {
-    if (canvasesDisabled || stringSplitMode || isIteratorNode) {
+    if (canvasesDisabled || stringSplitMode || isIteratorNode || isLoopNode) {
       return false;
     }
     return true;
-  }, [canvasesDisabled, stringSplitMode, isIteratorNode]);
+  }, [canvasesDisabled, stringSplitMode, isIteratorNode, isLoopNode]);
   const allowAddOutput = useMemo(() => {
     if (canvasesDisabled) {
       return false;
@@ -236,6 +249,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     isDecisionMakingNode,
     isIfElseNode,
     isIteratorNode,
+    isLoopNode,
     isIteratorChildNode,
     isAgentNode,
     isStartOrEndNode,
@@ -882,7 +896,11 @@ const useNodeHandle = ({ id, data }): UseNodeHandleReturn => {
   }, [data?.parentId, showIterativeModal]);
 
   const hasSourceHandle = useMemo(() => {
-    if (nodeType === 'node-end' || nodeType === 'iteration-node-end') {
+    if (
+      ['node-end', 'iteration-node-end', 'loop-node-end', 'loop-exit'].includes(
+        nodeType
+      )
+    ) {
       return false;
     }
     if (nodeType === 'decision-making') {
@@ -906,7 +924,7 @@ const useNodeHandle = ({ id, data }): UseNodeHandleReturn => {
   }, [data?.nodeParam?.exceptionHandlingEdge, id]);
 
   const hasTargetHandle = useMemo(() => {
-    if (['node-start', 'iteration-node-start']?.includes(nodeType)) {
+    if (['node-start', 'iteration-node-start', 'loop-node-start']?.includes(nodeType)) {
       return false;
     }
     return true;

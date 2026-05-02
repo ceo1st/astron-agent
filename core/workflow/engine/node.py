@@ -127,6 +127,7 @@ class NodeExecutionTemplate:
             NodeType.KNOWLEDGE_PRO.value: MessageNodeParameterStrategy(),
             NodeType.FLOW.value: MessageNodeParameterStrategy(),
             NodeType.ITERATION.value: IterationNodeParameterStrategy(),
+            NodeType.LOOP.value: IterationNodeParameterStrategy(),
         }
 
     async def execute(self, **kwargs: Any) -> NodeRunResult:
@@ -189,6 +190,7 @@ class NodeExecutionTemplate:
             "variable_pool": kwargs.get("variable_pool"),
             "span": span_context,
             "iteration_engine": kwargs.get("iteration_engine"),
+            "loop_engine": kwargs.get("loop_engine"),
             "event_log_node_trace": self.node.node_log,
             "event_log_trace": kwargs.get("event_log_trace"),
             "callbacks": kwargs.get("callbacks"),
@@ -624,6 +626,7 @@ class SparkFlowEngineNode(BaseModel):
         span: Span,
         callbacks: ChatCallBacks,
         iteration_engine: Any,
+        loop_engine: Any,
         event_log_trace: WorkflowLog,
         msg_or_end_node_deps: Dict[str, MsgOrEndDepInfo],
         node_run_status: Dict[str, NodeRunningStatus],
@@ -637,6 +640,7 @@ class SparkFlowEngineNode(BaseModel):
         :param span: Tracing span
         :param callbacks: Callback handler
         :param iteration_engine: Iteration engine
+        :param loop_engine: Loop engine
         :param event_log_trace: Event log trace
         :param msg_or_end_node_deps: Message or end node dependencies
         :param node_run_status: Node running status
@@ -651,6 +655,7 @@ class SparkFlowEngineNode(BaseModel):
             span=span,
             callbacks=callbacks,
             iteration_engine=iteration_engine,
+            loop_engine=loop_engine,
             event_log_trace=event_log_trace,
             msg_or_end_node_deps=msg_or_end_node_deps or {},
             node_run_status=node_run_status or {},
