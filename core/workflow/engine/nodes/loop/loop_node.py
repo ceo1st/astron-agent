@@ -48,6 +48,7 @@ class LoopCondition(BaseModel):
 
     leftVarIndex: str | None = None
     rightVarIndex: str | None = None
+    rightValue: Any = None
     compareOperator: Literal[
         "contains",
         "not_contains",
@@ -127,7 +128,11 @@ class LoopNode(BaseNode):
                 max_loop_count = self._normalize_max_loop_count(self.maxLoopCount)
 
                 for loop_index in range(max_loop_count):
-                    if self._should_terminate(loop_values):
+                    if self._should_terminate(
+                        loop_values=loop_values,
+                        variable_pool=variable_pool,
+                        span=span_context,
+                    ):
                         break
 
                     result = await self._execute_one_round(
@@ -250,13 +255,18 @@ class LoopNode(BaseNode):
             normalized = 10
         return max(1, min(normalized, 100))
 
-    def _should_terminate(self, loop_values: dict[str, Any]) -> bool:
+    def _should_terminate(
+        self,
+        loop_values: dict[str, Any],
+        variable_pool: VariablePool,
+        span: Span,
+    ) -> bool:
         conditions = self.termination.conditions
         if not conditions:
             return False
 
         results = [
-            self._evaluate_condition(condition, loop_values)
+            self._evaluate_condition(condition, loop_values, variable_pool, span)
             for condition in conditions
             if condition.leftVarIndex
         ]
@@ -268,14 +278,23 @@ class LoopNode(BaseNode):
         return all(results)
 
     def _evaluate_condition(
-        self, condition: LoopCondition, loop_values: dict[str, Any]
+        self,
+        condition: LoopCondition,
+        loop_values: dict[str, Any],
+        variable_pool: VariablePool,
+        span: Span,
     ) -> bool:
         actual_value = self._resolve_condition_operand(
             condition.leftVarIndex, loop_values
         )
-        expected_value = self._resolve_condition_operand(
-            condition.rightVarIndex, loop_values
-        )
+        if condition.rightValue is not None:
+            expected_value = self._resolve_configured_value(
+                condition.rightValue, variable_pool, span
+            )
+        else:
+            expected_value = self._resolve_condition_operand(
+                condition.rightVarIndex, loop_values
+            )
         return self._compare(
             actual_value=actual_value,
             expected_value=expected_value,

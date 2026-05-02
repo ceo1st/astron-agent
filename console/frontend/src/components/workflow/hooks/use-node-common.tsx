@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash';
 import { useMemoizedFn } from 'ahooks';
 import { Tooltip, Checkbox } from 'antd';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
+import useFlowStore from '@/components/workflow/store/use-flow-store';
 import {
   renderType,
   findPathById,
@@ -51,10 +52,13 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   const { t } = useTranslation();
   const currentStore = useFlowsManager(state => state.getCurrentStore());
   const showIterativeModal = useFlowsManager(state => state.showIterativeModal);
+  const iteratorId = useFlowsManager(state => state.iteratorId);
   const nodeList = useFlowsManager(state => state.nodeList);
   const canvasesDisabled = useFlowsManager(state => state.canvasesDisabled);
   const nodes = currentStore(state => state.nodes);
   const edges = currentStore(state => state.edges);
+  const flowNodes = useFlowStore(state => state.nodes);
+  const flowEdges = useFlowStore(state => state.edges);
 
   const nodeType = useMemo(() => {
     return id?.split('::')[0] || '';
@@ -148,8 +152,30 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [data?.retryConfig?.shouldRetry, data?.retryConfig?.errorStrategy]);
 
   const references = useMemo(() => {
-    return generateReferences(nodes, edges, id);
-  }, [id, nodes, edges]);
+    const currentReferences = generateReferences(nodes, edges, id);
+    const parentId = data?.parentId || (showIterativeModal ? iteratorId : '');
+    if (!parentId) return currentReferences;
+
+    const outerReferences = generateReferences(
+      showIterativeModal ? flowNodes : nodes,
+      showIterativeModal ? flowEdges : edges,
+      parentId
+    );
+    const existingIds = new Set(currentReferences.map(item => item?.value));
+    return [
+      ...outerReferences.filter(item => !existingIds.has(item?.value)),
+      ...currentReferences,
+    ];
+  }, [
+    id,
+    data?.parentId,
+    showIterativeModal,
+    iteratorId,
+    nodes,
+    edges,
+    flowNodes,
+    flowEdges,
+  ]);
   const isFixedInputsNode = useMemo(() => {
     return ['plugin', 'flow', 'rpa'].includes(nodeType);
   }, [nodeType]);

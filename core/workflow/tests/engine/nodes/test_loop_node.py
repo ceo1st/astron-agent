@@ -14,6 +14,7 @@ from workflow.engine.nodes.loop.loop_node import LoopNode
 from workflow.extensions.otlp.trace.span import Span
 
 LOOP_NODE_ID = "loop::11111111-1111-1111-1111-111111111111"
+UPSTREAM_NODE_ID = "ifly-code::00000000-0000-0000-0000-000000000000"
 LOOP_START_NODE_ID = "loop-node-start::22222222-2222-2222-2222-222222222222"
 LOOP_END_NODE_ID = "loop-node-end::33333333-3333-3333-3333-333333333333"
 LOOP_EXIT_NODE_ID = "loop-exit::44444444-4444-4444-4444-444444444444"
@@ -64,6 +65,24 @@ def build_variable_pool() -> VariablePool:
     dsl = WorkflowDSL.model_validate(
         {
             "nodes": [
+                {
+                    "id": UPSTREAM_NODE_ID,
+                    "data": {
+                        "inputs": [],
+                        "nodeMeta": {
+                            "aliasName": "Code",
+                            "nodeType": "Code",
+                        },
+                        "nodeParam": {},
+                        "outputs": [
+                            {
+                                "id": "limit-output",
+                                "name": "limit",
+                                "schema": {"type": "integer", "default": 2},
+                            }
+                        ],
+                    },
+                },
                 {
                     "id": LOOP_NODE_ID,
                     "data": {
@@ -157,6 +176,7 @@ def build_loop_node(
     initial_count: int = 0,
     max_loop_count: int | None = 10,
     terminate_at: int | None = None,
+    terminate_with_ref: bool = False,
 ) -> LoopNode:
     node_param: dict[str, Any] = {
         "LoopStartNodeId": LOOP_START_NODE_ID,
@@ -173,12 +193,20 @@ def build_loop_node(
     if max_loop_count is not None:
         node_param["maxLoopCount"] = max_loop_count
     if terminate_at is not None:
+        right_value = {
+            "type": "ref",
+            "content": {
+                "nodeId": UPSTREAM_NODE_ID,
+                "name": "limit",
+            },
+        }
         node_param["termination"] = {
             "logicalOperator": "and",
             "conditions": [
                 {
                     "leftVarIndex": "var-count",
                     "rightVarIndex": str(terminate_at),
+                    **({"rightValue": right_value} if terminate_with_ref else {}),
                     "compareOperator": "ge",
                 }
             ],
@@ -225,6 +253,25 @@ def test_loop_updates_variables_from_loop_end_and_terminates_next_round() -> Non
     result = asyncio.run(
         execute_loop(
             build_loop_node(initial_count=0, max_loop_count=10, terminate_at=2),
+            fake_engine,
+        )
+    )
+
+    assert result.status == WorkflowNodeExecutionStatus.SUCCEEDED
+    assert fake_engine.calls == [{"count": 0}, {"count": 1}]
+    assert result.outputs == {"count": 2}
+
+
+def test_loop_termination_can_compare_with_referenced_output() -> None:
+    fake_engine = FakeLoopEngine(loop_chain=build_loop_chain())
+    result = asyncio.run(
+        execute_loop(
+            build_loop_node(
+                initial_count=0,
+                max_loop_count=10,
+                terminate_at=999,
+                terminate_with_ref=True,
+            ),
             fake_engine,
         )
     )

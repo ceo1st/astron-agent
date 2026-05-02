@@ -20,6 +20,7 @@ import useFlowStore from './use-flow-store';
 import useIteratorFlowStore from './use-iterator-flow-store';
 import { FlowStoreType } from '../types/zustand/flow';
 import { UseBoundStore, StoreApi } from 'zustand';
+import loopNodeIcon from '@/assets/imgs/workflow/loop-node-icon.svg';
 
 export const initialStatus = {
   willAddNode: null, //Pending Node Information
@@ -281,6 +282,23 @@ export const initFlowData = async (id: string, set): Promise<void> => {
     getAgentStrategyAPI(),
     getKnowledgeProStrategyAPI(),
   ]);
+  const nodeList = appendVariableAggregationNodeTemplate(nodeTemplate).map(
+    category => ({
+      ...category,
+      nodes: category.nodes?.map(node =>
+        node?.idType === 'loop'
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                icon: loopNodeIcon,
+              },
+              icon: loopNodeIcon,
+            }
+          : node
+      ),
+    })
+  );
 
   set({
     currentFlow: {
@@ -288,7 +306,7 @@ export const initFlowData = async (id: string, set): Promise<void> => {
       originData: flow?.data,
     },
     isLoading: false,
-    nodeList: appendVariableAggregationNodeTemplate(nodeTemplate),
+    nodeList,
     textNodeConfigList,
     agentStrategy,
     knowledgeProStrategy,
