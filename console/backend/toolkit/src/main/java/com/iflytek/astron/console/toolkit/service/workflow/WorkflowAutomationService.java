@@ -63,6 +63,7 @@ public class WorkflowAutomationService
     private static final String TRIGGER_MANUAL = "MANUAL";
     private static final long TASK_LOCK_TTL_SEC = 3600;
     private static final int MAX_RESPONSE_SUMMARY_LENGTH = 4000;
+    private static final int CORE_WORKFLOW_NOT_PUBLISHED_CODE = 20204;
 
     private final WorkflowAutomationRunMapper runMapper;
     private final WorkflowMapper workflowMapper;
@@ -217,7 +218,7 @@ public class WorkflowAutomationService
         task.setTaskName(StringUtils.trim(req.getTaskName()));
         task.setFlowId(req.getFlowId());
         task.setWorkflowName(workflow.getName());
-        task.setVersion(StringUtils.defaultIfBlank(req.getVersion(), latestPublishedVersionName(workflow.getFlowId())));
+        task.setVersion(StringUtils.trimToNull(req.getVersion()));
         task.setCronExpression(StringUtils.trim(req.getCronExpression()));
         task.setScheduleType(StringUtils.defaultIfBlank(req.getScheduleType(), "CUSTOM"));
         task.setTimezone(timezone);
@@ -386,25 +387,39 @@ public class WorkflowAutomationService
             throw new BusinessException(ResponseEnum.RESPONSE_FAILED, "workflow app credential is missing");
         }
 
+        Map<String, String> headerMap = new HashMap<>();
+        headerMap.put(HttpHeaders.AUTHORIZATION, akSk.getApiKey() + ":" + akSk.getApiSecret());
+        headerMap.put("X-Consumer-Username", workflow.getAppId());
+
+        String response = callWorkflow(task, runId, headerMap, task.getVersion());
+        Integer code = workflowResponseCode(response);
+        if (Objects.equals(code, CORE_WORKFLOW_NOT_PUBLISHED_CODE) && StringUtils.isNotBlank(task.getVersion())) {
+            log.warn("[workflow automation] call workflow with version failed, retry latest published version, taskId={}, runId={}, flowId={}, version={}",
+                    task.getId(), runId, task.getFlowId(), task.getVersion());
+            response = callWorkflow(task, runId, headerMap, null);
+        }
+        return validateWorkflowResponse(response);
+    }
+
+    private String callWorkflow(WorkflowAutomationTask task, Long runId, Map<String, String> headerMap,
+            String version) {
+        ChatSysReq sysReq = buildWorkflowRequest(task, runId, version);
+        String reqBody = JacksonUtil.toJSONString(sysReq, JacksonUtil.NON_NULL_OBJECT_MAPPER);
+        log.info("[workflow automation] call workflow, taskId={}, runId={}, flowId={}",
+                task.getId(), runId, task.getFlowId());
+        return OkHttpUtil.post(workflowChatUrl(), headerMap, reqBody);
+    }
+
+    private ChatSysReq buildWorkflowRequest(WorkflowAutomationTask task, Long runId, String version) {
         ChatSysReq sysReq = new ChatSysReq();
         sysReq.setFlowId(task.getFlowId());
         sysReq.setStream(false);
         sysReq.setDebug(false);
         sysReq.setParameters(JSON.parseObject(task.getInputParams()));
         sysReq.setUid(task.getUid());
-        sysReq.setVersion(task.getVersion());
+        sysReq.setVersion(StringUtils.trimToNull(version));
         sysReq.setChatId("automation-" + task.getId() + "-" + runId);
-
-        Map<String, String> headerMap = new HashMap<>();
-        headerMap.put(HttpHeaders.AUTHORIZATION, akSk.getApiKey() + ":" + akSk.getApiSecret());
-        headerMap.put("X-Consumer-Username", workflow.getAppId());
-
-        String url = workflowChatUrl();
-        String reqBody = JacksonUtil.toJSONString(sysReq, JacksonUtil.NON_NULL_OBJECT_MAPPER);
-        log.info("[workflow automation] call workflow, taskId={}, runId={}, flowId={}",
-                task.getId(), runId, task.getFlowId());
-        String response = OkHttpUtil.post(url, headerMap, reqBody);
-        return validateWorkflowResponse(response);
+        return sysReq;
     }
 
     private void validateWorkflowStillAccessible(WorkflowAutomationTask task, Workflow workflow) {
@@ -435,7 +450,7 @@ public class WorkflowAutomationService
         }
         try {
             JSONObject jsonObject = JSON.parseObject(response);
-            Integer code = jsonObject == null ? null : jsonObject.getInteger("code");
+            Integer code = responseCode(jsonObject);
             if (code != null && code != 0) {
                 String message = StringUtils.defaultIfBlank(jsonObject.getString("message"), "workflow execution failed");
                 throw new BusinessException(ResponseEnum.RESPONSE_FAILED, message + " (code=" + code + ")");
@@ -448,6 +463,21 @@ public class WorkflowAutomationService
         return response;
     }
 
+    private Integer workflowResponseCode(String response) {
+        if (StringUtils.isBlank(response)) {
+            return null;
+        }
+        try {
+            return responseCode(JSON.parseObject(response));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Integer responseCode(JSONObject jsonObject) {
+        return jsonObject == null ? null : jsonObject.getInteger("code");
+    }
+
     private String workflowChatUrl() {
         return apiUrl.getWorkflow().concat("/workflow/v1/chat/completions");
     }
@@ -457,11 +487,6 @@ public class WorkflowAutomationService
             return true;
         }
         return latestPublishedVersion(workflow.getFlowId()) != null;
-    }
-
-    private String latestPublishedVersionName(String flowId) {
-        WorkflowVersion version = latestPublishedVersion(flowId);
-        return version == null ? null : version.getName();
     }
 
     private WorkflowVersion latestPublishedVersion(String flowId) {
