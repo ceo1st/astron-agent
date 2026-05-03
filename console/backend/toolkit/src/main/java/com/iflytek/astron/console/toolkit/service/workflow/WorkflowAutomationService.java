@@ -399,7 +399,7 @@ public class WorkflowAutomationService
         headerMap.put(HttpHeaders.AUTHORIZATION, akSk.getApiKey() + ":" + akSk.getApiSecret());
         headerMap.put("X-Consumer-Username", workflow.getAppId());
 
-        String url = apiUrl.getWorkflow().concat("/workflow/v1/debug/chat/completions");
+        String url = workflowChatUrl();
         String reqBody = JacksonUtil.toJSONString(sysReq, JacksonUtil.NON_NULL_OBJECT_MAPPER);
         log.info("[workflow automation] call workflow, taskId={}, runId={}, flowId={}",
                 task.getId(), runId, task.getFlowId());
@@ -446,6 +446,10 @@ public class WorkflowAutomationService
             log.debug("[workflow automation] response is not JSON, treat as success");
         }
         return response;
+    }
+
+    private String workflowChatUrl() {
+        return apiUrl.getWorkflow().concat("/workflow/v1/chat/completions");
     }
 
     private boolean isPublished(Workflow workflow) {
