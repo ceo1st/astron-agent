@@ -3,6 +3,7 @@ package com.iflytek.astron.console.toolkit.service.workflow;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
+import com.iflytek.astron.console.toolkit.entity.core.workflow.sse.ChatSysReq;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowAutomationRun;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowAutomationTask;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion;
@@ -118,6 +119,29 @@ class WorkflowAutomationServiceTest {
 
         assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "validateWorkflowResponse", response))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void workflowResponseCodeParsesCoreBusinessCode() {
+        String response = "{\"code\":20204,\"message\":\"Workflow not published\"}";
+
+        Integer code = ReflectionTestUtils.invokeMethod(service, "workflowResponseCode", response);
+
+        assertThat(code).isEqualTo(20204);
+    }
+
+    @Test
+    void workflowRequestOmitsBlankVersion() {
+        WorkflowAutomationTask task = new WorkflowAutomationTask();
+        task.setId(1L);
+        task.setFlowId("flow-1");
+        task.setUid("u1");
+        task.setInputParams("{}");
+
+        ChatSysReq req = ReflectionTestUtils.invokeMethod(service, "buildWorkflowRequest", task, 2L, " ");
+
+        assertThat(req.getVersion()).isNull();
+        assertThat(req.getChatId()).isEqualTo("automation-1-2");
     }
 
     @Test
