@@ -403,7 +403,8 @@ public class WorkflowAutomationService
         String reqBody = JacksonUtil.toJSONString(sysReq, JacksonUtil.NON_NULL_OBJECT_MAPPER);
         log.info("[workflow automation] call workflow, taskId={}, runId={}, flowId={}",
                 task.getId(), runId, task.getFlowId());
-        return OkHttpUtil.post(url, headerMap, reqBody);
+        String response = OkHttpUtil.post(url, headerMap, reqBody);
+        return validateWorkflowResponse(response);
     }
 
     private void validateWorkflowStillAccessible(WorkflowAutomationTask task, Workflow workflow) {
@@ -428,6 +429,25 @@ public class WorkflowAutomationService
         return StringUtils.abbreviate(value, MAX_RESPONSE_SUMMARY_LENGTH);
     }
 
+    private String validateWorkflowResponse(String response) {
+        if (StringUtils.isBlank(response)) {
+            throw new BusinessException(ResponseEnum.RESPONSE_FAILED, "workflow response is empty");
+        }
+        try {
+            JSONObject jsonObject = JSON.parseObject(response);
+            Integer code = jsonObject == null ? null : jsonObject.getInteger("code");
+            if (code != null && code != 0) {
+                String message = StringUtils.defaultIfBlank(jsonObject.getString("message"), "workflow execution failed");
+                throw new BusinessException(ResponseEnum.RESPONSE_FAILED, message + " (code=" + code + ")");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.debug("[workflow automation] response is not JSON, treat as success");
+        }
+        return response;
+    }
+
     private boolean isPublished(Workflow workflow) {
         if (Objects.equals(workflow.getStatus(), WorkflowConst.Status.PUBLISHED)) {
             return true;
@@ -445,7 +465,8 @@ public class WorkflowAutomationService
                 .eq(WorkflowVersion::getFlowId, flowId)
                 .in(WorkflowVersion::getPublishResult,
                         WorkflowConst.PublishResult.SUCCESS,
-                        WorkflowConst.PublishResult.LEGACY_SUCCESS)
+                        WorkflowConst.PublishResult.LEGACY_SUCCESS,
+                        WorkflowConst.PublishResult.LEGACY_SUCCESS_UPPER)
                 .orderByDesc(WorkflowVersion::getCreatedTime)
                 .last("limit 1"));
     }

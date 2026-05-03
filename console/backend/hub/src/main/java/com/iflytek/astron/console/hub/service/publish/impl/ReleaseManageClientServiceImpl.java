@@ -9,6 +9,7 @@ import com.iflytek.astron.console.commons.util.MaasUtil;
 import com.iflytek.astron.console.hub.dto.publish.ReleaseBotReqDto;
 import com.iflytek.astron.console.hub.dto.publish.ReleaseBotRespDto;
 import com.iflytek.astron.console.hub.service.publish.ReleaseManageClientService;
+import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -37,7 +38,7 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
     // API path for getting version name
     private static final String GET_VERSION_NAME_URL = "/get-version-name";
     // Success indicator for release
-    private static final String RELEASE_SUCCESS = "SUCCESS";
+    private static final String RELEASE_SUCCESS = WorkflowConst.PublishResult.SUCCESS;
     // API path for adding versions (currently empty)
     private static final String ADD_VERSION_URL = "";
     // Content-Type value in HTTP headers
