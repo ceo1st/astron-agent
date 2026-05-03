@@ -119,4 +119,14 @@ class WorkflowAutomationServiceTest {
         assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "validateWorkflowResponse", response))
                 .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    void workflowAutomationUsesPublishedChatEndpoint() {
+        when(apiUrl.getWorkflow()).thenReturn("http://workflow");
+
+        String url = ReflectionTestUtils.invokeMethod(service, "workflowChatUrl");
+
+        assertThat(url).isEqualTo("http://workflow/workflow/v1/chat/completions");
+        assertThat(url).doesNotContain("/debug/");
+    }
 }
