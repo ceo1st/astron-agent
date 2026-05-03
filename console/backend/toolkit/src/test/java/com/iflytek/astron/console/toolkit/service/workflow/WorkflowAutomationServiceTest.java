@@ -1,12 +1,15 @@
 package com.iflytek.astron.console.toolkit.service.workflow;
 
 import com.iflytek.astron.console.commons.exception.BusinessException;
+import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowAutomationRun;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowAutomationTask;
+import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowAutomationRunMapper;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowAutomationTaskMapper;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowMapper;
+import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowVersionMapper;
 import com.iflytek.astron.console.toolkit.service.extra.AppService;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import com.iflytek.astron.console.toolkit.util.RedisUtil;
@@ -17,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Date;
 import java.util.List;
@@ -40,6 +44,8 @@ class WorkflowAutomationServiceTest {
     private WorkflowAutomationRunMapper runMapper;
     @Mock
     private WorkflowMapper workflowMapper;
+    @Mock
+    private WorkflowVersionMapper workflowVersionMapper;
     @Mock
     private DataPermissionCheckTool dataPermissionCheckTool;
     @Mock
@@ -90,5 +96,19 @@ class WorkflowAutomationServiceTest {
         verify(runMapper).insert(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo("SKIPPED");
         verify(redisUtil).tryLock(eq("workflow:automation:task:12:lock"), eq(3600L), anyString());
+    }
+
+    @Test
+    void publishedVersionAllowsStaleWorkflowStatus() {
+        Workflow workflow = new Workflow();
+        workflow.setFlowId("flow-1");
+        workflow.setStatus(0);
+        WorkflowVersion version = new WorkflowVersion();
+        version.setName("v1.0");
+        when(workflowVersionMapper.selectOne(any())).thenReturn(version);
+
+        Boolean published = ReflectionTestUtils.invokeMethod(service, "isPublished", workflow);
+
+        assertThat(published).isTrue();
     }
 }

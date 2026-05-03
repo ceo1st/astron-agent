@@ -131,17 +131,25 @@ export const LoopDetail = memo(
             }));
           }
           if (node?.nodeType === 'loop-node-end') {
-            node.data.inputs = nextVariables.map(variable => ({
-              id: variable.id,
-              name: variable.name,
-              schema: {
-                type: variable.schema?.type || 'string',
-                value: {
-                  type: 'ref',
-                  content: {},
+            node.data.inputs = nextVariables.map(variable => {
+              const existingInput = node.data.inputs?.find(
+                input =>
+                  input?.id === variable.id || input?.name === variable.name
+              );
+              return {
+                ...(existingInput || {}),
+                id: variable.id,
+                name: variable.name,
+                schema: {
+                  ...(existingInput?.schema || {}),
+                  type: variable.schema?.type || 'string',
+                  value: existingInput?.schema?.value || {
+                    type: 'ref',
+                    content: {},
+                  },
                 },
-              },
-            }));
+              };
+            });
           }
         });
         return nextNodes;
