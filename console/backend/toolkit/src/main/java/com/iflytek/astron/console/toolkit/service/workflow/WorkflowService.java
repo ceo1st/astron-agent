@@ -439,7 +439,9 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                         Wrappers.lambdaQuery(WorkflowVersion.class)
                                 .eq(WorkflowVersion::getFlowId, workflow.getFlowId())
                                 .in(WorkflowVersion::getPublishResult,
-                                        PUBLISH_SUCCESS, WorkflowConst.PublishResult.LEGACY_SUCCESS));
+                                        PUBLISH_SUCCESS,
+                                        WorkflowConst.PublishResult.LEGACY_SUCCESS,
+                                        WorkflowConst.PublishResult.LEGACY_SUCCESS_UPPER));
                 if (count > 0) {
                     statusFlag = 1;
                     final WorkflowVo maxVersionByFlowId = getMaxVersionByFlowId(workflow.getFlowId());
@@ -942,7 +944,9 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                     Wrappers.lambdaQuery(WorkflowVersion.class)
                             .eq(WorkflowVersion::getFlowId, flowId)
                             .in(WorkflowVersion::getPublishResult,
-                                    PUBLISH_SUCCESS, WorkflowConst.PublishResult.LEGACY_SUCCESS)
+                                    PUBLISH_SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS_UPPER)
                             .orderByDesc(WorkflowVersion::getCreatedTime)
                             .last("LIMIT 1"));
 

@@ -592,7 +592,8 @@ public class VersionService {
                             .eq(WorkflowVersion::getBotId, botId)
                             .in(WorkflowVersion::getPublishResult,
                                     WorkflowConst.PublishResult.SUCCESS,
-                                    WorkflowConst.PublishResult.LEGACY_SUCCESS)
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS_UPPER)
                             .orderByDesc(WorkflowVersion::getCreatedTime)
                             .last("LIMIT 1"));
 

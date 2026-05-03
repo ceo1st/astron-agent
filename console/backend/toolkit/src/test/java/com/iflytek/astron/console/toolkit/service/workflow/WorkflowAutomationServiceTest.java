@@ -111,4 +111,12 @@ class WorkflowAutomationServiceTest {
 
         assertThat(published).isTrue();
     }
+
+    @Test
+    void workflowBusinessErrorResponseIsFailed() {
+        String response = "{\"code\":20201,\"message\":\"Flow ID not found\"}";
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "validateWorkflowResponse", response))
+                .isInstanceOf(BusinessException.class);
+    }
 }
