@@ -351,6 +351,15 @@ const translation = {
       parallelModeNoQaInSubCanvas: '并行模式下不支持在迭代子画布中添加问答节点',
       cannotSwitchToParallelWithQa: '子画布中存在问答节点，无法切换到并行模式',
     },
+    loopNode: {
+      type: '循环',
+      variables: '循环变量',
+      addVariable: '添加变量',
+      termination: '终止条件',
+      maxLoopCount: '最大循环次数',
+      addCondition: '添加条件',
+      output: '输出',
+    },
     codeNode: {
       type: '代码',
       code: '代码',

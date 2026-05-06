@@ -33,6 +33,7 @@ interface NodeCategory {
 
 interface NodeListProps {
   noIterator?: boolean;
+  hiddenIdTypes?: string[];
   hiddenAliasNames?: string[];
   handleAddNode?: (
     addNode: AddNodeType,
@@ -43,6 +44,7 @@ interface NodeListProps {
 // ========= 组件 =========
 const NodeList: React.FC<NodeListProps> = ({
   noIterator = false,
+  hiddenIdTypes = [],
   hiddenAliasNames = [],
   handleAddNode: handleAddNodeProp,
 }): React.ReactElement => {
@@ -53,6 +55,7 @@ const NodeList: React.FC<NodeListProps> = ({
   const currentStore = getCurrentStore();
   const nodeList = useFlowsManager(state => state.nodeList) as NodeCategory[];
   const canvasesDisabled = useFlowsManager(state => state.canvasesDisabled);
+  const showIterativeModal = useFlowsManager(state => state.showIterativeModal);
   const setWillAddNode = useFlowsManager(state => state.setWillAddNode);
   const reactFlowInstance = currentStore(state => state.reactFlowInstance);
 
@@ -109,6 +112,11 @@ const NodeList: React.FC<NodeListProps> = ({
                         <div className="flex flex-col gap-3.5">
                           {nodeCategory.nodes.map((item, idx) =>
                             (!noIterator || item?.idType !== 'iteration') &&
+                            !(
+                              item?.idType === 'loop-exit' &&
+                              !showIterativeModal
+                            ) &&
+                            !hiddenIdTypes?.includes(item?.idType) &&
                             !hiddenAliasNames?.includes(item?.aliasName) ? (
                               <Tooltip
                                 key={idx}

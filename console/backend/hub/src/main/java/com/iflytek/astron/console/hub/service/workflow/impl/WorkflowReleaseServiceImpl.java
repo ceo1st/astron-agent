@@ -5,6 +5,7 @@ import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotApiMapper;
 import com.iflytek.astron.console.commons.dto.bot.ChatBotApi;
 import com.iflytek.astron.console.commons.util.MaasUtil;
+import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowVersionMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -55,9 +56,9 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
 
     // Release status constants (reserved for future use)
     @SuppressWarnings("unused")
-    private static final String RELEASE_SUCCESS = "Success";
+    private static final String RELEASE_SUCCESS = WorkflowConst.PublishResult.SUCCESS;
     @SuppressWarnings("unused")
-    private static final String RELEASE_FAIL = "Failed";
+    private static final String RELEASE_FAIL = WorkflowConst.PublishResult.FAILED;
 
     // HTTP client configuration
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
@@ -104,7 +105,7 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             request.setBotId(botId.toString());
             request.setFlowId(flowId);
             request.setPublishChannel(getPublishChannelCode(publishType));
-            request.setPublishResult("Success");
+            request.setPublishResult(WorkflowConst.PublishResult.SUCCESS);
             request.setDescription("");
             request.setName(versionName);
 
@@ -123,7 +124,7 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             syncToApiSystem(botId, flowId, versionName, appId);
 
             // 6. Update audit result to success
-            updateAuditResult(response.getWorkflowVersionId(), "成功");
+            updateAuditResult(response.getWorkflowVersionId(), WorkflowConst.PublishResult.SUCCESS);
 
             log.info("Workflow bot publish and sync successful: botId={}, versionId={}, versionName={}",
                     botId, response.getWorkflowVersionId(), response.getWorkflowVersionName());

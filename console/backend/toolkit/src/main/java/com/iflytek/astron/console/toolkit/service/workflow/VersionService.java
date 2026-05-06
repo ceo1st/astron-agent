@@ -13,6 +13,7 @@ import com.iflytek.astron.console.commons.enums.bot.BotTypeEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
+import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.BizWorkflowData;
 import com.iflytek.astron.console.toolkit.entity.core.workflow.FlowProtocol;
 import com.iflytek.astron.console.toolkit.entity.dto.WorkflowReq;
@@ -182,7 +183,7 @@ public class VersionService {
             workflowVersion.setData(workflow.getData());
             workflowVersion.setSysData(JSONObject.toJSONString(flowProtocol));
             workflowVersion.setPublishChannel(createDto.getPublishChannel());
-            workflowVersion.setPublishResult(createDto.getPublishResult());
+            workflowVersion.setPublishResult(WorkflowConst.PublishResult.normalize(createDto.getPublishResult()));
             workflowVersion.setFlowId(createDto.getFlowId());
             workflowVersion.setDescription(createDto.getDescription());
             // Set advanced configuration information
@@ -365,7 +366,8 @@ public class VersionService {
         if (workflowVersions.isEmpty()) {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
         }
-        boolean haveSysData = workflowVersions.stream().noneMatch(wv -> "Success".equals(wv.getPublishResult()));
+        boolean haveSysData = workflowVersions.stream()
+                .noneMatch(wv -> WorkflowConst.PublishResult.isSuccess(wv.getPublishResult()));
         return ApiResult.success(new JSONObject()
                 .fluentPut("haveSysData", haveSysData));
     }
@@ -529,7 +531,7 @@ public class VersionService {
             if (!addedChannels.contains(publishChannel)) {
                 Map<String, Object> map = new HashMap<>();
                 map.put("publishChannel", publishChannel);
-                map.put("publishResult", version.getPublishResult());
+                map.put("publishResult", WorkflowConst.PublishResult.normalize(version.getPublishResult()));
                 resultList.add(map);
                 addedChannels.add(publishChannel);
             }
@@ -560,7 +562,8 @@ public class VersionService {
             LambdaUpdateWrapper<WorkflowVersion> updateWrapper = new LambdaUpdateWrapper<>();
             // Update flowId corresponding records, set isVersion to 2
             updateWrapper.eq(WorkflowVersion::getId, createDto.getId())
-                    .set(WorkflowVersion::getPublishResult, createDto.getPublishResult())
+                    .set(WorkflowVersion::getPublishResult,
+                            WorkflowConst.PublishResult.normalize(createDto.getPublishResult()))
                     .set(WorkflowVersion::getUpdatedTime, new Date());
             // Execute update
             workflowVersionMapper.update(null, updateWrapper);
@@ -587,7 +590,10 @@ public class VersionService {
             WorkflowVersion latestVersion = workflowVersionMapper.selectOne(
                     Wrappers.lambdaQuery(WorkflowVersion.class)
                             .eq(WorkflowVersion::getBotId, botId)
-                            .eq(WorkflowVersion::getPublishResult, "Success")
+                            .in(WorkflowVersion::getPublishResult,
+                                    WorkflowConst.PublishResult.SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS_UPPER)
                             .orderByDesc(WorkflowVersion::getCreatedTime)
                             .last("LIMIT 1"));
 

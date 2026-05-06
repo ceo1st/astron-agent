@@ -59,6 +59,8 @@ class WorkflowEngineCtx(BaseModel):
 
     # Iteration engine instances for supporting loop or recursive execution
     iteration_engine: Dict[str, "WorkflowEngine"] = Field(default_factory=dict)
+    # Loop engine instances for stateful loop execution
+    loop_engine: Dict[str, "WorkflowEngine"] = Field(default_factory=dict)
 
     # Message and end node dependency information (key: node_id, value: MsgOrEndDepInfo)
     msg_or_end_node_deps: Dict[str, MsgOrEndDepInfo] = Field(default_factory=dict)
@@ -696,6 +698,7 @@ class DefaultNodeExecutionStrategy(NodeExecutionStrategy):
             callbacks=engine_ctx.callback,
             span=span,
             iteration_engine=engine_ctx.iteration_engine,
+            loop_engine=getattr(engine_ctx, "loop_engine", {}),
             event_log_trace=engine_ctx.event_log_trace,
             msg_or_end_node_deps=engine_ctx.msg_or_end_node_deps,
             node_run_status=engine_ctx.node_run_status,
@@ -846,6 +849,8 @@ class WorkflowEngine(BaseModel):
                     self.engine_ctx.qa_node_lock = asyncio.Lock()
                     for _, iter_eng in self.engine_ctx.iteration_engine.items():
                         iter_eng.engine_ctx.qa_node_lock = self.engine_ctx.qa_node_lock
+                    for _, loop_eng in self.engine_ctx.loop_engine.items():
+                        loop_eng.engine_ctx.qa_node_lock = self.engine_ctx.qa_node_lock
                 self.engine_ctx.end_complete = asyncio.Event()
                 self.engine_ctx.callback = callback
                 self.engine_ctx.event_log_trace = event_log_trace
@@ -975,8 +980,13 @@ class WorkflowEngine(BaseModel):
         :param node: The node to check
         :return: True if the node is an end node, False otherwise
         """
-        return node.node_id.startswith(NodeType.END.value) or node.node_id.startswith(
-            NodeType.ITERATION_END.value
+        return node.node_id.startswith(
+            (
+                NodeType.END.value,
+                NodeType.ITERATION_END.value,
+                NodeType.LOOP_END.value,
+                NodeType.LOOP_EXIT.value,
+            )
         )
 
     async def _handle_end_node(
@@ -996,6 +1006,8 @@ class WorkflowEngine(BaseModel):
             and (
                 task_result.node_id.startswith(NodeType.END.value)
                 or task_result.node_id.startswith(NodeType.ITERATION_END.value)
+                or task_result.node_id.startswith(NodeType.LOOP_END.value)
+                or task_result.node_id.startswith(NodeType.LOOP_EXIT.value)
             )
         ):
             self.engine_ctx.responses.append(task_result)
@@ -1520,7 +1532,11 @@ class WorkflowEngine(BaseModel):
         :raises CustomException: If start node type is invalid
         """
         start_node_type = self.sparkflow_engine_node.id.split(":")[0]
-        valid_start_types = [NodeType.START.value, NodeType.ITERATION_START.value]
+        valid_start_types = [
+            NodeType.START.value,
+            NodeType.ITERATION_START.value,
+            NodeType.LOOP_START.value,
+        ]
 
         if start_node_type not in valid_start_types:
             raise CustomException(
@@ -1638,7 +1654,11 @@ class WorkflowEngine(BaseModel):
         :return: None
         """
         node_type = node.node_id.split("::")[0]
-        if node_type in [NodeType.START.value, NodeType.ITERATION_START.value]:
+        if node_type in [
+            NodeType.START.value,
+            NodeType.ITERATION_START.value,
+            NodeType.LOOP_START.value,
+        ]:
             return
 
         # Check message or end node dependencies
@@ -1770,8 +1790,13 @@ class WorkflowEngine(BaseModel):
         :param node_id: The ID of the node to check
         :return: True if the node is a terminal node, False otherwise
         """
-        return node_id.startswith(NodeType.END.value) or node_id.startswith(
-            NodeType.ITERATION_END.value
+        return node_id.startswith(
+            (
+                NodeType.END.value,
+                NodeType.ITERATION_END.value,
+                NodeType.LOOP_END.value,
+                NodeType.LOOP_EXIT.value,
+            )
         )
 
     async def _wait_predecessor_nodes(
@@ -1785,7 +1810,11 @@ class WorkflowEngine(BaseModel):
         :return: None
         """
         node_type = node.id.split(":")[0]
-        if node_type in [NodeType.START.value, NodeType.ITERATION_START.value]:
+        if node_type in [
+            NodeType.START.value,
+            NodeType.ITERATION_START.value,
+            NodeType.LOOP_START.value,
+        ]:
             return
 
         node_chains = self.engine_ctx.chains.get_node_chains(node.node_id)
@@ -1927,6 +1956,20 @@ class WorkflowEngineFactory:
         return WorkflowEngineFactory.create_engine(sub_dsl, span)
 
     @staticmethod
+    def create_loop_engine(
+        sparkflow_dsl: WorkflowDSL,
+        loop_node_id: str,
+        span: Span,
+        sub_dsl: WorkflowDSL | None = None,
+    ) -> WorkflowEngine:
+        """
+        Create an isolated workflow engine for a single loop subgraph.
+        """
+        if sub_dsl is None:
+            sub_dsl = sparkflow_dsl.extract_loop_sub_dsl(loop_node_id)
+        return WorkflowEngineFactory.create_engine(sub_dsl, span)
+
+    @staticmethod
     def create_debug_node(
         sparkflow_dsl: WorkflowDSL,
         span: Span,
@@ -1973,6 +2016,8 @@ class WorkflowEngineBuilder:
         self.variable_pool = VariablePool(sparkflow_dsl.nodes)
         self.iteration_engine_nodes: Dict[str, str] = {}
         self.iteration_engine: Dict[str, WorkflowEngine] = {}
+        self.loop_engine_nodes: Dict[str, str] = {}
+        self.loop_engine: Dict[str, WorkflowEngine] = {}
         self.end_node_output_mode = EndNodeOutputModeEnum.VARIABLE_MODE
         self.node_max_token: Dict[str, int] = {}
         self.msg_or_end_node_deps: Dict[str, MsgOrEndDepInfo] = {}
@@ -1998,6 +2043,18 @@ class WorkflowEngineBuilder:
             iteration_engine.engine_ctx = WorkflowEngineCtx(
                 variable_pool=self.variable_pool,
                 iteration_engine=self.iteration_engine,
+                loop_engine=self.loop_engine,
+                msg_or_end_node_deps=self.msg_or_end_node_deps,
+                node_run_status=self.node_run_status,
+                built_nodes=self.built_nodes,
+                chains=self.chains,
+            )
+
+        for _, loop_engine in self.loop_engine.items():
+            loop_engine.engine_ctx = WorkflowEngineCtx(
+                variable_pool=self.variable_pool,
+                iteration_engine=self.iteration_engine,
+                loop_engine=self.loop_engine,
                 msg_or_end_node_deps=self.msg_or_end_node_deps,
                 node_run_status=self.node_run_status,
                 built_nodes=self.built_nodes,
@@ -2008,6 +2065,7 @@ class WorkflowEngineBuilder:
             engine_ctx=WorkflowEngineCtx(
                 variable_pool=self.variable_pool,
                 iteration_engine=self.iteration_engine,
+                loop_engine=self.loop_engine,
                 msg_or_end_node_deps=self.msg_or_end_node_deps,
                 node_run_status=self.node_run_status,
                 built_nodes=self.built_nodes,
@@ -2047,6 +2105,7 @@ class WorkflowEngineBuilder:
 
         # Handle iteration engine nodes
         self._build_iteration_engines()
+        self._build_loop_engines()
 
         return self
 
@@ -2094,6 +2153,16 @@ class WorkflowEngineBuilder:
                         node_id, msg_or_end_node_dep_iter
                     )
                 msg_or_end_node_deps_list.append(msg_or_end_node_dep_iter)
+
+        # Handle loop chain message dependencies
+        for loop_chain in self.chains.loop_chains.values():
+            for chain in loop_chain.master_chains:
+                msg_or_end_node_dep_loop: Dict[str, MsgOrEndDepInfo] = {}
+                for node_id in reversed(chain.node_id_list):
+                    self._build_node_message_dependency(
+                        node_id, msg_or_end_node_dep_loop
+                    )
+                msg_or_end_node_deps_list.append(msg_or_end_node_dep_loop)
 
         # Merge message dependencies
         self._merge_message_dependencies(msg_or_end_node_deps_list)
@@ -2173,6 +2242,23 @@ class WorkflowEngineBuilder:
                 workflow_dsl=self.sparkflow_dsl,
             )
 
+    def _build_loop_engines(self) -> None:
+        """
+        Build loop engines for loop nodes.
+        """
+        for loop_start_node_id, _ in self.loop_engine_nodes.items():
+            if loop_start_node_id not in self.built_nodes:
+                raise CustomException(
+                    CodeEnum.ENG_PROTOCOL_VALIDATE_ERROR,
+                    err_msg=f"Loop start node: {loop_start_node_id} does not exist",
+                    cause_error=f"Loop start node: {loop_start_node_id} does not exist",
+                )
+
+            self.loop_engine[loop_start_node_id] = WorkflowEngine(
+                sparkflow_engine_node=self.built_nodes[loop_start_node_id],
+                workflow_dsl=self.sparkflow_dsl,
+            )
+
     def _handle_special_node_types(
         self, node: Node, spark_node_instance: SparkFlowEngineNode
     ) -> None:
@@ -2187,7 +2273,10 @@ class WorkflowEngineBuilder:
 
         if node_type == NodeType.START.value:
             self.start_node_id = node.id
-        elif node_type == NodeType.ITERATION_START.value and not self.start_node_id:
+        elif (
+            node_type in (NodeType.ITERATION_START.value, NodeType.LOOP_START.value)
+            and not self.start_node_id
+        ):
             self.start_node_id = node.id
         elif node_type == NodeType.DECISION_MAKING.value:
             self._handle_decision_making_node(node.id, node)
@@ -2195,6 +2284,8 @@ class WorkflowEngineBuilder:
             self._handle_llm_node(node.id, node)
         elif node_type == NodeType.ITERATION.value:
             self._handle_iteration_node(node.id, node)
+        elif node_type == NodeType.LOOP.value:
+            self._handle_loop_node(node.id, node)
         elif node_type == NodeType.END.value:
             self._handle_end_node(spark_node_instance)
 
@@ -2243,6 +2334,18 @@ class WorkflowEngineBuilder:
                 err_msg=f"Iteration node: {node.id} iteration start node does not exist",
             )
         self.iteration_engine_nodes[iteration_start_node_id] = node_id
+
+    def _handle_loop_node(self, node_id: str, node: Node) -> None:
+        """
+        Handle loop node.
+        """
+        loop_start_node_id = node.data.nodeParam.get("LoopStartNodeId", "")
+        if not loop_start_node_id:
+            raise CustomException(
+                CodeEnum.ENG_PROTOCOL_VALIDATE_ERROR,
+                err_msg=f"Loop node: {node.id} loop start node does not exist",
+            )
+        self.loop_engine_nodes[loop_start_node_id] = node_id
 
     def _handle_end_node(self, spark_node_instance: SparkFlowEngineNode) -> None:
         """
@@ -2416,6 +2519,9 @@ class WorkflowEngineBuilder:
             if node_id.split("::")[0] == NodeType.ITERATION.value:
                 if not self._iteration_chain_has_message(node_id):
                     return
+            if node_id.split("::")[0] == NodeType.LOOP.value:
+                if not self._loop_chain_has_message(node_id):
+                    return
 
             # Add current node to existing message dependencies
             for existing_dep in msg_or_end_node_dep.values():
@@ -2456,6 +2562,17 @@ class WorkflowEngineBuilder:
                     return True
         return False
 
+    def _loop_chain_has_message(self, node_id: str) -> bool:
+        """
+        Check if loop chain contains message nodes.
+        """
+        loop_chain = self.chains.loop_chains[node_id]
+        for master_chain in loop_chain.master_chains:
+            for loop_node_id in master_chain.node_id_list:
+                if loop_node_id.startswith(NodeType.MESSAGE.value):
+                    return True
+        return False
+
     def _should_build_message_dependency(
         self, node_id: str, node_fail_branch: bool
     ) -> bool:
@@ -2477,5 +2594,6 @@ class WorkflowEngineBuilder:
         return (
             any(node_id.startswith(prefix) for prefix in node_type_prefixes)
             or node_id.split("::")[0] == NodeType.ITERATION.value
+            or node_id.split("::")[0] == NodeType.LOOP.value
             or node_fail_branch
         )

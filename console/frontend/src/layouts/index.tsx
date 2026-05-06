@@ -5,7 +5,14 @@ import CrashErrorComponent from '@/components/crash-error-component';
 import Sidebar from '@/components/sidebar';
 import Header from '@/components/header';
 
-const hasHeaderList = ['knowledge', 'plugin', 'database', 'rpa', 'skill'];
+const hasHeaderList = [
+  'knowledge',
+  'plugin',
+  'database',
+  'rpa',
+  'skill',
+  'automation',
+];
 
 interface BasicLayoutProps {
   showHeader?: boolean;
@@ -72,6 +79,13 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
             detail: { type },
           });
           window.dispatchEvent(createSkillEvent);
+          break;
+        }
+        case 'automation': {
+          const createAutomationEvent = new CustomEvent('headerCreateAutomation', {
+            detail: { type },
+          });
+          window.dispatchEvent(createAutomationEvent);
           break;
         }
         default:
