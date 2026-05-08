@@ -20,7 +20,7 @@ Astron Agent is an enterprise-grade, commercial-friendly agentic workflow platfo
 | **Core Maintainer** | Ditto | Backend Services | `console/backend/` | vsxd |
 | **Core Maintainer** | Ditto | Core Services | `core/` | cumthxy |
 | **Core Maintainer** | Ditto | Frontend Architecture | `console/frontend/` | slqcode |
-| **Community Operator** | - Enforces the Community Code of Conduct (CoC).<br>- Maintains a healthy community atmosphere.<br>- Promotes the prosperity of the community ecosystem. | Entire Project | - | FenjuFu |
+| **Community Moderator** | - Enforces the Community Code of Conduct (CoC).<br>- Maintains a healthy community atmosphere.<br>- Promotes the prosperity of the community ecosystem. | Entire Project | - | FenjuFu |
 
 ### 2. Module Maintainers and Contributors
 
