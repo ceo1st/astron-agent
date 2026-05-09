@@ -311,8 +311,8 @@ class ChatCallBacks:
         if node_type in [NodeType.LLM.value, NodeType.DECISION_MAKING.value]:
             if message.raw_output:
                 ext = {"raw_output": message.raw_output}
-            if node_type == NodeType.END.value:
-                ext.update({"answer_mode": self.end_node_output_mode.value})
+        if node_type == NodeType.END.value:
+            ext["answer_mode"] = self.end_node_output_mode.value
 
         content = message.node_answer_content
         if (
