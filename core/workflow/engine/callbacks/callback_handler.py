@@ -154,6 +154,20 @@ class ChatCallBacks:
             code=message.error.code if message.error else CodeEnum.Success.code,
             message=message.error.message if message.error else CodeEnum.Success.msg,
         )
+        choices = getattr(resp, "choices", None)
+        if not message.error and isinstance(choices, list) and choices:
+            content = getattr(message, "node_answer_content", "")
+            if (
+                not content
+                and self.end_node_output_mode == EndNodeOutputModeEnum.VARIABLE_MODE
+                and getattr(message, "outputs", None)
+            ):
+                content = json.dumps(
+                    message.outputs,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            resp.choices[0].delta.content = content
         await self.stream_queue.put(resp)
 
     async def on_node_start(self, code: int, node_id: str, alias_name: str) -> None:
