@@ -757,7 +757,17 @@ def _filter_response_frame(
     is_interrupted = choice.finish_reason == ChatStatus.INTERRUPT.value
     is_ping = choice.finish_reason == ChatStatus.PING.value
 
-    response_frame.workflow_step.node = None
+    # Preserve node info for end nodes with answer_mode=0 (VARIABLE_MODE)
+    # to allow downstream consumers to access outputs
+    should_preserve_node = (
+        node_type == NodeType.END.value
+        and response_frame.workflow_step.node
+        and response_frame.workflow_step.node.ext
+        and response_frame.workflow_step.node.ext.get("answer_mode") == 0
+    )
+
+    if not should_preserve_node:
+        response_frame.workflow_step.node = None
 
     if is_ping and is_stream:
         return response_frame
