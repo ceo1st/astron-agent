@@ -1647,37 +1647,35 @@ function buildSchemaReferences(
   }
 
   // object 节点（自身保留 + children）
-  if (Array.isArray(schema.properties)) {
-    return [
-      {
-        originId: parent.originId,
-        id: schema.id,
-        label: schema.name,
-        value: baseValue,
-        type: schema?.type,
-        parentType: parent.parentType,
-        fileType: schema.allowedFileType?.[0] || '',
-        children: schema.properties.flatMap((prop: unknown) =>
-          buildSchemaReferences(
-            {
-              ...prop,
-              ...prop.schema,
-              name: prop.name,
-              id: prop.id,
-              allowedFileType: prop.allowedFileType,
-            },
-            {
-              originId: parent.originId,
-              prefix: baseValue,
-              parentType: 'object',
-            }
+  return [
+    {
+      originId: parent.originId,
+      id: schema.id,
+      label: schema.name,
+      value: baseValue,
+      type: schema?.type,
+      parentType: parent.parentType,
+      fileType: schema.allowedFileType?.[0] || '',
+      children: Array.isArray(schema.properties)
+        ? schema.properties.flatMap((prop: unknown) =>
+            buildSchemaReferences(
+              {
+                ...prop,
+                ...prop.schema,
+                name: prop.name,
+                id: prop.id,
+                allowedFileType: prop.allowedFileType,
+              },
+              {
+                originId: parent.originId,
+                prefix: baseValue,
+                parentType: 'object',
+              }
+            )
           )
-        ),
-      },
-    ];
-  }
-
-  return [];
+        : undefined,
+    },
+  ];
 }
 
 function buildOwnReferences(
