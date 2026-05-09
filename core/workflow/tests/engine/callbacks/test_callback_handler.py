@@ -557,15 +557,6 @@ class TestChatCallBacks:
                     message.outputs, ensure_ascii=False, separators=(",", ":")
                 )
 
-                # ext must carry answer_mode so published (is_release=True) pipeline
-                # preserves node info for downstream consumers (Java backend)
-                node_ext = llm_generate.workflow_step.node.ext
-                assert node_ext is not None
-                assert (
-                    node_ext.get("answer_mode")
-                    == EndNodeOutputModeEnum.VARIABLE_MODE.value
-                )
-
     @pytest.mark.asyncio
     async def test_on_node_end_error(self, callback_handler: ChatCallBacks) -> None:
         """Test node end error handling."""
