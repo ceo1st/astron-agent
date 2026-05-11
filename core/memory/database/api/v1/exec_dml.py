@@ -364,6 +364,7 @@ def rewrite_dml_with_uid_and_limit(
     uid: str,
     limit_num: int,
     column_types: Optional[Dict[str, str]] = None,
+    space_id: Optional[str] = None,
 ) -> tuple[str, list, dict]:
     """
     Rewrite DML with UID and limit expressions.
@@ -374,6 +375,7 @@ def rewrite_dml_with_uid_and_limit(
         uid: User ID
         limit_num: Limit number for SELECT queries
         column_types: Column type mapping, key is "table.column", value is data type
+        space_id: Optional team space ID for team data sharing
 
     Returns:
         tuple: (rewritten_sql, insert_ids, params_dict)
@@ -385,7 +387,7 @@ def rewrite_dml_with_uid_and_limit(
     tables = [table.alias_or_name for table in parsed.find_all(exp.Table)]
 
     if isinstance(parsed, (exp.Update, exp.Delete, exp.Select)):
-        _dml_add_where(parsed, tables, app_id, uid)
+        _dml_add_where(parsed, tables, app_id, uid, space_id)
 
     if isinstance(parsed, exp.Select):
         limit = parsed.args.get("limit")
@@ -393,7 +395,7 @@ def rewrite_dml_with_uid_and_limit(
             parsed.set("limit", exp.Limit(expression=exp.Literal.number(limit_num)))
 
     if isinstance(parsed, exp.Insert):
-        _dml_insert_add_params(parsed, insert_ids, app_id, uid)
+        _dml_insert_add_params(parsed, insert_ids, app_id, uid, space_id)
 
     # Build mapping from Literal nodes to column names (only when needed)
     literal_column_map: Dict[int, str] = {}
@@ -417,8 +419,32 @@ def rewrite_dml_with_uid_and_limit(
     )
 
 
-def _dml_add_where(parsed: Any, tables: List[str], app_id: str, uid: str) -> None:
-    """Add WHERE conditions to DML statements."""
+def _dml_add_where(
+    parsed: Any, tables: List[str], app_id: str, uid: str, space_id: Optional[str] = None
+) -> None:
+    """Add WHERE conditions to DML statements based on space_id or uid.
+
+    Args:
+        parsed: Parsed SQL statement
+        tables: List of table names in the query
+        app_id: Application ID
+        uid: User ID
+        space_id: Optional team space ID. If provided, no filtering is needed
+                  (schema-level isolation); otherwise use uid-based isolation
+
+    Note:
+        In team space mode (space_id exists), each database has its own PostgreSQL
+        schema (e.g., prod_{uid}_{database_id}), which already provides physical
+        isolation. Therefore, no additional WHERE filtering is needed.
+
+        In personal mode (space_id is None), we filter by uid to isolate data
+        between different users.
+    """
+    # Team space mode: schema already provides isolation, no WHERE filter needed
+    if space_id:
+        return
+
+    # Personal mode: add uid-based filtering
     where_expr = parsed.args.get("where")
     uid_conditions = []
 
@@ -447,9 +473,25 @@ def _dml_add_where(parsed: Any, tables: List[str], app_id: str, uid: str) -> Non
 
 
 def _dml_insert_add_params(
-    parsed: Any, insert_ids: List[int], app_id: str, uid: str
+    parsed: Any, insert_ids: List[int], app_id: str, uid: str, space_id: Optional[str] = None
 ) -> None:
-    """Add parameters to INSERT statements."""
+    """Add parameters to INSERT statements.
+
+    Args:
+        parsed: Parsed INSERT statement
+        insert_ids: List to store generated IDs
+        app_id: Application ID
+        uid: User ID
+        space_id: Optional team space ID (not used, kept for API compatibility)
+
+    Note:
+        We always add id and uid columns regardless of space_id, because:
+        - id: Primary key, always needed
+        - uid: Records who created the data, useful for audit trails
+
+        We do NOT add space_id column because schema-level isolation already
+        provides space separation.
+    """
     existing_columns = parsed.args["this"].expressions or []
     insert_exprs = parsed.args["expression"]
     rows = insert_exprs.expressions
@@ -783,7 +825,7 @@ async def _validate_and_prepare_dml(db: Any, dml_input: Any, span_context: Any) 
     if error_resp:
         return None, error_resp
 
-    return (app_id, uid, database_id, dml, env, schema_list), None
+    return (app_id, uid, database_id, dml, env, schema_list, space_id), None
 
 
 async def _get_table_column_types(
@@ -827,8 +869,19 @@ async def _process_dml_statements(
     span_context: Any,
     db: AsyncSession,
     schema: str,
+    space_id: Optional[str] = None,
 ) -> Any:
-    """Process and rewrite DML statements."""
+    """Process and rewrite DML statements.
+
+    Args:
+        dmls: List of DML statements to process
+        app_id: Application ID
+        uid: User ID
+        span_context: Span context for tracing
+        db: Database session
+        schema: Database schema name
+        space_id: Optional team space ID for team data sharing
+    """
     rewrite_dmls = []
     for statement in dmls:
         error_legality = await _validate_dml_legality(statement, uid, span_context)
@@ -863,6 +916,7 @@ async def _process_dml_statements(
             uid=uid,
             limit_num=100,
             column_types=column_types,
+            space_id=space_id,
         )
         span_context.add_info_event(f"rewrite dml sql: {rewrite_dml}")
         logger.info(f"rewrite dml sql: {rewrite_dml}")
@@ -913,7 +967,7 @@ async def exec_dml(
             if error:
                 return error  # type: ignore[no-any-return]
 
-            app_id, uid, database_id, dml, env, schema_list = validated_data
+            app_id, uid, database_id, dml, env, schema_list, space_id = validated_data
 
             schema, error_search = await _set_search_path(
                 db, schema_list, env, uid, span_context
@@ -926,7 +980,7 @@ async def exec_dml(
                 return error_split  # type: ignore[no-any-return]
 
             rewrite_dmls, error_legality = await _process_dml_statements(
-                dmls, app_id, uid, span_context, db, schema
+                dmls, app_id, uid, span_context, db, schema, space_id
             )
             if error_legality:
                 return error_legality  # type: ignore[no-any-return]
