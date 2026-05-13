@@ -58,10 +58,12 @@ class TestSkillPluginFactory:
         """Test generating SkillPlugin"""
         plugins = factory.gen()
 
-        assert len(plugins) == 1
+        assert len(plugins) == 2
         assert isinstance(plugins[0], SkillPlugin)
         assert plugins[0].name == "read_skill_skill-1"
         assert plugins[0].typ == "skill"
+        assert plugins[1].name == "run_skill_skill-1"
+        assert plugins[1].typ == "skill"
 
     def test_gen_skips_invalid_skills(self) -> None:
         """Test skipping invalid skill definitions"""
@@ -139,3 +141,88 @@ class TestSkillPluginFactory:
         assert response.result["skill_id"] == "skill-1"
         assert response.result["path"] == "references/beijing.md"
         assert response.result["content"] == "北京参考内容"
+
+    @pytest.mark.asyncio
+    async def test_run_skill_returns_fixed_message_without_sandbox_config(
+        self, factory: SkillPluginFactory
+    ) -> None:
+        """Test executable skill tool returns a stable model-readable message."""
+        plugin = factory.gen()[1]
+        span = Span(app_id="test_app", uid="test_uid")
+
+        response = await plugin.run({"command": "python -m scripts.clean"}, span)
+
+        assert response.result == {
+            "skill_id": "skill-1",
+            "configured": False,
+            "message": (
+                "当前环境未配置脚本沙箱，暂不支持直接执行 Skill 脚本。"
+                "你可以向用户说明需要管理员在资源管理中配置脚本沙箱后才能运行。"
+            ),
+        }
+
+    @pytest.mark.asyncio
+    async def test_run_skill_executes_configured_sandbox_provider(self) -> None:
+        """Test executable skill tool delegates command execution to sandbox provider."""
+        factory = SkillPluginFactory(
+            skills=[
+                {
+                    "skill_id": "skill-1",
+                    "name": "script-skill",
+                    "download_url": "https://example.com/skill.md",
+                    "sandbox": {
+                        "provider": "e2b",
+                        "enabled": True,
+                        "api_key": "test-key",
+                        "timeout_seconds": 12,
+                        "allow_internet_access": False,
+                    },
+                    "resources": [
+                        {
+                            "path": "scripts/clean.py",
+                            "download_url": "https://example.com/scripts/clean.py",
+                            "file_ext": "py",
+                            "file_size": 64,
+                        }
+                    ],
+                }
+            ]
+        )
+        plugin = factory.gen()[1]
+        span = Span(app_id="test_app", uid="test_uid")
+
+        class FakeProvider:
+            def __init__(self, config: Any) -> None:
+                self.config = config
+
+            async def execute(self, request: Any) -> dict[str, Any]:
+                assert request.command == "python -m scripts.clean"
+                assert request.stdin == {"value": 1}
+                assert request.working_dir == "."
+                assert request.output_dir == "output"
+                assert request.resources[0].path == "scripts/clean.py"
+                assert self.config.api_key == "test-key"
+                return {
+                    "sandbox_provider": "e2b",
+                    "configured": True,
+                    "command": request.command,
+                    "working_dir": request.working_dir,
+                    "exit_code": 0,
+                    "stdout": '{"ok": true}',
+                    "stderr": "",
+                    "artifacts": [],
+                }
+
+        with patch("agent.service.plugin.skill_sandbox.E2BSandboxProvider", FakeProvider):
+            response = await plugin.run(
+                {
+                    "command": "python -m scripts.clean",
+                    "stdin": {"value": 1},
+                    "working_dir": ".",
+                },
+                span,
+            )
+
+        assert response.result["configured"] is True
+        assert response.result["sandbox_provider"] == "e2b"
+        assert response.result["result_json"] == {"ok": True}

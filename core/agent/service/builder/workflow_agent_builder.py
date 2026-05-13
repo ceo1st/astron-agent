@@ -44,12 +44,14 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 api_key=self.inputs.model_config_inputs.api_key,
             )
 
+            skills = [skill.model_dump() for skill in self.inputs.plugin.skills]
+            self._inject_skill_runtime_context(skills)
             plugins = await self.build_plugins(
                 tool_ids=self.inputs.plugin.tools,
                 mcp_server_ids=self.inputs.plugin.mcp_server_ids,
                 mcp_server_urls=self.inputs.plugin.mcp_server_urls,
                 workflow_ids=self.inputs.plugin.workflow_ids,
-                skills=[skill.model_dump() for skill in self.inputs.plugin.skills],
+                skills=skills,
             )
             metadata_list, knowledge = await self.query_knowledge_by_workflow(
                 self.inputs.plugin.knowledge, sp
@@ -89,6 +91,18 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 plugins=plugins,
                 knowledge_metadata_list=metadata_list,
             )
+
+    def _inject_skill_runtime_context(self, skills: list[dict[str, Any]]) -> None:
+        for skill in skills:
+            sandbox = skill.get("sandbox")
+            if not isinstance(sandbox, dict) or not sandbox:
+                continue
+            sandbox["uid"] = self.inputs.uid
+            sandbox["workflow_id"] = self.inputs.meta_data.workflow_id
+            sandbox["run_id"] = (
+                self.inputs.meta_data.run_id or self.inputs.meta_data.caller_sid
+            )
+            sandbox["node_id"] = self.inputs.meta_data.node_id
 
     async def query_knowledge_by_workflow(
         self, knowledge_list: list[CustomCompletionPluginKnowledgeInputs], span: Span
