@@ -4,7 +4,7 @@ from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.log_trace.workflow_log import WorkflowLog
 
 
-def test_node_log_stores_input_variables_without_dynamic_fields():
+def test_node_log_stores_input_variables_without_dynamic_fields() -> None:
     node_log = NodeLog(sid="sid")
 
     node_log.append_input_data("date", "2026-04-28")
@@ -16,7 +16,7 @@ def test_node_log_stores_input_variables_without_dynamic_fields():
     assert node_log.data.input_vars[1].value == '{"text": "中文"}'
 
 
-def test_node_log_stores_output_variables_without_dynamic_fields():
+def test_node_log_stores_output_variables_without_dynamic_fields() -> None:
     node_log = NodeLog(sid="sid")
 
     node_log.append_output_data("answer", ["ok"])
@@ -26,7 +26,7 @@ def test_node_log_stores_output_variables_without_dynamic_fields():
     assert node_log.data.output_vars[0].value == '["ok"]'
 
 
-def test_workflow_log_serializes_trace_variables_for_elasticsearch_mapping():
+def test_workflow_log_serializes_trace_variables_for_elasticsearch_mapping() -> None:
     node_log = NodeLog(sid="sid")
     node_log.append_input_data("date", "2026-04-28")
     node_log.append_output_data("answer", "ok")
