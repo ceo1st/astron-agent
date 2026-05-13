@@ -22,7 +22,6 @@ dependencies = [
     "opentelemetry-proto>=1.25.0",
     "opentelemetry-sdk>=1.25.0",
     "opentelemetry-semantic-conventions>=0.46b0",
-    "opentelemetry-exporter-opencensus>=0.46b0",
     "opentelemetry-exporter-otlp>=1.25.0",
     "grpc-google-iam-v1==0.12.6",
     "googleapis-common-protos==1.60.0",
