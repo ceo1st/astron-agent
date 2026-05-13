@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from knowledge.exceptions.exception import CustomException
 from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
 

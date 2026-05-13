@@ -7,6 +7,7 @@ from typing import Any, Mapping
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from knowledge.domain.entity.chunk_dto import RagflowQueryExt
 from knowledge.exceptions.exception import ThirdPartyException
 from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy

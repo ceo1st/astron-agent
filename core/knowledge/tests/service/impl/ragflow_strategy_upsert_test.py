@@ -14,6 +14,7 @@ from typing import Any, Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from knowledge.consts.error_code import CodeEnum
 from knowledge.exceptions.exception import CustomException
 from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
@@ -578,6 +579,7 @@ def _build_test_app_for_upload(
     OTLP service manager which is not initialized in test environments.
     """
     from fastapi import FastAPI
+
     from knowledge.api.v1 import api as api_module
 
     # Stub get_span_and_metric so the handler can call span/metric methods

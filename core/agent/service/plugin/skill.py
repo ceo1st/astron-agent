@@ -2,9 +2,10 @@ import json
 from typing import Any
 
 import aiohttp
-from agent.service.plugin.base import BasePlugin, PluginResponse
 from common.otlp.trace.span import Span
 from openai import BaseModel
+
+from agent.service.plugin.base import BasePlugin, PluginResponse
 
 
 class SkillResource(BaseModel):
