@@ -69,6 +69,13 @@ const tabs = [
     createButtonText: 'automation.createTask',
     createButtonKey: 'create-automation',
   },
+  {
+    key: 'sandbox',
+    path: '/resource/sandbox',
+    iconClass: 'plugin-icon',
+    title: '脚本沙箱',
+    hideTools: true,
+  },
 ];
 
 interface HeaderProps {
@@ -159,23 +166,23 @@ function index({ onSearch, onCreate }: HeaderProps): JSX.Element {
         {/* 右侧工具区域 */}
         <div className={styles.toolsContainer}>
           {/* 搜索框 */}
-          {currentTabConfig && (
+          {currentTabConfig && !currentTabConfig.hideTools && (
             <div className={styles.searchContainer}>
               <RetractableInput
                 restrictFirstChar={true}
                 onChange={handleSearchDebounce}
-                placeholder={t(currentTabConfig.searchPlaceholder)}
+                placeholder={t(currentTabConfig.searchPlaceholder || '')}
                 value={searchValue}
               />
             </div>
           )}
 
           {/* 新建按钮 */}
-          {currentTabConfig && (
+          {currentTabConfig && !currentTabConfig.hideTools && (
             <SpaceButton
               config={{
-                key: currentTabConfig.createButtonKey,
-                text: t(currentTabConfig.createButtonText),
+                key: currentTabConfig.createButtonKey || currentTab,
+                text: t(currentTabConfig.createButtonText || ''),
                 type: 'primary',
                 size: 'small',
                 icon: (

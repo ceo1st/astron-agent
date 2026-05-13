@@ -46,6 +46,7 @@ class CustomCompletionPluginSkillInputs(BaseModel):
     description: str = Field(default="", min_length=0, max_length=1024)
     download_url: str = Field(default="")
     resources: list[ResourceInputs] = Field(default_factory=list)
+    sandbox: dict[str, Any] = Field(default_factory=dict)
 
 
 class CustomCompletionPluginInputs(BaseModel):

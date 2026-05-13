@@ -69,6 +69,7 @@ import com.iflytek.astron.console.toolkit.entity.table.relation.FlowToolRel;
 import com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2;
 import com.iflytek.astron.console.toolkit.entity.table.repo.Repo;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillImportDto;
+import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillSandboxConfigDto;
 import com.iflytek.astron.console.toolkit.entity.table.tool.*;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.*;
 import com.iflytek.astron.console.toolkit.entity.tool.McpServerTool;
@@ -94,6 +95,7 @@ import com.iflytek.astron.console.toolkit.service.extra.CoreSystemService;
 import com.iflytek.astron.console.toolkit.service.extra.OpenPlatformService;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
 import com.iflytek.astron.console.toolkit.service.skill.SkillFileService;
+import com.iflytek.astron.console.toolkit.service.skill.SkillSandboxConfigService;
 import com.iflytek.astron.console.toolkit.sse.WorkflowSseEventSourceListener;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import com.iflytek.astron.console.toolkit.tool.JsonConverter;
@@ -266,6 +268,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     private DbTableMapper dbTableMapper;
     @Autowired
     private SkillFileService skillFileService;
+    @Autowired
+    private SkillSandboxConfigService skillSandboxConfigService;
     @Autowired
     private ToolBoxMapper toolBoxMapper;
     @Autowired
@@ -2403,6 +2407,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         Map<Long, SkillImportDto> importMap = skillFileService.getSkillImportsByIds(skillIds)
                 .stream()
                 .collect(Collectors.toMap(SkillImportDto::getId, item -> item, (a, b) -> a));
+        SkillSandboxConfigDto sandboxConfig = skillSandboxConfigService.toRuntimeDto();
         for (int i = 0; i < skillArray.size(); i++) {
             Object obj = skillArray.get(i);
             if (!(obj instanceof Map skillObj)) {
@@ -2426,6 +2431,10 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 skillObj.put("description", StringUtils.defaultString(importDto.getDescription()));
                 skillObj.put("downloadUrl", StringUtils.defaultString(importDto.getDownloadUrl()));
                 skillObj.put("resources", importDto.getResources());
+                if (Boolean.TRUE.equals(sandboxConfig.getEnabled())
+                        && StringUtils.isNotBlank(sandboxConfig.getApiKey())) {
+                    skillObj.put("sandbox", JSON.parseObject(JSON.toJSONString(sandboxConfig)));
+                }
             } catch (NumberFormatException ex) {
                 log.warn("Ignore invalid skill id while enriching: {}", skillIdObj);
             }

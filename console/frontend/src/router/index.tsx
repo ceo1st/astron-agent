@@ -20,6 +20,7 @@ const WorkFlow = lazy(() => import('@/pages/workflow'));
 const WorkFlowAnalysis = lazy(
   () => import('@/pages/workflow/workflow-analysis')
 );
+const WorkFlowFiles = lazy(() => import('@/pages/workflow/workflow-files'));
 
 const ChatPage = lazy(() => import('@/pages/chat-page'));
 const PersonalSpace = lazy(() => import('@/pages/space/personal'));
@@ -237,6 +238,14 @@ const routes = [
     element: (
       <Suspense fallback={<Loading />}>
         <WorkFlowAnalysis />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/work_flow/:id/files',
+    element: (
+      <Suspense fallback={<Loading />}>
+        <WorkFlowFiles />
       </Suspense>
     ),
   },

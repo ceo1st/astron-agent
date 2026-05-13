@@ -195,6 +195,7 @@ class TestWorkflowAgentRunnerBuilder:
                 "description": "Design reference skill",
                 "download_url": "https://example.com/skill.md",
                 "resources": [],
+                "sandbox": {},
             }
         ]
 
