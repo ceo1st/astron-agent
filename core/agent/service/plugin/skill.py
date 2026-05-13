@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import aiohttp
 from common.otlp.trace.span import Span
@@ -93,7 +93,7 @@ class SkillPluginFactory(BaseModel):
         description: str,
         download_url: str,
         resources: list[SkillResource],
-    ):
+    ) -> Callable[[dict[str, Any], Span], Awaitable[PluginResponse]]:
         async def _runner(action_input: dict[str, Any], span: Span) -> PluginResponse:
             with span.start(f"ReadSkill-{skill_id}") as sp:
                 requested_path = self._normalize_path(action_input.get("path"))

@@ -186,7 +186,9 @@ class TestWorkflowAgentRunnerBuilder:
                                 await builder.build()
 
         assert mock_build_plugins.await_count == 1
-        assert mock_build_plugins.await_args.kwargs["skills"] == [
+        build_plugins_args = mock_build_plugins.await_args
+        assert build_plugins_args is not None
+        assert build_plugins_args.kwargs["skills"] == [
             {
                 "skill_id": "skill-1",
                 "name": "ui-ux-pro-max",
