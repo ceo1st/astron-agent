@@ -5,10 +5,6 @@ from dataclasses import dataclass
 from typing import ClassVar, Sequence, Union, cast
 
 import httpx
-from common.otlp.trace.span import Span
-from openai import AsyncOpenAI
-from pydantic import BaseModel, Field
-
 from agent.domain.models.base import AnthropicLLMModel, BaseLLMModel, GoogleLLMModel
 from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.cot.cot_runner import CotRunner
@@ -19,6 +15,9 @@ from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
 from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
 from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 from agent.service.plugin.workflow import WorkflowPlugin, WorkflowPluginFactory
+from common.otlp.trace.span import Span
+from openai import AsyncOpenAI
+from pydantic import BaseModel, Field
 
 
 @dataclass
@@ -90,7 +89,9 @@ class BaseApiBuilder(BaseModel):
         with self.span.start("BuildPlugins") as sp:
             mcp_server_urls = [url for url in mcp_server_urls if url and url.strip()]
 
-            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]] = []
+            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]] = (
+                []
+            )
             if tool_ids:
                 link_tools = await LinkPluginFactory(
                     app_id=self.app_id, uid=self.uid, tool_ids=tool_ids

@@ -14,7 +14,6 @@ from typing import Any, Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from knowledge.consts.error_code import CodeEnum
 from knowledge.exceptions.exception import CustomException
 from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
@@ -384,7 +383,7 @@ async def test_split_document_id_none_uses_legacy_create_only_path(
     strategy = RagflowRAGStrategy()
     file_input = object()
 
-    async def fake_ensure_dataset(group: str, description=None) -> str:
+    async def fake_ensure_dataset(group: str, description: str | None = None) -> str:
         return "ds-1"
 
     async def fake_get_document_chunks(dataset_id: str, doc_id: str) -> list[Any]:
@@ -441,7 +440,7 @@ async def test_split_document_id_set_uses_upsert_path(
     strategy = RagflowRAGStrategy()
     file_input = object()
 
-    async def fake_ensure_dataset(group: str, description=None) -> str:
+    async def fake_ensure_dataset(group: str, description: str | None = None) -> str:
         return "ds-1"
 
     async def fake_get_document_chunks(dataset_id: str, doc_id: str) -> list[Any]:
@@ -491,7 +490,7 @@ async def test_split_preserves_custom_exception_from_upsert(
     """split() must preserve domain errors so API returns the right code."""
     strategy = RagflowRAGStrategy()
 
-    async def fake_ensure_dataset(group: str, description=None) -> str:
+    async def fake_ensure_dataset(group: str, description: str | None = None) -> str:
         return "ds-1"
 
     monkeypatch.setattr(
@@ -520,7 +519,7 @@ async def test_split_prefers_kwargs_group_over_default(
     strategy = RagflowRAGStrategy()
     captured: dict[str, Any] = {}
 
-    async def fake_ensure_dataset(group: str, description=None) -> str:
+    async def fake_ensure_dataset(group: str, description: str | None = None) -> str:
         captured["group"] = group
         return "ds-1"
 
@@ -579,7 +578,6 @@ def _build_test_app_for_upload(
     OTLP service manager which is not initialized in test environments.
     """
     from fastapi import FastAPI
-
     from knowledge.api.v1 import api as api_module
 
     # Stub get_span_and_metric so the handler can call span/metric methods

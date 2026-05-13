@@ -2,10 +2,9 @@ import json
 from typing import Any
 
 import aiohttp
+from agent.service.plugin.base import BasePlugin, PluginResponse
 from common.otlp.trace.span import Span
 from openai import BaseModel
-
-from agent.service.plugin.base import BasePlugin, PluginResponse
 
 
 class SkillResource(BaseModel):
@@ -31,7 +30,9 @@ class SkillPluginFactory(BaseModel):
             skill_id = str(skill.get("skill_id") or skill.get("skillId") or "")
             name = str(skill.get("name") or "").strip()
             description = str(skill.get("description") or "").strip()
-            download_url = str(skill.get("download_url") or skill.get("downloadUrl") or "").strip()
+            download_url = str(
+                skill.get("download_url") or skill.get("downloadUrl") or ""
+            ).strip()
             resources = self._normalize_resources(skill.get("resources") or [])
             if not (skill_id and name and download_url):
                 continue
@@ -39,7 +40,8 @@ class SkillPluginFactory(BaseModel):
                 SkillPlugin(
                     skill_id=skill_id,
                     name=f"read_skill_{skill_id}",
-                    description=description or f"Read the full skill package for {name}",
+                    description=description
+                    or f"Read the full skill package for {name}",
                     schema_template=(
                         f"tool_name:read_skill_{skill_id}, "
                         f"tool_description:Read SKILL.md and referenced files for skill '{name}'. "
@@ -75,7 +77,9 @@ class SkillPluginFactory(BaseModel):
                     path=path,
                     name=str(item.get("name") or "").strip(),
                     download_url=download_url,
-                    file_ext=str(item.get("file_ext") or item.get("fileExt") or "").strip(),
+                    file_ext=str(
+                        item.get("file_ext") or item.get("fileExt") or ""
+                    ).strip(),
                     file_size=int(item.get("file_size") or item.get("fileSize") or 0),
                 )
             )

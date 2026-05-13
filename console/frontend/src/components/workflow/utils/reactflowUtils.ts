@@ -507,7 +507,11 @@ function validateLoopParams(currentCheckNode: unknown): boolean {
   let passFlag = true;
   const nodeParam = currentCheckNode.data.nodeParam;
   const maxLoopCount = Number(nodeParam?.maxLoopCount ?? 10);
-  if (!Number.isInteger(maxLoopCount) || maxLoopCount < 1 || maxLoopCount > 100) {
+  if (
+    !Number.isInteger(maxLoopCount) ||
+    maxLoopCount < 1 ||
+    maxLoopCount > 100
+  ) {
     nodeParam.maxLoopCountErrMsg = i18next.t(
       'workflow.nodes.validation.valueCannotBeEmpty'
     );

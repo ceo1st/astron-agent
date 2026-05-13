@@ -512,7 +512,7 @@ function SkillPage(): React.ReactElement {
     setSubmitting(true);
     try {
       const uploaded = await uploadSkillFiles(parentId, Array.from(files));
-      
+
       setTreeData(prev =>
         uploaded.reduce(
           (nextTree, file) =>
@@ -653,8 +653,8 @@ function SkillPage(): React.ReactElement {
         </div>
         <div className={styles.emptyTitle}>用文件组织你的 Agent 技能</div>
         <div className={styles.emptyDesc}>
-          推荐使用“技能目录 + SKILL.md + 脚本或参考文件”的结构管理内容。
-          Agent 节点只注入必要的 skill 信息，详细内容按需从目录中读取。
+          推荐使用“技能目录 + SKILL.md + 脚本或参考文件”的结构管理内容。 Agent
+          节点只注入必要的 skill 信息，详细内容按需从目录中读取。
         </div>
         <div className={styles.folderActions}>
           <Button
@@ -684,8 +684,8 @@ function SkillPage(): React.ReactElement {
         </div>
         <div className={styles.emptyTitle}>{selectedNode?.name}</div>
         <div className={styles.emptyDesc}>
-          在这个目录下创建 SKILL.md、说明文档、脚本和参考资源。
-          当目录中存在 SKILL.md 时，它会出现在 Agent 节点的 skill 导入列表里。
+          在这个目录下创建 SKILL.md、说明文档、脚本和参考资源。 当目录中存在
+          SKILL.md 时，它会出现在 Agent 节点的 skill 导入列表里。
         </div>
         <div className={styles.folderActions}>
           <Button
@@ -830,7 +830,8 @@ function SkillPage(): React.ReactElement {
             </div>
             <div className={styles.title}>Skill 文件系统</div>
             <div className={styles.desc}>
-              用目录组织 `SKILL.md`、脚本和参考文件，支持在线编辑与 Agent 节点渐进式加载。
+              用目录组织 `SKILL.md`、脚本和参考文件，支持在线编辑与 Agent
+              节点渐进式加载。
             </div>
             <div className={styles.toolbar}>
               <Button
@@ -1187,4 +1188,3 @@ function resolveLanguage(fileExt?: string): string {
 }
 
 export default SkillPage;
-

@@ -950,7 +950,11 @@ const useNodeHandle = ({ id, data }): UseNodeHandleReturn => {
   }, [data?.nodeParam?.exceptionHandlingEdge, id]);
 
   const hasTargetHandle = useMemo(() => {
-    if (['node-start', 'iteration-node-start', 'loop-node-start']?.includes(nodeType)) {
+    if (
+      ['node-start', 'iteration-node-start', 'loop-node-start']?.includes(
+        nodeType
+      )
+    ) {
       return false;
     }
     return true;

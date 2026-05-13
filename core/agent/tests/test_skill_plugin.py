@@ -5,10 +5,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
-
-from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 
 
 @dataclass
@@ -125,9 +124,9 @@ class TestSkillPluginFactory:
             mock_resp.raise_for_status = MagicMock()
             url = str(args[1]) if len(args) > 1 else ""
             mock_resp.text = AsyncMock(
-                return_value="北京参考内容"
-                if "beijing.md" in url
-                else "# Skill\n\nFull content"
+                return_value=(
+                    "北京参考内容" if "beijing.md" in url else "# Skill\n\nFull content"
+                )
             )
             mock_resp.__aenter__.return_value = mock_resp
             mock_resp.__aexit__.return_value = False

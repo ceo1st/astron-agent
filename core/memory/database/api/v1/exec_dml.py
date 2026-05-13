@@ -420,7 +420,11 @@ def rewrite_dml_with_uid_and_limit(
 
 
 def _dml_add_where(
-    parsed: Any, tables: List[str], app_id: str, uid: str, space_id: Optional[str] = None
+    parsed: Any,
+    tables: List[str],
+    app_id: str,
+    uid: str,
+    space_id: Optional[str] = None,
 ) -> None:
     """Add WHERE conditions to DML statements based on space_id or uid.
 
@@ -473,7 +477,11 @@ def _dml_add_where(
 
 
 def _dml_insert_add_params(
-    parsed: Any, insert_ids: List[int], app_id: str, uid: str, space_id: Optional[str] = None
+    parsed: Any,
+    insert_ids: List[int],
+    app_id: str,
+    uid: str,
+    space_id: Optional[str] = None,
 ) -> None:
     """Add parameters to INSERT statements.
 

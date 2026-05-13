@@ -20,9 +20,7 @@ def test_release_filter_keeps_end_node_variable_content() -> None:
             ),
             progress=1,
         ),
-        choices=[
-            Choice(delta=Delta(content='{"output":[{"name":"test"}]}'), index=0)
-        ],
+        choices=[Choice(delta=Delta(content='{"output":[{"name":"test"}]}'), index=0)],
     )
     last_workflow_step = WorkflowStep(seq=3)
 

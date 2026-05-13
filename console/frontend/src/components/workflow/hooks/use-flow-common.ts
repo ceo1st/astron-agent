@@ -127,11 +127,11 @@ const useAddNode = (): UseAddNodeReturn => {
             addNode.data.nodeParam.maxLoopCount =
               addNode.data.nodeParam.maxLoopCount || 10;
             addNode.data.nodeParam.loopVariables = loopVariables;
-            addNode.data.nodeParam.termination =
-              addNode.data.nodeParam.termination || {
-                logicalOperator: 'and',
-                conditions: [],
-              };
+            addNode.data.nodeParam.termination = addNode.data.nodeParam
+              .termination || {
+              logicalOperator: 'and',
+              conditions: [],
+            };
             addNode.data.outputs = loopVariables.map(variable => ({
               id: variable.id,
               name: variable.name,
