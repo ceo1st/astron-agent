@@ -356,7 +356,7 @@ public class WorkflowSkillExportServiceImpl implements WorkflowSkillExportServic
     private boolean isFileInput(BizInputOutput input) {
         return input != null
                 && (StringUtils.isNotBlank(input.getFileType())
-                || StringUtils.containsIgnoreCase(input.getCustomParameterType(), "file"));
+                        || StringUtils.containsIgnoreCase(input.getCustomParameterType(), "file"));
     }
 
     private String yamlQuote(String value) {
@@ -371,6 +371,5 @@ public class WorkflowSkillExportServiceImpl implements WorkflowSkillExportServic
         return StringUtils.defaultString(value).replace("'", "'\"'\"'");
     }
 
-    private record SkillMetadata(String name, String description, boolean aiGenerated) {
-    }
+    private record SkillMetadata(String name, String description, boolean aiGenerated) {}
 }

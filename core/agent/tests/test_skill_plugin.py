@@ -5,9 +5,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
+
+from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 
 
 @dataclass
