@@ -4,6 +4,7 @@
 dataset routing behavior."""
 
 import logging
+from typing import Any, Mapping
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -15,6 +16,18 @@ _ENSURE_DATASET = "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_d
 _GET_DATASET_NAME = (
     "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_default_dataset_name"
 )
+
+
+def _await_kwargs(mock: AsyncMock) -> Mapping[str, Any]:
+    await_args = mock.await_args
+    assert await_args is not None
+    return await_args.kwargs
+
+
+def _await_args(mock: AsyncMock) -> tuple[Any, ...]:
+    await_args = mock.await_args
+    assert await_args is not None
+    return await_args.args
 
 
 # ----------------------------------------------------------------------
@@ -56,7 +69,7 @@ async def test_chunks_save_passes_through_explicit_dataset_id() -> None:
             datasetId="ds-explicit-123",
         )
         mock_ensure.assert_not_called()
-        assert mock_batch.await_args.args[1] == "ds-explicit-123"
+        assert _await_args(mock_batch)[1] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio
@@ -142,7 +155,7 @@ async def test_chunks_update_passes_through_explicit_dataset_id() -> None:
             datasetId="ds-explicit-123",
         )
         mock_ensure.assert_not_called()
-        assert mock_update_chunk.await_args.kwargs["dataset_id"] == "ds-explicit-123"
+        assert _await_kwargs(mock_update_chunk)["dataset_id"] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio
@@ -215,7 +228,7 @@ async def test_chunks_delete_passes_through_explicit_dataset_id() -> None:
             datasetId="ds-explicit-123",
         )
         mock_ensure.assert_not_called()
-        assert mock_delete.await_args.kwargs["dataset_id"] == "ds-explicit-123"
+        assert _await_kwargs(mock_delete)["dataset_id"] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio

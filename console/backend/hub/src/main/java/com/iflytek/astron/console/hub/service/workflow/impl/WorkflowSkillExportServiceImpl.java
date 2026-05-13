@@ -140,21 +140,21 @@ public class WorkflowSkillExportServiceImpl implements WorkflowSkillExportServic
     }
 
     private String buildMetadataPrompt(String workflowName, String workflowDescription) {
-        return """
-                You create Agent Skill metadata for a published workflow API.
-                Return JSON only, without Markdown fences or explanations.
-
-                Requirements:
-                - name: lowercase ASCII kebab-case, 1-64 characters, using only a-z, 0-9, and hyphen.
-                - description: English, third person, max 1024 characters. Clearly state when an agent should use the skill.
-                - Do not mention implementation details, curl, API keys, or internal IDs.
-
-                Workflow name: %s
-                Workflow description: %s
-
-                JSON schema:
-                {"name":"short-action-name","description":"Use when the user needs ..."}
-                """.formatted(workflowName, workflowDescription);
+        return String.join(
+                System.lineSeparator(),
+                "You create Agent Skill metadata for a published workflow API.",
+                "Return JSON only, without Markdown fences or explanations.",
+                "",
+                "Requirements:",
+                "- name: lowercase ASCII kebab-case, 1-64 characters, using only a-z, 0-9, and hyphen.",
+                "- description: English, third person, max 1024 characters. Clearly state when an agent should use the skill.",
+                "- Do not mention implementation details, curl, API keys, or internal IDs.",
+                "",
+                "Workflow name: " + workflowName,
+                "Workflow description: " + workflowDescription,
+                "",
+                "JSON schema:",
+                "{\"name\":\"short-action-name\",\"description\":\"Use when the user needs ...\"}");
     }
 
     private SkillMetadata parseGeneratedMetadata(String content) {
@@ -356,7 +356,7 @@ public class WorkflowSkillExportServiceImpl implements WorkflowSkillExportServic
     private boolean isFileInput(BizInputOutput input) {
         return input != null
                 && (StringUtils.isNotBlank(input.getFileType())
-                || StringUtils.containsIgnoreCase(input.getCustomParameterType(), "file"));
+                        || StringUtils.containsIgnoreCase(input.getCustomParameterType(), "file"));
     }
 
     private String yamlQuote(String value) {
@@ -371,6 +371,5 @@ public class WorkflowSkillExportServiceImpl implements WorkflowSkillExportServic
         return StringUtils.defaultString(value).replace("'", "'\"'\"'");
     }
 
-    private record SkillMetadata(String name, String description, boolean aiGenerated) {
-    }
+    private record SkillMetadata(String name, String description, boolean aiGenerated) {}
 }

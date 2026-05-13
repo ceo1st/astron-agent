@@ -161,7 +161,9 @@ def build_variable_pool() -> VariablePool:
 
 def build_loop_chain(*, exit_node: bool = False) -> Chains:
     end_node = LOOP_EXIT_NODE_ID if exit_node else LOOP_END_NODE_ID
-    chains = Chains(workflow_schema=WorkflowDSL.model_validate({"nodes": [], "edges": []}))
+    chains = Chains(
+        workflow_schema=WorkflowDSL.model_validate({"nodes": [], "edges": []})
+    )
     chains.master_chains = [
         SimplePath(
             node_id_list=[LOOP_START_NODE_ID, end_node],

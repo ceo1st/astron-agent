@@ -939,8 +939,7 @@ async def _chat_response_stream(
                     return
 
                 if (
-                    response.choices[0].finish_reason
-                    == ChatStatus.FINISH_REASON.value
+                    response.choices[0].finish_reason == ChatStatus.FINISH_REASON.value
                     and final_content
                 ):
                     response.choices[0].delta.content = ""

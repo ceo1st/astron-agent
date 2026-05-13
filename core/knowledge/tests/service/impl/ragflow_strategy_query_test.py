@@ -3,6 +3,7 @@
 """Tests for RagflowRAGStrategy.query() datasetId routing."""
 
 import logging
+from typing import Any, Mapping
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -22,6 +23,18 @@ _CONVERT = (
     "knowledge.service.impl.ragflow_strategy."
     "RagflowUtils.convert_ragflow_query_response"
 )
+
+
+def _await_kwargs(mock: AsyncMock) -> Mapping[str, Any]:
+    await_args = mock.await_args
+    assert await_args is not None
+    return await_args.kwargs
+
+
+def _await_args(mock: AsyncMock) -> tuple[Any, ...]:
+    await_args = mock.await_args
+    assert await_args is not None
+    return await_args.args
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +188,7 @@ async def test_execute_retrieval_returns_converted_results() -> None:
     assert result["query"] == "x"
     assert result["results"][0]["docId"] == "d1"
     # The retrieval client takes request_data via keyword.
-    assert mock_retrieval.await_args.kwargs["request_data"]["dataset_ids"] == ["ds-1"]
+    assert _await_kwargs(mock_retrieval)["request_data"]["dataset_ids"] == ["ds-1"]
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +221,7 @@ async def test_query_with_explicit_dataset_ids_skips_ensure() -> None:
             datasetId=["ds-real-1", "ds-real-2"],
         )
         ensure_mock.assert_not_called()
-        sent_payload = mock_retrieval.await_args.kwargs["request_data"]
+        sent_payload = _await_kwargs(mock_retrieval)["request_data"]
         assert sent_payload["dataset_ids"] == ["ds-real-1", "ds-real-2"]
         assert result["count"] == 1
         assert result["results"][0]["docId"] == "d1"
@@ -228,7 +241,7 @@ async def test_query_falls_back_to_default_group_when_dataset_id_none() -> None:
     ):
         await strategy.query(query="hello", doc_ids=None, top_k=5, datasetId=None)
         ensure_mock.assert_awaited_once_with("default-group")
-        sent_payload = mock_retrieval.await_args.kwargs["request_data"]
+        sent_payload = _await_kwargs(mock_retrieval)["request_data"]
         assert sent_payload["dataset_ids"] == ["ds-default"]
 
 
@@ -247,7 +260,9 @@ async def test_query_falls_back_to_default_group_when_dataset_id_omitted() -> No
 
 
 @pytest.mark.asyncio
-async def test_query_default_dataset_unresolvable_returns_empty(caplog) -> None:
+async def test_query_default_dataset_unresolvable_returns_empty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """When ensure_dataset returns falsy, query yields empty."""
     strategy = RagflowRAGStrategy()
     with patch(_GET_DATASET_NAME, return_value="default-group"), patch(
@@ -280,7 +295,7 @@ async def test_query_doc_ids_passthrough_with_explicit_dataset_id() -> None:
             datasetId=["ds-abc"],
         )
         ensure_mock.assert_not_called()
-        sent_payload = mock_retrieval.await_args.kwargs["request_data"]
+        sent_payload = _await_kwargs(mock_retrieval)["request_data"]
         assert sent_payload["dataset_ids"] == ["ds-abc"]
         assert sent_payload["document_ids"] == ["doc1", "doc2"]
 
@@ -321,7 +336,7 @@ async def test_query_doc_passes_through_explicit_dataset_id() -> None:
     ) as mock_list:
         await strategy.query_doc(docId="doc-1", datasetId="ds-explicit-123")
         mock_ensure.assert_not_called()
-        assert mock_list.await_args.args[0] == "ds-explicit-123"
+        assert _await_args(mock_list)[0] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio
@@ -359,7 +374,7 @@ async def test_query_doc_name_passes_through_explicit_dataset_id() -> None:
     ) as mock_info:
         await strategy.query_doc_name(docId="doc-1", datasetId="ds-explicit-123")
         mock_ensure.assert_not_called()
-        assert mock_info.await_args.args[0] == "ds-explicit-123"
+        assert _await_args(mock_info)[0] == "ds-explicit-123"
 
 
 @pytest.mark.asyncio

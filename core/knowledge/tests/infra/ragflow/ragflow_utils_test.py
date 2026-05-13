@@ -101,7 +101,9 @@ async def test_ensure_dataset_skips_update_when_description_none() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ensure_dataset_swallows_update_failures(caplog) -> None:
+async def test_ensure_dataset_swallows_update_failures(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """update_dataset failure logs warning + returns dataset_id (does not raise)."""
     import logging
 
@@ -125,7 +127,9 @@ async def test_ensure_dataset_swallows_update_failures(caplog) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ensure_dataset_warns_on_non_zero_update_code(caplog) -> None:
+async def test_ensure_dataset_warns_on_non_zero_update_code(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """update_dataset HTTP 200 with non-zero RAGFlow code logs warning, no raise."""
     import logging
 

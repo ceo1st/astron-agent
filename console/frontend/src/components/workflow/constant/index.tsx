@@ -11,10 +11,7 @@ import { MessageDetail } from '@/components/workflow/nodes/message';
 import { DecisionMakingDetail } from '@/components/workflow/nodes/decision-making';
 import { IfElseDetail } from '@/components/workflow/nodes/if-else';
 import { IteratorDetail } from '@/components/workflow/nodes/iterator';
-import {
-  LoopDetail,
-  LoopExitDetail,
-} from '@/components/workflow/nodes/loop';
+import { LoopDetail, LoopExitDetail } from '@/components/workflow/nodes/loop';
 import { TextHandleDetail } from '@/components/workflow/nodes/text-handle';
 import { ExtractorParameterDetail } from '@/components/workflow/nodes/extractor-parameterNode';
 import { VariableMemoryDetail } from '@/components/workflow/nodes/variable-memory';

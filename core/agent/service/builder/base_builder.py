@@ -90,7 +90,9 @@ class BaseApiBuilder(BaseModel):
         with self.span.start("BuildPlugins") as sp:
             mcp_server_urls = [url for url in mcp_server_urls if url and url.strip()]
 
-            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]] = []
+            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]] = (
+                []
+            )
             if tool_ids:
                 link_tools = await LinkPluginFactory(
                     app_id=self.app_id, uid=self.uid, tool_ids=tool_ids

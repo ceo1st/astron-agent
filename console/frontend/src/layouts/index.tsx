@@ -82,9 +82,12 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
           break;
         }
         case 'automation': {
-          const createAutomationEvent = new CustomEvent('headerCreateAutomation', {
-            detail: { type },
-          });
+          const createAutomationEvent = new CustomEvent(
+            'headerCreateAutomation',
+            {
+              detail: { type },
+            }
+          );
           window.dispatchEvent(createAutomationEvent);
           break;
         }

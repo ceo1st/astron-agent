@@ -308,9 +308,7 @@ class LoopNode(BaseNode):
             return None
 
         variable_by_id = {
-            variable.id: variable.name
-            for variable in self.loopVariables
-            if variable.id
+            variable.id: variable.name for variable in self.loopVariables if variable.id
         }
         variable_name = variable_by_id.get(operand, operand)
         return loop_values.get(variable_name, operand)
@@ -505,15 +503,15 @@ class LoopNode(BaseNode):
     def _build_return_result(self, loop_values: dict[str, Any]) -> dict[str, Any]:
         if self.output_identifier:
             default_by_output = {
-                variable.name: schema_type_default_value.get(variable.schema.get("type"))
+                variable.name: schema_type_default_value.get(
+                    variable.schema.get("type")
+                )
                 for variable in self.loopVariables
             }
             return {
                 key: loop_values.get(
                     key,
-                    default_by_output.get(
-                        key, schema_type_default_value.get("string")
-                    ),
+                    default_by_output.get(key, schema_type_default_value.get("string")),
                 )
                 for key in self.output_identifier
             }

@@ -125,9 +125,9 @@ class TestSkillPluginFactory:
             mock_resp.raise_for_status = MagicMock()
             url = str(args[1]) if len(args) > 1 else ""
             mock_resp.text = AsyncMock(
-                return_value="北京参考内容"
-                if "beijing.md" in url
-                else "# Skill\n\nFull content"
+                return_value=(
+                    "北京参考内容" if "beijing.md" in url else "# Skill\n\nFull content"
+                )
             )
             mock_resp.__aenter__.return_value = mock_resp
             mock_resp.__aexit__.return_value = False

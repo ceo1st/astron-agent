@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import aiohttp
 from common.otlp.trace.span import Span
@@ -31,7 +31,9 @@ class SkillPluginFactory(BaseModel):
             skill_id = str(skill.get("skill_id") or skill.get("skillId") or "")
             name = str(skill.get("name") or "").strip()
             description = str(skill.get("description") or "").strip()
-            download_url = str(skill.get("download_url") or skill.get("downloadUrl") or "").strip()
+            download_url = str(
+                skill.get("download_url") or skill.get("downloadUrl") or ""
+            ).strip()
             resources = self._normalize_resources(skill.get("resources") or [])
             if not (skill_id and name and download_url):
                 continue
@@ -39,7 +41,8 @@ class SkillPluginFactory(BaseModel):
                 SkillPlugin(
                     skill_id=skill_id,
                     name=f"read_skill_{skill_id}",
-                    description=description or f"Read the full skill package for {name}",
+                    description=description
+                    or f"Read the full skill package for {name}",
                     schema_template=(
                         f"tool_name:read_skill_{skill_id}, "
                         f"tool_description:Read SKILL.md and referenced files for skill '{name}'. "
@@ -75,7 +78,9 @@ class SkillPluginFactory(BaseModel):
                     path=path,
                     name=str(item.get("name") or "").strip(),
                     download_url=download_url,
-                    file_ext=str(item.get("file_ext") or item.get("fileExt") or "").strip(),
+                    file_ext=str(
+                        item.get("file_ext") or item.get("fileExt") or ""
+                    ).strip(),
                     file_size=int(item.get("file_size") or item.get("fileSize") or 0),
                 )
             )
@@ -88,7 +93,7 @@ class SkillPluginFactory(BaseModel):
         description: str,
         download_url: str,
         resources: list[SkillResource],
-    ):
+    ) -> Callable[[dict[str, Any], Span], Awaitable[PluginResponse]]:
         async def _runner(action_input: dict[str, Any], span: Span) -> PluginResponse:
             with span.start(f"ReadSkill-{skill_id}") as sp:
                 requested_path = self._normalize_path(action_input.get("path"))
