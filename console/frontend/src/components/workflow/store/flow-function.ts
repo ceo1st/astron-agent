@@ -650,7 +650,8 @@ function updateLoopOutputs(item, old): void {
   }));
 
   const loopStartNode = old?.find(
-    node => node?.data?.parentId === item?.id && node?.nodeType === 'loop-node-start'
+    node =>
+      node?.data?.parentId === item?.id && node?.nodeType === 'loop-node-start'
   );
 
   if (loopStartNode) {

@@ -10,10 +10,10 @@ Covers:
 - Highlight is sent as a string to work around a RAGFlow v0.20.5 quirk.
 """
 
+from typing import Any, Mapping
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from knowledge.domain.entity.chunk_dto import RagflowQueryExt
 from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
 
@@ -25,6 +25,12 @@ _RETRIEVAL = (
     "knowledge.service.impl.ragflow_strategy.ragflow_client.retrieval_with_dataset"
 )
 _CONVERT = "knowledge.service.impl.ragflow_strategy.RagflowUtils.convert_ragflow_query_response"
+
+
+def _await_kwargs(mock: AsyncMock) -> Mapping[str, Any]:
+    await_args = mock.await_args
+    assert await_args is not None
+    return await_args.kwargs
 
 
 class TestRagflowQueryPayloadBaseline:
@@ -45,7 +51,7 @@ class TestRagflowQueryPayloadBaseline:
             await strategy.query("hello", top_k=3, threshold=0.5)
 
         assert mock_retrieval.await_count == 1
-        payload = mock_retrieval.await_args.kwargs["request_data"]
+        payload = _await_kwargs(mock_retrieval)["request_data"]
         assert payload == {
             "question": "hello",
             "dataset_ids": ["ds-1"],
@@ -68,7 +74,7 @@ class TestRagflowQueryPayloadBaseline:
         ):
             await strategy.query("hello", doc_ids=["d1", "d2"], top_k=3, threshold=0.5)
 
-        payload = mock_retrieval.await_args.kwargs["request_data"]
+        payload = _await_kwargs(mock_retrieval)["request_data"]
         assert payload["document_ids"] == ["d1", "d2"]
 
 
@@ -92,7 +98,7 @@ class TestRagflowQueryTopKSemantics:
                 top_k=3,
                 ragflow_ext=RagflowQueryExt(top_k=50),
             )
-        payload = mock_retrieval.await_args.kwargs["request_data"]
+        payload = _await_kwargs(mock_retrieval)["request_data"]
         assert payload["top_k"] == 50
 
     @pytest.mark.asyncio
@@ -112,7 +118,7 @@ class TestRagflowQueryTopKSemantics:
                 top_k=3,
                 ragflow_ext=RagflowQueryExt(),
             )
-        payload = mock_retrieval.await_args.kwargs["request_data"]
+        payload = _await_kwargs(mock_retrieval)["request_data"]
         assert payload["top_k"] == 3
 
     @pytest.mark.asyncio
@@ -179,7 +185,7 @@ class TestRagflowQueryPayloadWithExt:
             patch(_CONVERT, return_value=[]),
         ):
             await strategy.query("q", top_k=3, ragflow_ext=ext)
-        return mock_retrieval.await_args.kwargs["request_data"]
+        return _await_kwargs(mock_retrieval)["request_data"]
 
     @pytest.mark.asyncio
     async def test_vsw_override(self) -> None:

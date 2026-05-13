@@ -69,7 +69,10 @@ const TIMEZONE_OPTIONS = [
   { label: 'Europe/London', value: 'Europe/London' },
 ];
 
-const STATUS_META: Record<AutomationRunStatus, { color: string; label: string }> = {
+const STATUS_META: Record<
+  AutomationRunStatus,
+  { color: string; label: string }
+> = {
   SUCCESS: { color: 'success', label: '成功' },
   FAILED: { color: 'error', label: '失败' },
   SKIPPED: { color: 'warning', label: '跳过' },
@@ -98,7 +101,9 @@ const formatDate = (value?: string | number): string => {
     return '-';
   }
   const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : String(value);
+  return parsed.isValid()
+    ? parsed.format('YYYY-MM-DD HH:mm:ss')
+    : String(value);
 };
 
 const parseJsonObject = (value?: string): Record<string, any> => {
@@ -155,7 +160,8 @@ const AutomationPage: FC = () => {
   const [runsLoading, setRunsLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<WorkflowAutomationTask | null>(null);
+  const [selectedTask, setSelectedTask] =
+    useState<WorkflowAutomationTask | null>(null);
   const [previewTimes, setPreviewTimes] = useState<string[]>([]);
   const [inputMode, setInputMode] = useState<InputMode>('json');
   const [search, setSearch] = useState('');
@@ -171,7 +177,11 @@ const AutomationPage: FC = () => {
   });
 
   const fetchTasks = useCallback(
-    async (page = pagination.current, pageSize = pagination.pageSize, keyword = search): Promise<void> => {
+    async (
+      page = pagination.current,
+      pageSize = pagination.pageSize,
+      keyword = search
+    ): Promise<void> => {
       setLoading(true);
       try {
         const data = await getAutomationTasks({
@@ -208,7 +218,10 @@ const AutomationPage: FC = () => {
   }, []);
 
   const loadWorkflowInputs = useCallback(
-    async (flowId: string, inputParams: Record<string, any> = {}): Promise<void> => {
+    async (
+      flowId: string,
+      inputParams: Record<string, any> = {}
+    ): Promise<void> => {
       try {
         const raw = await getFlowInputsInfo(flowId);
         const schemas = normalizeInputsPayload(raw);
@@ -233,7 +246,8 @@ const AutomationPage: FC = () => {
 
   useEffect(() => {
     const handleHeaderSearch = (event: Event): void => {
-      const detail = (event as CustomEvent<{ value: string; type: string }>).detail;
+      const detail = (event as CustomEvent<{ value: string; type: string }>)
+        .detail;
       if (detail?.type !== 'automation') {
         return;
       }
@@ -321,23 +335,28 @@ const AutomationPage: FC = () => {
     setPreviewTimes(times);
   };
 
-  const buildPayload = (values: AutomationFormValues): WorkflowAutomationTaskPayload => {
+  const buildPayload = (
+    values: AutomationFormValues
+  ): WorkflowAutomationTaskPayload => {
     let inputParams: Record<string, any>;
     if (inputMode === 'json') {
       inputParams = parseJsonObject(values.inputParamsJson);
     } else {
-      inputParams = inputSchemas.reduce<Record<string, any>>((acc, schema, index) => {
-        const key = getInputKey(schema, index);
-        const type = getInputType(schema);
-        const rawValue = values.inputValues?.[key];
-        if (type === 'object' || type === 'array') {
-          const text = typeof rawValue === 'string' ? rawValue : '';
-          acc[key] = text ? JSON.parse(text) : type === 'array' ? [] : {};
-        } else {
-          acc[key] = rawValue ?? '';
-        }
-        return acc;
-      }, {});
+      inputParams = inputSchemas.reduce<Record<string, any>>(
+        (acc, schema, index) => {
+          const key = getInputKey(schema, index);
+          const type = getInputType(schema);
+          const rawValue = values.inputValues?.[key];
+          if (type === 'object' || type === 'array') {
+            const text = typeof rawValue === 'string' ? rawValue : '';
+            acc[key] = text ? JSON.parse(text) : type === 'array' ? [] : {};
+          } else {
+            acc[key] = rawValue ?? '';
+          }
+          return acc;
+        },
+        {}
+      );
     }
 
     return {
@@ -375,13 +394,18 @@ const AutomationPage: FC = () => {
     }
   };
 
-  const handleEnableChange = async (record: WorkflowAutomationTask, enabled: boolean): Promise<void> => {
+  const handleEnableChange = async (
+    record: WorkflowAutomationTask,
+    enabled: boolean
+  ): Promise<void> => {
     await setAutomationEnabled(record.id, enabled);
     message.success(enabled ? '任务已启用' : '任务已停用');
     void fetchTasks();
   };
 
-  const handleRunNow = async (record: WorkflowAutomationTask): Promise<void> => {
+  const handleRunNow = async (
+    record: WorkflowAutomationTask
+  ): Promise<void> => {
     await runAutomationNow(record.id);
     message.success('已触发执行');
     void fetchTasks();
@@ -402,12 +426,19 @@ const AutomationPage: FC = () => {
     });
   };
 
-  const openRunsDrawer = async (record: WorkflowAutomationTask, page = 1, pageSize = DEFAULT_PAGE_SIZE): Promise<void> => {
+  const openRunsDrawer = async (
+    record: WorkflowAutomationTask,
+    page = 1,
+    pageSize = DEFAULT_PAGE_SIZE
+  ): Promise<void> => {
     setSelectedTask(record);
     setHistoryOpen(true);
     setRunsLoading(true);
     try {
-      const data = await getAutomationRuns(record.id, { current: page, pageSize });
+      const data = await getAutomationRuns(record.id, {
+        current: page,
+        pageSize,
+      });
       setRuns(data.pageData || []);
       setRunsPagination({
         current: data.page || page,
@@ -449,7 +480,9 @@ const AutomationPage: FC = () => {
       width: 240,
       render: (value: string | undefined, record) => (
         <div className={styles.primaryCell}>
-          <Text ellipsis={{ tooltip: value || record.flowId }}>{value || record.flowId}</Text>
+          <Text ellipsis={{ tooltip: value || record.flowId }}>
+            {value || record.flowId}
+          </Text>
           <Text type="secondary" className={styles.mutedLine}>
             {record.flowId}
           </Text>
@@ -524,7 +557,11 @@ const AutomationPage: FC = () => {
             />
           </Tooltip>
           <Tooltip title="编辑">
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEditDrawer(record)} />
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEditDrawer(record)}
+            />
           </Tooltip>
           <Tooltip title="删除">
             <Button
@@ -569,7 +606,10 @@ const AutomationPage: FC = () => {
       title: '结果摘要',
       dataIndex: 'responseSummary',
       render: (value: string | undefined, record) => (
-        <Paragraph className={styles.runSummary} ellipsis={{ rows: 2, tooltip: value || record.errorMessage }}>
+        <Paragraph
+          className={styles.runSummary}
+          ellipsis={{ rows: 2, tooltip: value || record.errorMessage }}
+        >
           {value || record.errorMessage || '-'}
         </Paragraph>
       ),
@@ -598,11 +638,18 @@ const AutomationPage: FC = () => {
           <Tag>{type}</Tag>
         </Space>
       );
-      const rules = schema.required ? [{ required: true, message: `请输入 ${key}` }] : [];
+      const rules = schema.required
+        ? [{ required: true, message: `请输入 ${key}` }]
+        : [];
 
       if (type === 'boolean') {
         return (
-          <Form.Item key={key} name={['inputValues', key]} label={label} valuePropName="checked">
+          <Form.Item
+            key={key}
+            name={['inputValues', key]}
+            label={label}
+            valuePropName="checked"
+          >
             <Switch />
           </Form.Item>
         );
@@ -610,7 +657,12 @@ const AutomationPage: FC = () => {
 
       if (type === 'number' || type === 'integer') {
         return (
-          <Form.Item key={key} name={['inputValues', key]} label={label} rules={rules}>
+          <Form.Item
+            key={key}
+            name={['inputValues', key]}
+            label={label}
+            rules={rules}
+          >
             <InputNumber className={styles.fullControl} />
           </Form.Item>
         );
@@ -618,14 +670,24 @@ const AutomationPage: FC = () => {
 
       if (type === 'object' || type === 'array') {
         return (
-          <Form.Item key={key} name={['inputValues', key]} label={label} rules={rules}>
+          <Form.Item
+            key={key}
+            name={['inputValues', key]}
+            label={label}
+            rules={rules}
+          >
             <Input.TextArea rows={4} className={styles.monoInput} />
           </Form.Item>
         );
       }
 
       return (
-        <Form.Item key={key} name={['inputValues', key]} label={label} rules={rules}>
+        <Form.Item
+          key={key}
+          name={['inputValues', key]}
+          label={label}
+          rules={rules}
+        >
           <Input placeholder={schema.description || '请输入参数值'} />
         </Form.Item>
       );
@@ -645,10 +707,17 @@ const AutomationPage: FC = () => {
                 </Text>
               </div>
               <Space>
-                <Button icon={<ReloadOutlined />} onClick={() => void fetchTasks()}>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => void fetchTasks()}
+                >
                   刷新
                 </Button>
-                <Button type="primary" icon={<ClockCircleOutlined />} onClick={openCreateDrawer}>
+                <Button
+                  type="primary"
+                  icon={<ClockCircleOutlined />}
+                  onClick={openCreateDrawer}
+                >
                   新建任务
                 </Button>
               </Space>
@@ -688,7 +757,11 @@ const AutomationPage: FC = () => {
         extra={
           <Space>
             <Button onClick={() => setDrawerOpen(false)}>取消</Button>
-            <Button type="primary" loading={submitting} onClick={() => void handleSubmit()}>
+            <Button
+              type="primary"
+              loading={submitting}
+              onClick={() => void handleSubmit()}
+            >
               保存
             </Button>
           </Space>
@@ -736,13 +809,19 @@ const AutomationPage: FC = () => {
             >
               <Input placeholder="0 0 9 * * ?" />
             </Form.Item>
-            <Form.Item name="timezone" label="时区" rules={[{ required: true }]}>
+            <Form.Item
+              name="timezone"
+              label="时区"
+              rules={[{ required: true }]}
+            >
               <Select options={TIMEZONE_OPTIONS} />
             </Form.Item>
             <Form.Item name="enabled" label="启用状态" valuePropName="checked">
               <Switch checkedChildren="启用" unCheckedChildren="停用" />
             </Form.Item>
-            <Button onClick={() => void handlePreviewCron()}>预览未来 5 次</Button>
+            <Button onClick={() => void handlePreviewCron()}>
+              预览未来 5 次
+            </Button>
             {previewTimes.length > 0 && (
               <div className={styles.previewList}>
                 {previewTimes.map(item => (
@@ -760,7 +839,11 @@ const AutomationPage: FC = () => {
                 value={inputMode}
                 onChange={setInputMode}
                 options={[
-                  { label: '表单', value: 'form', disabled: inputSchemas.length === 0 },
+                  {
+                    label: '表单',
+                    value: 'form',
+                    disabled: inputSchemas.length === 0,
+                  },
                   { label: 'JSON', value: 'json' },
                 ]}
               />

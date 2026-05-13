@@ -643,7 +643,9 @@ function checkIteratorNode({ iteratorId, outerErrNodes, cycleEdges }): void {
       : node.nodeType === 'iteration-node-start'
   );
   const endNode = nodes.find(node =>
-    isLoop ? node.nodeType === 'loop-node-end' : node.nodeType === 'iteration-node-end'
+    isLoop
+      ? node.nodeType === 'loop-node-end'
+      : node.nodeType === 'iteration-node-end'
   );
 
   const visitedNodes = new Set();

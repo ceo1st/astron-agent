@@ -2400,7 +2400,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         if (skillIds.isEmpty()) {
             return;
         }
-        Map<Long, SkillImportDto> importMap = skillFileService.getSkillImportsByIds(skillIds).stream()
+        Map<Long, SkillImportDto> importMap = skillFileService.getSkillImportsByIds(skillIds)
+                .stream()
                 .collect(Collectors.toMap(SkillImportDto::getId, item -> item, (a, b) -> a));
         for (int i = 0; i < skillArray.size(); i++) {
             Object obj = skillArray.get(i);

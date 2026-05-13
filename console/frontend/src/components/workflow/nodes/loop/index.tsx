@@ -449,10 +449,7 @@ export const LoopDetail = memo(
                         <Select
                           className="flow-select w-[96px]"
                           value={
-                            getValueConfig(
-                              condition.rightValue,
-                              'string'
-                            ).type
+                            getValueConfig(condition.rightValue, 'string').type
                           }
                           options={[
                             {
@@ -470,8 +467,7 @@ export const LoopDetail = memo(
                                 value === 'literal'
                                   ? {
                                       type: 'literal',
-                                      content:
-                                        condition.rightVarIndex || '',
+                                      content: condition.rightVarIndex || '',
                                     }
                                   : {
                                       type: 'ref',
@@ -488,8 +484,7 @@ export const LoopDetail = memo(
                         />
                         <div className="flex-1 min-w-0">
                           {getValueConfig(
-                            condition.rightValue ||
-                              condition.rightVarIndex,
+                            condition.rightValue || condition.rightVarIndex,
                             'string'
                           ).type === 'ref' ? (
                             <FlowCascader
