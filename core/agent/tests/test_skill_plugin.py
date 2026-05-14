@@ -9,6 +9,10 @@ from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
 
 from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
+from agent.service.plugin.skill_sandbox import (
+    E2BSandboxProvider,
+    SandboxExecutionRequest,
+)
 
 
 @dataclass
@@ -64,6 +68,8 @@ class TestSkillPluginFactory:
         assert plugins[0].typ == "skill"
         assert plugins[1].name == "run_skill_skill-1"
         assert plugins[1].typ == "skill"
+        assert "working_dir" not in plugins[1].schema_template
+        assert "output_dir" not in plugins[1].schema_template
 
     def test_gen_skips_invalid_skills(self) -> None:
         """Test skipping invalid skill definitions"""
@@ -199,7 +205,7 @@ class TestSkillPluginFactory:
                 assert request.command == "python -m scripts.clean"
                 assert request.stdin == {"value": 1}
                 assert request.working_dir == "."
-                assert request.output_dir == "output"
+                assert request.output_dir == "."
                 assert request.resources[0].path == "scripts/clean.py"
                 assert self.config.api_key == "test-key"
                 return {
@@ -213,12 +219,15 @@ class TestSkillPluginFactory:
                     "artifacts": [],
                 }
 
-        with patch("agent.service.plugin.skill_sandbox.E2BSandboxProvider", FakeProvider):
+        with patch(
+            "agent.service.plugin.skill_sandbox.E2BSandboxProvider", FakeProvider
+        ):
             response = await plugin.run(
                 {
                     "command": "python -m scripts.clean",
                     "stdin": {"value": 1},
-                    "working_dir": ".",
+                    "working_dir": "scripts",
+                    "output_dir": "output",
                 },
                 span,
             )
@@ -226,3 +235,95 @@ class TestSkillPluginFactory:
         assert response.result["configured"] is True
         assert response.result["sandbox_provider"] == "e2b"
         assert response.result["result_json"] == {"ok": True}
+
+    @pytest.mark.asyncio
+    async def test_collect_artifacts_scans_workspace_root_and_skips_resources(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test collecting generated files from the workspace root."""
+
+        @dataclass
+        class FakeEntry:
+            name: str
+            path: str
+            type: str = "file"
+            size: int = 4
+
+        class FakeFiles:
+            async def exists(self, path: str) -> bool:
+                assert path == "/home/user/skill"
+                return True
+
+            async def list(self, path: str, depth: int) -> list[FakeEntry]:
+                assert path == "/home/user/skill"
+                assert depth == 5
+                return [
+                    FakeEntry(
+                        name="test_script.py",
+                        path="/home/user/skill/scripts/test_script.py",
+                    ),
+                    FakeEntry(
+                        name="e2b_skill_test_output.txt",
+                        path="/home/user/skill/e2b_skill_test_output.txt",
+                    ),
+                    FakeEntry(
+                        name=".astron_stdin.json",
+                        path="/home/user/skill/.astron_stdin.json",
+                    ),
+                ]
+
+            async def read(self, path: str, format: str) -> bytes:
+                assert path == "/home/user/skill/e2b_skill_test_output.txt"
+                assert format == "bytes"
+                return b"done"
+
+        class FakeSandbox:
+            files = FakeFiles()
+
+        class FakeUploader:
+            def __init__(self, config: Any, skill_id: str) -> None:
+                self.skill_id = skill_id
+
+            def is_configured(self) -> bool:
+                return True
+
+            async def upload(
+                self, file_name: str, file_bytes: bytes, content_type: str
+            ) -> dict[str, Any]:
+                return {
+                    "id": 1,
+                    "fileName": file_name,
+                    "fileSize": len(file_bytes),
+                    "contentType": content_type,
+                }
+
+        monkeypatch.setattr(
+            "agent.service.plugin.skill_sandbox.ArtifactUploader", FakeUploader
+        )
+        provider = E2BSandboxProvider(None)
+        request = SandboxExecutionRequest(
+            skill_id="skill-1",
+            command="python scripts/test_script.py",
+            output_dir=".",
+            resources=[
+                type("Resource", (), {"path": "scripts/test_script.py"})(),
+            ],
+        )
+
+        artifacts = await provider._collect_artifacts(
+            FakeSandbox(),
+            "/home/user/skill",
+            "/home/user/skill",
+            request,
+        )
+
+        assert artifacts == [
+            {
+                "file_name": "e2b_skill_test_output.txt",
+                "file_size": 4,
+                "id": 1,
+                "fileName": "e2b_skill_test_output.txt",
+                "fileSize": 4,
+                "contentType": "text/plain",
+            }
+        ]
