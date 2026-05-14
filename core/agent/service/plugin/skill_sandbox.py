@@ -305,8 +305,6 @@ class ArtifactUploader:
         self, file_name: str, file_bytes: bytes, content_type: str
     ) -> dict[str, Any]:
         form = aiohttp.FormData()
-        if self.config.workflow_id.isdigit():
-            form.add_field("workflowId", self.config.workflow_id)
         form.add_field("flowId", self.config.workflow_id)
         form.add_field("uid", self.config.uid)
         if self.config.space_id:

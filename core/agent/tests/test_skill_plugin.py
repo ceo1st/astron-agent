@@ -10,8 +10,10 @@ from common.otlp.trace.span import Span
 
 from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 from agent.service.plugin.skill_sandbox import (
+    ArtifactUploader,
     E2BSandboxProvider,
     SandboxExecutionRequest,
+    SkillSandboxConfig,
 )
 
 
@@ -322,3 +324,62 @@ class TestSkillPluginFactory:
                 "contentType": "text/plain",
             }
         ]
+
+    @pytest.mark.asyncio
+    async def test_artifact_upload_uses_flow_id_without_workflow_id_param(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test numeric flow ids are not sent as workflow database ids."""
+        fields: list[tuple[str, Any]] = []
+
+        class FakeFormData:
+            def add_field(self, name: str, value: Any, **kwargs: Any) -> None:
+                fields.append((name, value))
+
+        class FakeResponse:
+            async def __aenter__(self) -> "FakeResponse":
+                return self
+
+            async def __aexit__(self, *args: Any) -> None:
+                return None
+
+            def raise_for_status(self) -> None:
+                return None
+
+            async def json(self, content_type: Any = None) -> dict[str, Any]:
+                return {"data": {"id": 1}}
+
+        class FakeSession:
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                return None
+
+            async def __aenter__(self) -> "FakeSession":
+                return self
+
+            async def __aexit__(self, *args: Any) -> None:
+                return None
+
+            def post(self, *args: Any, **kwargs: Any) -> FakeResponse:
+                return FakeResponse()
+
+        monkeypatch.setattr(
+            "agent.service.plugin.skill_sandbox.aiohttp.FormData", FakeFormData
+        )
+        monkeypatch.setattr(
+            "agent.service.plugin.skill_sandbox.aiohttp.ClientSession", FakeSession
+        )
+
+        uploader = ArtifactUploader(
+            SkillSandboxConfig(
+                artifact_upload_url="http://console-hub:8080/workflow/artifacts/internal-upload",
+                workflow_id="7460522478717390848",
+                uid="user-1",
+            ),
+            "skill-1",
+        )
+
+        await uploader.upload("result.txt", b"done", "text/plain")
+
+        field_names = [name for name, _ in fields]
+        assert "flowId" in field_names
+        assert "workflowId" not in field_names
