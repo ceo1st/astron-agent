@@ -27,21 +27,8 @@ class SkillSandboxRunner(BaseModel):
     async def run(self, action_input: dict[str, Any], span: Span) -> PluginResponse:
         with span.start(f"RunSkill-{self.skill_id}") as sp:
             command = str(action_input.get("command") or "").strip()
-            try:
-                working_dir = self._normalize_relative_path(
-                    action_input.get("working_dir"), "."
-                )
-                output_dir = self._normalize_relative_path(
-                    action_input.get("output_dir"), "output"
-                )
-            except ValueError:
-                return PluginResponse(
-                    result={
-                        "skill_id": self.skill_id,
-                        "configured": self._is_configured(),
-                        "error": "invalid_relative_path",
-                    }
-                )
+            working_dir = "."
+            output_dir = "."
             sp.add_info_events(
                 {
                     "skill_id": self.skill_id,
@@ -101,7 +88,11 @@ class SkillSandboxRunner(BaseModel):
         if not path or path == ".":
             return "."
         normalized = posixpath.normpath(path)
-        if normalized.startswith("/") or normalized == ".." or normalized.startswith("../"):
+        if (
+            normalized.startswith("/")
+            or normalized == ".."
+            or normalized.startswith("../")
+        ):
             raise ValueError("Path must stay inside the Skill workspace")
         return normalized
 
@@ -168,6 +159,7 @@ class E2BSandboxProvider:
                 "stderr": getattr(result, "stderr", ""),
                 "artifacts": await self._collect_artifacts(
                     sandbox,
+                    workspace,
                     self._join_workspace(workspace, request.output_dir),
                     request,
                 ),
@@ -178,7 +170,9 @@ class E2BSandboxProvider:
     async def _stage_resources(
         self, sandbox: Any, workspace: str, resources: list[Any]
     ) -> None:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=30)
+        ) as session:
             for resource in resources:
                 path = self._safe_resource_path(getattr(resource, "path", ""))
                 download_url = str(getattr(resource, "download_url", "") or "")
@@ -191,19 +185,30 @@ class E2BSandboxProvider:
                     )
 
     async def _collect_artifacts(
-        self, sandbox: Any, output_dir: str, request: SandboxExecutionRequest
+        self,
+        sandbox: Any,
+        workspace: str,
+        output_dir: str,
+        request: SandboxExecutionRequest,
     ) -> list[dict[str, Any]]:
         if not await sandbox.files.exists(output_dir):
             return []
-        entries = await sandbox.files.list(output_dir, depth=1)
+        entries = await sandbox.files.list(output_dir, depth=5)
         artifacts: list[dict[str, Any]] = []
         uploader = ArtifactUploader(self.config, request.skill_id)
+        resource_paths = {
+            self._safe_resource_path(getattr(resource, "path", ""))
+            for resource in request.resources
+        }
         for entry in entries:
             entry_type = str(getattr(entry, "type", "") or getattr(entry, "kind", ""))
             if entry_type and entry_type != "file":
                 continue
             file_name = str(getattr(entry, "name", "") or "")
             file_path = str(getattr(entry, "path", "") or f"{output_dir}/{file_name}")
+            relative_path = self._relative_to_workspace(workspace, file_path)
+            if self._should_skip_artifact(relative_path, resource_paths):
+                continue
             file_size = int(getattr(entry, "size", 0) or 0)
             artifact: dict[str, Any] = {
                 "file_name": file_name,
@@ -226,6 +231,24 @@ class E2BSandboxProvider:
 
     def _guess_content_type(self, file_name: str) -> str:
         return mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+
+    def _relative_to_workspace(self, workspace: str, path: str) -> str:
+        normalized_workspace = workspace.rstrip("/")
+        normalized_path = posixpath.normpath(str(path or "").replace("\\", "/"))
+        if normalized_path.startswith(f"{normalized_workspace}/"):
+            return normalized_path[len(normalized_workspace) + 1 :]
+        return normalized_path.lstrip("/")
+
+    def _should_skip_artifact(
+        self, relative_path: str, resource_paths: set[str]
+    ) -> bool:
+        normalized = self._safe_resource_path(relative_path)
+        if not normalized:
+            return True
+        file_name = posixpath.basename(normalized)
+        if file_name.startswith("."):
+            return True
+        return normalized in resource_paths
 
     def _join_workspace(self, workspace: str, path: str) -> str:
         if path == ".":

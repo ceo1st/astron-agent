@@ -70,7 +70,7 @@ class SkillPluginFactory(BaseModel):
                             f"tool_description:Execute a command from skill '{name}' in the configured script sandbox. "
                             "Read SKILL.md first and follow its instructions before choosing the command. "
                             "If the environment has no script sandbox configured, this tool returns a fixed unsupported-environment message. "
-                            'tool_parameters:{"type":"object","properties":{"command":{"type":"string","description":"Command to execute in the Skill workspace, for example python -m scripts.clean_csv. Choose this from SKILL.md instructions."},"stdin":{"description":"Optional JSON-serializable input to pass to the command stdin."},"working_dir":{"type":"string","description":"Optional relative working directory under the Skill workspace. Defaults to the Skill workspace root."},"output_dir":{"type":"string","description":"Optional relative output directory to collect generated files from. Defaults to output."}},"required":["command"]}'
+                            'tool_parameters:{"type":"object","properties":{"command":{"type":"string","description":"Command to execute from the Skill workspace root, for example python -m scripts.clean_csv. Choose this from SKILL.md instructions."},"stdin":{"description":"Optional JSON-serializable input to pass to the command stdin."}},"required":["command"]}'
                         ),
                         typ="skill",
                         download_url=download_url,
