@@ -7,6 +7,7 @@ from typing import Any
 
 import aiohttp
 from common.otlp.trace.span import Span
+from loguru import logger
 from openai import BaseModel
 from pydantic import Field
 
@@ -193,23 +194,38 @@ class E2BSandboxProvider:
     ) -> list[dict[str, Any]]:
         if not await sandbox.files.exists(output_dir):
             return []
-        entries = await sandbox.files.list(output_dir, depth=5)
+        scan_result = await sandbox.commands.run(
+            "find . -maxdepth 5 -type f -printf '%P\\t%s\\n'",
+            cwd=output_dir,
+            timeout=min(max(self.config.timeout_seconds, 1), 60),
+        )
+        if int(getattr(scan_result, "exit_code", 0) or 0) != 0:
+            logger.warning(
+                "Skill sandbox artifact scan failed: skill_id={}, stderr={}",
+                request.skill_id,
+                getattr(scan_result, "stderr", ""),
+            )
+            return []
         artifacts: list[dict[str, Any]] = []
         uploader = ArtifactUploader(self.config, request.skill_id)
         resource_paths = {
             self._safe_resource_path(getattr(resource, "path", ""))
             for resource in request.resources
         }
-        for entry in entries:
-            entry_type = str(getattr(entry, "type", "") or getattr(entry, "kind", ""))
-            if entry_type and entry_type != "file":
+        candidates = 0
+        for line in str(getattr(scan_result, "stdout", "") or "").splitlines():
+            if "\t" not in line:
                 continue
-            file_name = str(getattr(entry, "name", "") or "")
-            file_path = str(getattr(entry, "path", "") or f"{output_dir}/{file_name}")
-            relative_path = self._relative_to_workspace(workspace, file_path)
+            relative_path, raw_size = line.rsplit("\t", 1)
             if self._should_skip_artifact(relative_path, resource_paths):
                 continue
-            file_size = int(getattr(entry, "size", 0) or 0)
+            candidates += 1
+            file_name = posixpath.basename(relative_path)
+            file_path = f"{output_dir.rstrip('/')}/{relative_path}"
+            try:
+                file_size = int(raw_size)
+            except ValueError:
+                file_size = 0
             artifact: dict[str, Any] = {
                 "file_name": file_name,
                 "file_size": file_size,
@@ -225,19 +241,25 @@ class E2BSandboxProvider:
                         )
                     )
                 except Exception as exc:
+                    logger.warning(
+                        "Skill sandbox artifact upload failed: skill_id={}, file_name={}, error={}",
+                        request.skill_id,
+                        file_name,
+                        exc,
+                    )
                     artifact["upload_error"] = str(exc)
             artifacts.append(artifact)
+        logger.info(
+            "Skill sandbox artifact scan finished: skill_id={}, upload_configured={}, candidates={}, artifacts={}",
+            request.skill_id,
+            uploader.is_configured(),
+            candidates,
+            len(artifacts),
+        )
         return artifacts
 
     def _guess_content_type(self, file_name: str) -> str:
         return mimetypes.guess_type(file_name)[0] or "application/octet-stream"
-
-    def _relative_to_workspace(self, workspace: str, path: str) -> str:
-        normalized_workspace = workspace.rstrip("/")
-        normalized_path = posixpath.normpath(str(path or "").replace("\\", "/"))
-        if normalized_path.startswith(f"{normalized_workspace}/"):
-            return normalized_path[len(normalized_workspace) + 1 :]
-        return normalized_path.lstrip("/")
 
     def _should_skip_artifact(
         self, relative_path: str, resource_paths: set[str]
@@ -245,8 +267,7 @@ class E2BSandboxProvider:
         normalized = self._safe_resource_path(relative_path)
         if not normalized:
             return True
-        file_name = posixpath.basename(normalized)
-        if file_name.startswith("."):
+        if any(part.startswith(".") for part in normalized.split("/")):
             return True
         return normalized in resource_paths
 

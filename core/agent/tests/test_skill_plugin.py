@@ -242,43 +242,38 @@ class TestSkillPluginFactory:
     ) -> None:
         """Test collecting generated files from the workspace root."""
 
-        @dataclass
-        class FakeEntry:
-            name: str
-            path: str
-            type: str = "file"
-            size: int = 4
-
         class FakeFiles:
             async def exists(self, path: str) -> bool:
                 assert path == "/home/user/skill"
                 return True
-
-            async def list(self, path: str, depth: int) -> list[FakeEntry]:
-                assert path == "/home/user/skill"
-                assert depth == 5
-                return [
-                    FakeEntry(
-                        name="test_script.py",
-                        path="/home/user/skill/scripts/test_script.py",
-                    ),
-                    FakeEntry(
-                        name="e2b_skill_test_output.txt",
-                        path="/home/user/skill/e2b_skill_test_output.txt",
-                    ),
-                    FakeEntry(
-                        name=".astron_stdin.json",
-                        path="/home/user/skill/.astron_stdin.json",
-                    ),
-                ]
 
             async def read(self, path: str, format: str) -> bytes:
                 assert path == "/home/user/skill/e2b_skill_test_output.txt"
                 assert format == "bytes"
                 return b"done"
 
+        class FakeCommands:
+            async def run(self, command: str, cwd: str, timeout: int) -> Any:
+                assert command == "find . -maxdepth 5 -type f -printf '%P\\t%s\\n'"
+                assert cwd == "/home/user/skill"
+                assert timeout == 60
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "exit_code": 0,
+                        "stdout": (
+                            "scripts/test_script.py\t4\n"
+                            "e2b_skill_test_output.txt\t4\n"
+                            ".astron_stdin.json\t4\n"
+                        ),
+                        "stderr": "",
+                    },
+                )()
+
         class FakeSandbox:
             files = FakeFiles()
+            commands = FakeCommands()
 
         class FakeUploader:
             def __init__(self, config: Any, skill_id: str) -> None:
