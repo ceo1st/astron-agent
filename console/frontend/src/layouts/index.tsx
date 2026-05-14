@@ -11,6 +11,7 @@ const hasHeaderList = [
   'database',
   'rpa',
   'skill',
+  'sandbox',
   'automation',
 ];
 
