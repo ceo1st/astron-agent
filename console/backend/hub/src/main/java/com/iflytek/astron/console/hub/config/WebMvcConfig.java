@@ -17,6 +17,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
             "/workflow/copyFlow",
             "/api/model/checkModelBase",
             "/workflow/hasQaNode",
+            "/workflow/artifacts/internal-upload",
             "/workflow/version/update_channel_result",
             "/home-page/agent-square/**",
             "/error"
