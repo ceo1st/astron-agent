@@ -69,6 +69,13 @@ const tabs = [
     createButtonText: 'automation.createTask',
     createButtonKey: 'create-automation',
   },
+  {
+    key: 'sandbox',
+    path: '/resource/sandbox',
+    iconClass: 'plugin-icon',
+    title: '脚本沙箱',
+    hideTools: true,
+  },
 ];
 
 interface HeaderProps {
@@ -107,7 +114,7 @@ function index({ onSearch, onCreate }: HeaderProps): JSX.Element {
   ).current;
 
   const handleSearchDebounce = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement>): void => {
       const value = e.target.value;
       setSearchValue(value); // 立即更新输入框的值
       debouncedSearch(value, currentTab, onSearch); // 防抖调用 onSearch
@@ -116,11 +123,11 @@ function index({ onSearch, onCreate }: HeaderProps): JSX.Element {
   );
 
   // 处理新建按钮点击
-  const handleCreateClick = (type: string) => {
+  const handleCreateClick = (type: string): void => {
     onCreate?.(type);
   };
 
-  const handleTabClick = (type: string) => {
+  const handleTabClick = (type: string): void => {
     if (type === currentTab) {
       return;
     }
@@ -128,6 +135,10 @@ function index({ onSearch, onCreate }: HeaderProps): JSX.Element {
     setCurrentTab(type);
     // 切换tab时清空搜索框
     setSearchValue('');
+  };
+
+  const renderTabTitle = (title: string): string => {
+    return title.includes('.') ? t(title) : title;
   };
 
   return (
@@ -151,7 +162,7 @@ function index({ onSearch, onCreate }: HeaderProps): JSX.Element {
               }}
               className={`${styles.headerTab} ${currentTab === item?.key ? styles.headerTabActive : ''}`}
             >
-              <span>{t(item?.title)}</span>
+              <span>{renderTabTitle(item?.title)}</span>
             </div>
           ))}
         </div>
@@ -159,23 +170,23 @@ function index({ onSearch, onCreate }: HeaderProps): JSX.Element {
         {/* 右侧工具区域 */}
         <div className={styles.toolsContainer}>
           {/* 搜索框 */}
-          {currentTabConfig && (
+          {currentTabConfig && !currentTabConfig.hideTools && (
             <div className={styles.searchContainer}>
               <RetractableInput
                 restrictFirstChar={true}
                 onChange={handleSearchDebounce}
-                placeholder={t(currentTabConfig.searchPlaceholder)}
+                placeholder={t(currentTabConfig.searchPlaceholder || '')}
                 value={searchValue}
               />
             </div>
           )}
 
           {/* 新建按钮 */}
-          {currentTabConfig && (
+          {currentTabConfig && !currentTabConfig.hideTools && (
             <SpaceButton
               config={{
-                key: currentTabConfig.createButtonKey,
-                text: t(currentTabConfig.createButtonText),
+                key: currentTabConfig.createButtonKey || currentTab,
+                text: t(currentTabConfig.createButtonText || ''),
                 type: 'primary',
                 size: 'small',
                 icon: (

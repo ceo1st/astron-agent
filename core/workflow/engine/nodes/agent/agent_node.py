@@ -13,7 +13,7 @@ from workflow.engine.callbacks.openai_types_sse import GenerateUsage
 from workflow.engine.entities.history import EnableChatHistoryV2
 from workflow.engine.entities.msg_or_end_dep_info import MsgOrEndDepInfo
 from workflow.engine.entities.private_config import PrivateConfig
-from workflow.engine.entities.variable_pool import VariablePool
+from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.nodes.base_node import BaseNode
 from workflow.engine.nodes.entities.node_run_result import (
     NodeRunResult,
@@ -116,6 +116,7 @@ class Skill(BaseModel):
     description: str = Field(min_length=0, max_length=1024)
     downloadUrl: str = Field(default="")
     resources: List[Resource] = Field(default_factory=list)
+    sandbox: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("skillId", mode="before")
     @classmethod
@@ -184,6 +185,9 @@ class AgentMetaData(BaseModel):
 
     caller: str = Field(default="workflow-agent-node")
     callerSid: str = Field(default="")
+    workflowId: str = Field(default="")
+    runId: str = Field(default="")
+    nodeId: str = Field(default="")
 
 
 class AgentNode(BaseNode):
@@ -263,7 +267,7 @@ class AgentNode(BaseNode):
         }
 
         req_body = self._generate_agent_request(
-            reasoning_instruction, answer_instruction, messages, span
+            reasoning_instruction, answer_instruction, messages, variable_pool, span
         )
         await span.add_info_event_async(f"req header: {headers}")
         await span.add_info_event_async(f"req body: {req_body}")
@@ -443,6 +447,7 @@ class AgentNode(BaseNode):
         reasoning_instruction: str,
         answer_instruction: str,
         messages: List[Dict],
+        variable_pool: VariablePool,
         span: Span,
     ) -> dict:
         """Generate request body for agent service call.
@@ -482,6 +487,9 @@ class AgentNode(BaseNode):
             "meta_data": {
                 "caller": self.metaData.caller,
                 "caller_sid": self.metaData.callerSid,
+                "workflow_id": variable_pool.system_params.get(ParamKey.FlowId, default=""),
+                "run_id": self.metaData.callerSid,
+                "node_id": self.node_id,
             },
             "stream": True,
             "max_loop_count": self.maxLoopCount,

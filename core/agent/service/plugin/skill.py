@@ -6,6 +6,7 @@ from common.otlp.trace.span import Span
 from openai import BaseModel
 
 from agent.service.plugin.base import BasePlugin, PluginResponse
+from agent.service.plugin.skill_sandbox import SkillSandboxConfig, SkillSandboxRunner
 
 
 class SkillResource(BaseModel):
@@ -35,30 +36,89 @@ class SkillPluginFactory(BaseModel):
                 skill.get("download_url") or skill.get("downloadUrl") or ""
             ).strip()
             resources = self._normalize_resources(skill.get("resources") or [])
+            sandbox_config = self._normalize_sandbox_config(skill.get("sandbox"))
             if not (skill_id and name and download_url):
                 continue
-            plugins.append(
-                SkillPlugin(
-                    skill_id=skill_id,
-                    name=f"read_skill_{skill_id}",
-                    description=description
-                    or f"Read the full skill package for {name}",
-                    schema_template=(
-                        f"tool_name:read_skill_{skill_id}, "
-                        f"tool_description:Read SKILL.md and referenced files for skill '{name}'. "
-                        f"First call with empty parameters to read SKILL.md and get the resource manifest. "
-                        f"If SKILL.md references a relative path like references/beijing.md, call again with that path. "
-                        'tool_parameters:{"type":"object","properties":{"path":{"type":"string","description":"Optional relative resource path under the skill folder, for example references/beijing.md. Leave empty to read SKILL.md and list available resources."}},"required":[]}'
+            plugins.extend(
+                [
+                    SkillPlugin(
+                        skill_id=skill_id,
+                        name=f"read_skill_{skill_id}",
+                        description=description
+                        or f"Read the full skill package for {name}",
+                        schema_template=(
+                            f"tool_name:read_skill_{skill_id}, "
+                            f"tool_description:Read SKILL.md and referenced files for skill '{name}'. "
+                            f"First call with empty parameters to read SKILL.md and get the resource manifest. "
+                            f"If SKILL.md references a relative path like references/beijing.md, call again with that path. "
+                            'tool_parameters:{"type":"object","properties":{"path":{"type":"string","description":"Optional relative resource path under the skill folder, for example references/beijing.md. Leave empty to read SKILL.md and list available resources."}},"required":[]}'
+                        ),
+                        typ="skill",
+                        download_url=download_url,
+                        resources=resources,
+                        run=self._build_runner(
+                            skill_id, name, description, download_url, resources
+                        ),
                     ),
-                    typ="skill",
-                    download_url=download_url,
-                    resources=resources,
-                    run=self._build_runner(
-                        skill_id, name, description, download_url, resources
+                    SkillPlugin(
+                        skill_id=skill_id,
+                        name=f"run_skill_{skill_id}",
+                        description=description
+                        or f"Execute a command from the skill package for {name}",
+                        schema_template=(
+                            f"tool_name:run_skill_{skill_id}, "
+                            f"tool_description:Execute a command from skill '{name}' in the configured script sandbox. "
+                            "Read SKILL.md first and follow its instructions before choosing the command. "
+                            "If the environment has no script sandbox configured, this tool returns a fixed unsupported-environment message. "
+                            'tool_parameters:{"type":"object","properties":{"command":{"type":"string","description":"Command to execute from the Skill workspace root, for example python -m scripts.clean_csv. Choose this from SKILL.md instructions."},"stdin":{"description":"Optional JSON-serializable input to pass to the command stdin."}},"required":["command"]}'
+                        ),
+                        typ="skill",
+                        download_url=download_url,
+                        resources=resources,
+                        run=SkillSandboxRunner(
+                            skill_id=skill_id,
+                            resources=resources,
+                            sandbox_config=sandbox_config,
+                        ).run,
                     ),
-                )
+                ]
             )
         return plugins
+
+    def _normalize_sandbox_config(self, raw_config: Any) -> SkillSandboxConfig | None:
+        if not isinstance(raw_config, dict):
+            return None
+        return SkillSandboxConfig(
+            provider=str(raw_config.get("provider") or "e2b").strip().lower(),
+            enabled=bool(raw_config.get("enabled")),
+            api_key=str(raw_config.get("api_key") or raw_config.get("apiKey") or ""),
+            timeout_seconds=int(
+                raw_config.get("timeout_seconds")
+                or raw_config.get("timeoutSeconds")
+                or 60
+            ),
+            allow_internet_access=bool(
+                raw_config.get("allow_internet_access")
+                or raw_config.get("allowInternetAccess")
+            ),
+            artifact_upload_url=str(
+                raw_config.get("artifact_upload_url")
+                or raw_config.get("artifactUploadUrl")
+                or ""
+            ).strip(),
+            artifact_upload_token=str(
+                raw_config.get("artifact_upload_token")
+                or raw_config.get("artifactUploadToken")
+                or ""
+            ),
+            workflow_id=str(
+                raw_config.get("workflow_id") or raw_config.get("workflowId") or ""
+            ),
+            run_id=str(raw_config.get("run_id") or raw_config.get("runId") or ""),
+            node_id=str(raw_config.get("node_id") or raw_config.get("nodeId") or ""),
+            uid=str(raw_config.get("uid") or ""),
+            space_id=str(raw_config.get("space_id") or raw_config.get("spaceId") or ""),
+        )
 
     def _normalize_resources(self, raw_resources: Any) -> list[SkillResource]:
         resources: list[SkillResource] = []

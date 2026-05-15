@@ -69,6 +69,7 @@ import com.iflytek.astron.console.toolkit.entity.table.relation.FlowToolRel;
 import com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2;
 import com.iflytek.astron.console.toolkit.entity.table.repo.Repo;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillImportDto;
+import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillSandboxConfigDto;
 import com.iflytek.astron.console.toolkit.entity.table.tool.*;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.*;
 import com.iflytek.astron.console.toolkit.entity.tool.McpServerTool;
@@ -94,6 +95,7 @@ import com.iflytek.astron.console.toolkit.service.extra.CoreSystemService;
 import com.iflytek.astron.console.toolkit.service.extra.OpenPlatformService;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
 import com.iflytek.astron.console.toolkit.service.skill.SkillFileService;
+import com.iflytek.astron.console.toolkit.service.skill.SkillSandboxConfigService;
 import com.iflytek.astron.console.toolkit.sse.WorkflowSseEventSourceListener;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import com.iflytek.astron.console.toolkit.tool.JsonConverter;
@@ -266,6 +268,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     private DbTableMapper dbTableMapper;
     @Autowired
     private SkillFileService skillFileService;
+    @Autowired
+    private SkillSandboxConfigService skillSandboxConfigService;
     @Autowired
     private ToolBoxMapper toolBoxMapper;
     @Autowired
@@ -2403,6 +2407,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         Map<Long, SkillImportDto> importMap = skillFileService.getSkillImportsByIds(skillIds)
                 .stream()
                 .collect(Collectors.toMap(SkillImportDto::getId, item -> item, (a, b) -> a));
+        SkillSandboxConfigDto sandboxConfig = skillSandboxConfigService.toRuntimeDto();
         for (int i = 0; i < skillArray.size(); i++) {
             Object obj = skillArray.get(i);
             if (!(obj instanceof Map skillObj)) {
@@ -2426,6 +2431,10 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 skillObj.put("description", StringUtils.defaultString(importDto.getDescription()));
                 skillObj.put("downloadUrl", StringUtils.defaultString(importDto.getDownloadUrl()));
                 skillObj.put("resources", importDto.getResources());
+                if (Boolean.TRUE.equals(sandboxConfig.getEnabled())
+                        && StringUtils.isNotBlank(sandboxConfig.getApiKey())) {
+                    skillObj.put("sandbox", JSON.parseObject(JSON.toJSONString(sandboxConfig)));
+                }
             } catch (NumberFormatException ex) {
                 log.warn("Ignore invalid skill id while enriching: {}", skillIdObj);
             }
@@ -4029,6 +4038,76 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         this.updateById(workflow);
         saveRemote(buildWorkflowReqForModelSync(workflow, bizWorkflowData, llmInfoVo), flowId);
         return true;
+    }
+
+    public boolean refreshWorkflowRuntimeProtocol(String flowId) {
+        if (StringUtils.isBlank(flowId)) {
+            return false;
+        }
+        Workflow workflow = this.getOne(new LambdaQueryWrapper<Workflow>()
+                .eq(Workflow::getFlowId, flowId)
+                .eq(Workflow::getDeleted, false));
+        if (workflow == null || StringUtils.isBlank(workflow.getData())) {
+            log.warn("Skip refreshing workflow runtime protocol, flow not found or empty, flowId={}", flowId);
+            return false;
+        }
+
+        BizWorkflowData bizWorkflowData = JSON.parseObject(workflow.getData(), BizWorkflowData.class);
+        if (bizWorkflowData == null || CollectionUtils.isEmpty(bizWorkflowData.getNodes())) {
+            return false;
+        }
+        if (!containsSkillConfiguration(bizWorkflowData)) {
+            return false;
+        }
+
+        saveRemote(buildWorkflowReqForRuntimeRefresh(workflow, bizWorkflowData), flowId);
+        return true;
+    }
+
+    private boolean containsSkillConfiguration(BizWorkflowData bizWorkflowData) {
+        if (bizWorkflowData == null || CollectionUtils.isEmpty(bizWorkflowData.getNodes())) {
+            return false;
+        }
+        for (BizWorkflowNode node : bizWorkflowData.getNodes()) {
+            if (node == null || node.getData() == null || StringUtils.isBlank(node.getId())) {
+                continue;
+            }
+            String prefix = StringUtils.substringBefore(node.getId(), "::");
+            if (!WorkflowConst.NodeType.AGENT.equals(prefix)) {
+                continue;
+            }
+            JSONObject nodeParam = node.getData().getNodeParam();
+            JSONObject plugin = nodeParam == null ? null : nodeParam.getJSONObject("plugin");
+            JSONArray skills = plugin == null ? null : plugin.getJSONArray("skills");
+            if (skills != null && !skills.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private WorkflowReq buildWorkflowReqForRuntimeRefresh(Workflow workflow, BizWorkflowData bizWorkflowData) {
+        WorkflowReq workflowReq = new WorkflowReq();
+        workflowReq.setId(workflow.getId());
+        workflowReq.setFlowId(workflow.getFlowId());
+        workflowReq.setName(workflow.getName());
+        workflowReq.setDescription(workflow.getDescription());
+        workflowReq.setStatus(workflow.getStatus());
+        workflowReq.setAppId(workflow.getAppId());
+        workflowReq.setAvatarIcon(workflow.getAvatarIcon());
+        workflowReq.setAvatarColor(workflow.getAvatarColor());
+        workflowReq.setData(bizWorkflowData);
+        workflowReq.setCategory(workflow.getCategory());
+        workflowReq.setSpaceId(workflow.getSpaceId());
+        workflowReq.setFlowType(workflow.getType());
+        if (StringUtils.isNotBlank(workflow.getExt())) {
+            workflowReq.setExt(JSON.parseObject(workflow.getExt()));
+        }
+        if (StringUtils.isNotBlank(workflow.getAdvancedConfig())) {
+            workflowReq.setAdvancedConfig(
+                    JSON.parseObject(workflow.getAdvancedConfig(), new TypeReference<Map<String, Object>>() {}));
+        }
+        return workflowReq;
     }
 
     private WorkflowReq buildWorkflowReqForModelSync(Workflow workflow, BizWorkflowData bizWorkflowData, LLMInfoVo llmInfoVo) {
