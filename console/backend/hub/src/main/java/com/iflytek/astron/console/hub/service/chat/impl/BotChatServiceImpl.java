@@ -351,15 +351,18 @@ public class BotChatServiceImpl implements BotChatService {
         if (botId == null || botConfig == null) {
             return;
         }
-        ModelConfigResult modelConfigResult = resolveChatModelConfiguration(botConfig.modelId, botConfig.model, sseEmitter);
-        if (modelConfigResult == null) {
-            return;
-        }
         var userLangChainInfo = userLangChainDataService.findOneByBotId(botId);
         if (userLangChainInfo == null || StringUtils.isBlank(userLangChainInfo.getFlowId())) {
             return;
         }
-        workflowService.syncWorkflowModelConfig(userLangChainInfo.getFlowId(), modelConfigResult.llmInfoVo());
+        boolean remoteSynced = false;
+        ModelConfigResult modelConfigResult = resolveChatModelConfiguration(botConfig.modelId, botConfig.model, sseEmitter);
+        if (modelConfigResult != null) {
+            remoteSynced = workflowService.syncWorkflowModelConfig(userLangChainInfo.getFlowId(), modelConfigResult.llmInfoVo());
+        }
+        if (!remoteSynced) {
+            workflowService.refreshWorkflowRuntimeProtocol(userLangChainInfo.getFlowId());
+        }
     }
 
     private boolean isSparkModel(String model) {
