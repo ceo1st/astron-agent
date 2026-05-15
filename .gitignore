@@ -246,3 +246,4 @@ docker-compose.override.yml
 *.dockerignore.local
 .codex/
 openspec/
+docs/superpowers/
