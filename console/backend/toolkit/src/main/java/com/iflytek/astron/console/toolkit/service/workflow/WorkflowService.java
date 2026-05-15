@@ -4040,6 +4040,76 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return true;
     }
 
+    public boolean refreshWorkflowRuntimeProtocol(String flowId) {
+        if (StringUtils.isBlank(flowId)) {
+            return false;
+        }
+        Workflow workflow = this.getOne(new LambdaQueryWrapper<Workflow>()
+                .eq(Workflow::getFlowId, flowId)
+                .eq(Workflow::getDeleted, false));
+        if (workflow == null || StringUtils.isBlank(workflow.getData())) {
+            log.warn("Skip refreshing workflow runtime protocol, flow not found or empty, flowId={}", flowId);
+            return false;
+        }
+
+        BizWorkflowData bizWorkflowData = JSON.parseObject(workflow.getData(), BizWorkflowData.class);
+        if (bizWorkflowData == null || CollectionUtils.isEmpty(bizWorkflowData.getNodes())) {
+            return false;
+        }
+        if (!containsSkillConfiguration(bizWorkflowData)) {
+            return false;
+        }
+
+        saveRemote(buildWorkflowReqForRuntimeRefresh(workflow, bizWorkflowData), flowId);
+        return true;
+    }
+
+    private boolean containsSkillConfiguration(BizWorkflowData bizWorkflowData) {
+        if (bizWorkflowData == null || CollectionUtils.isEmpty(bizWorkflowData.getNodes())) {
+            return false;
+        }
+        for (BizWorkflowNode node : bizWorkflowData.getNodes()) {
+            if (node == null || node.getData() == null || StringUtils.isBlank(node.getId())) {
+                continue;
+            }
+            String prefix = StringUtils.substringBefore(node.getId(), "::");
+            if (!WorkflowConst.NodeType.AGENT.equals(prefix)) {
+                continue;
+            }
+            JSONObject nodeParam = node.getData().getNodeParam();
+            JSONObject plugin = nodeParam == null ? null : nodeParam.getJSONObject("plugin");
+            JSONArray skills = plugin == null ? null : plugin.getJSONArray("skills");
+            if (skills != null && !skills.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private WorkflowReq buildWorkflowReqForRuntimeRefresh(Workflow workflow, BizWorkflowData bizWorkflowData) {
+        WorkflowReq workflowReq = new WorkflowReq();
+        workflowReq.setId(workflow.getId());
+        workflowReq.setFlowId(workflow.getFlowId());
+        workflowReq.setName(workflow.getName());
+        workflowReq.setDescription(workflow.getDescription());
+        workflowReq.setStatus(workflow.getStatus());
+        workflowReq.setAppId(workflow.getAppId());
+        workflowReq.setAvatarIcon(workflow.getAvatarIcon());
+        workflowReq.setAvatarColor(workflow.getAvatarColor());
+        workflowReq.setData(bizWorkflowData);
+        workflowReq.setCategory(workflow.getCategory());
+        workflowReq.setSpaceId(workflow.getSpaceId());
+        workflowReq.setFlowType(workflow.getType());
+        if (StringUtils.isNotBlank(workflow.getExt())) {
+            workflowReq.setExt(JSON.parseObject(workflow.getExt()));
+        }
+        if (StringUtils.isNotBlank(workflow.getAdvancedConfig())) {
+            workflowReq.setAdvancedConfig(
+                    JSON.parseObject(workflow.getAdvancedConfig(), new TypeReference<Map<String, Object>>() {}));
+        }
+        return workflowReq;
+    }
+
     private WorkflowReq buildWorkflowReqForModelSync(Workflow workflow, BizWorkflowData bizWorkflowData, LLMInfoVo llmInfoVo) {
         WorkflowReq workflowReq = new WorkflowReq();
         workflowReq.setId(workflow.getId());

@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.dto.llm.SparkChatRequest;
 import com.iflytek.astron.console.commons.entity.bot.ChatBotBase;
 import com.iflytek.astron.console.commons.entity.bot.ChatBotMarket;
+import com.iflytek.astron.console.commons.entity.bot.UserLangChainInfo;
 import com.iflytek.astron.console.commons.dto.bot.ChatBotReqDto;
 import com.iflytek.astron.console.commons.dto.bot.DebugChatBotReqDto;
 import com.iflytek.astron.console.commons.entity.chat.ChatList;
@@ -17,6 +18,7 @@ import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.service.data.ChatHistoryService;
 import com.iflytek.astron.console.commons.service.data.ChatListDataService;
+import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.workflow.WorkflowBotChatService;
 import com.iflytek.astron.console.hub.data.ReqKnowledgeRecordsDataService;
 import com.iflytek.astron.console.hub.service.PromptChatService;
@@ -26,6 +28,7 @@ import com.iflytek.astron.console.hub.service.knowledge.KnowledgeService;
 import com.iflytek.astron.console.toolkit.entity.vo.CategoryTreeVO;
 import com.iflytek.astron.console.toolkit.entity.vo.LLMInfoVo;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
+import com.iflytek.astron.console.toolkit.service.workflow.WorkflowService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,6 +69,10 @@ class BotChatServiceImplUnitTest {
     @Mock
     private ModelService modelService;
     @Mock
+    private WorkflowService workflowService;
+    @Mock
+    private UserLangChainDataService userLangChainDataService;
+    @Mock
     private PromptChatService promptChatService;
     @Mock
     private ReqKnowledgeRecordsDataService reqKnowledgeRecordsDataService;
@@ -93,14 +100,19 @@ class BotChatServiceImplUnitTest {
 
         ChatBotMarket chatBotMarket = createChatBotMarket();
         chatBotMarket.setVersion(BotTypeEnum.WORKFLOW_BOT.getType());
+        UserLangChainInfo userLangChainInfo = new UserLangChainInfo();
+        userLangChainInfo.setFlowId("test-flow-id");
 
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
+        when(userLangChainDataService.findOneByBotId(anyInt())).thenReturn(userLangChainInfo);
+        when(workflowService.refreshWorkflowRuntimeProtocol("test-flow-id")).thenReturn(true);
         doNothing().when(workflowBotChatService).chatWorkflowBot(any(), any(), any(), any(), any());
 
         // When
         botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, workflowOperation, workflowVersion);
 
         // Then
+        verify(workflowService).refreshWorkflowRuntimeProtocol("test-flow-id");
         verify(workflowBotChatService).chatWorkflowBot(eq(chatBotReqDto), eq(sseEmitter), eq(sseId), eq(workflowOperation), eq(workflowVersion));
         verify(sparkChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
         verify(promptChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
