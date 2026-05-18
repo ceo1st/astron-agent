@@ -82,6 +82,7 @@ public class WorkflowArtifactService
             String runId,
             String nodeId,
             String skillId,
+            String source,
             MultipartFile file) {
         validateInternalToken(token);
         Workflow workflow = resolveWorkflow(workflowId, flowId, uid, spaceId);
@@ -113,7 +114,7 @@ public class WorkflowArtifactService
         artifact.setObjectKey(objectKey);
         artifact.setContentType(contentType);
         artifact.setFileSize(file.getSize());
-        artifact.setSource("skill_sandbox");
+        artifact.setSource(normalizeSource(source));
         artifact.setDeleted(Boolean.FALSE);
         artifact.setCreateTime(now);
         artifact.setUpdateTime(now);
@@ -219,6 +220,14 @@ public class WorkflowArtifactService
         normalized = normalized.replaceAll("[\\\\/:*?\"<>|]+", "_").replaceAll("\\.\\.+", ".");
         normalized = normalized.replaceAll("^\\.+", "");
         return StringUtils.defaultIfBlank(normalized, "artifact");
+    }
+
+    private String normalizeSource(String source) {
+        String normalized = StringUtils.trimToEmpty(source);
+        if (StringUtils.equalsAny(normalized, "skill_sandbox", "code_sandbox")) {
+            return normalized;
+        }
+        return "skill_sandbox";
     }
 
     private String normalizePathSegment(String value) {

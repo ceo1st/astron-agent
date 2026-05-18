@@ -52,6 +52,7 @@ public class WorkflowConst {
         public static final String KNOWLEDGE = "knowledge-base";
         public static final String KNOWLEDGE_PRO = "knowledge-pro-base";
         public static final String AGENT = "agent";
+        public static final String CODE = "ifly-code";
         public static final String FLOW_END = "flow_obj";
         public static final String DATABASE = "database";
         public static final String RPA = "rpa";

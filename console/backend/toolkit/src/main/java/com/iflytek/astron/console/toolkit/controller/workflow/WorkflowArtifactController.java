@@ -51,8 +51,9 @@ public class WorkflowArtifactController {
             @RequestParam(value = "runId", required = false) String runId,
             @RequestParam(value = "nodeId", required = false) String nodeId,
             @RequestParam(value = "skillId", required = false) String skillId,
+            @RequestParam(value = "source", required = false) String source,
             @RequestPart("file") MultipartFile file) {
         return ApiResult.success(workflowArtifactService.uploadInternal(
-                token, workflowId, flowId, uid, spaceId, runId, nodeId, skillId, file));
+                token, workflowId, flowId, uid, spaceId, runId, nodeId, skillId, source, file));
     }
 }
