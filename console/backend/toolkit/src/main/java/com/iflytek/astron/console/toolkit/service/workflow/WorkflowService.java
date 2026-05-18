@@ -1433,12 +1433,14 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             }
             checkAndEditData(bizNodeData, prefix);
             fixOnRepoNode(type, bizNodeData, prefix);
+            injectScriptSandboxIntoCodeNodes(List.of(node), debugDto.getFlowId());
         } catch (Exception ignored) {
             if (!node.getId().startsWith(WorkflowConst.NodeType.FLOW)
                     && CommonConst.FIXED_APPID_ENV.contains(env)) {
                 buidKeyInfo(bizNodeData);
                 checkAndEditData(bizNodeData, prefix);
                 fixOnRepoNode(type, bizNodeData, prefix);
+                injectScriptSandboxIntoCodeNodes(List.of(node), debugDto.getFlowId());
             }
         }
 
@@ -2221,6 +2223,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             }
             // check and fix node
             checkAndFixNode(nodes, fixedAppEnv, configs, appId, apiKey, apiSecret);
+            injectScriptSandboxIntoCodeNodes(nodes, flowId);
 
             // Update core system flow
 
@@ -2701,14 +2704,72 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     public Object runCode(Object runCodeData) {
         String url = apiUrl.getWorkflow() + CODE_RUN_PATH;
-        log.info("code run, url = {}, data = {}", url, runCodeData);
-        String body = JSON.toJSONString(runCodeData);
+        Object payload = enrichCodeRunSandbox(runCodeData);
+        log.info("code run, url = {}, data = {}", url, payload);
+        String body = JSON.toJSONString(payload);
 
         // body = StringEscapeUtils.unescapeJava(body);
 
         String resp = OkHttpUtil.post(url, body);
         log.info("code run, resp = {}", resp);
         return JSON.parseObject(resp, Result.class);
+    }
+
+    private Object enrichCodeRunSandbox(Object runCodeData) {
+        JSONObject payload = JSON.parseObject(JSON.toJSONString(runCodeData));
+        JSONObject sandbox = buildRuntimeSandbox(
+                payload.getString("flow_id"),
+                payload.getString("node_id"));
+        if (sandbox != null) {
+            if (StringUtils.isBlank(sandbox.getString("uid"))) {
+                sandbox.put("uid", payload.getString("uid"));
+            }
+            payload.put("sandbox", sandbox);
+        }
+        return payload;
+    }
+
+    private void injectScriptSandboxIntoCodeNodes(List<BizWorkflowNode> nodes, String flowId) {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        for (BizWorkflowNode node : nodes) {
+            if (node == null || node.getData() == null || !isCodeNode(node.getId())) {
+                continue;
+            }
+            JSONObject sandbox = buildRuntimeSandbox(flowId, node.getId());
+            if (sandbox == null) {
+                node.getData().getNodeParam().remove("sandbox");
+                continue;
+            }
+            node.getData().getNodeParam().put("sandbox", sandbox);
+        }
+    }
+
+    private JSONObject buildRuntimeSandbox(String flowId, String nodeId) {
+        SkillSandboxConfigDto sandboxConfig;
+        try {
+            sandboxConfig = skillSandboxConfigService.toRuntimeDto();
+        } catch (Exception ex) {
+            log.warn("Skip injecting code sandbox config, flowId={}, nodeId={}, reason={}", flowId, nodeId, ex.getMessage());
+            return null;
+        }
+        if (sandboxConfig == null
+                || !Boolean.TRUE.equals(sandboxConfig.getEnabled())
+                || StringUtils.isBlank(sandboxConfig.getApiKey())) {
+            return null;
+        }
+        JSONObject sandbox = JSON.parseObject(JSON.toJSONString(sandboxConfig));
+        sandbox.put("workflowId", StringUtils.defaultString(flowId));
+        sandbox.put("nodeId", StringUtils.defaultString(nodeId));
+        if (sandboxConfig.getSpaceId() != null) {
+            sandbox.put("spaceId", String.valueOf(sandboxConfig.getSpaceId()));
+        }
+        return sandbox;
+    }
+
+    private boolean isCodeNode(String nodeId) {
+        return StringUtils.startsWith(nodeId, WorkflowConst.NodeType.CODE + "::");
     }
 
     public Object getSquare(int current, int size, String search, Integer tagFlag, Integer tags) {

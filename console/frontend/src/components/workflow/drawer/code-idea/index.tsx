@@ -454,6 +454,7 @@ const IOTestPanel = ({
       app_id: currentFlow?.appId,
       uid: user?.uid.toString(),
       flow_id: currentFlow?.flowId,
+      node_id: id,
     };
     codeRun(params)
       .then((res: CodeRunResponse): void => {
