@@ -43,7 +43,7 @@ const PROVIDERS = [
     key: 'e2b',
     name: 'E2B Sandbox',
     icon: <CloudServerOutlined />,
-    description: '通过 E2B 官方 SDK 在第三方隔离环境中运行 Skill 脚本。',
+    description: '通过 E2B 官方 SDK 在第三方隔离环境中运行 Skill 脚本和工作流代码。',
   },
   {
     key: 'daytona',
@@ -188,7 +188,7 @@ function SandboxConfigModal({
           type="info"
           showIcon
           className="mb-5"
-          message="未配置沙箱时，run_skill_xxx 会提示管理员需要在资源管理中配置脚本沙箱后才能运行。"
+          message="保存并启用后，Agent Skill 脚本和工作流代码节点将使用该沙箱配置执行；未启用时，系统会按当前默认执行策略处理。"
         />
         <Form.Item name="provider" hidden>
           <Input />
@@ -358,8 +358,8 @@ function SandboxPage(): React.ReactElement {
             脚本沙箱
           </h1>
           <p className="mt-2 mb-0 max-w-[720px] text-[13px] leading-5 text-[#676773]">
-            配置后，Agent 节点可通过 run_skill_xxx 工具在第三方沙箱中执行 Skill
-            脚本。
+            统一配置第三方脚本沙箱。启用后，Agent 节点的 Skill
+            脚本和工作流代码节点都会在隔离沙箱中执行，并自动归档执行过程中生成的文件。
           </p>
         </div>
 
@@ -367,7 +367,7 @@ function SandboxPage(): React.ReactElement {
           type="info"
           showIcon
           className="mb-5"
-          message="未配置沙箱时，run_skill_xxx 会固定提示当前环境暂不支持直接执行 Skill 脚本。"
+          message="未启用脚本沙箱时，Skill 脚本会返回环境未配置的提示；工作流代码节点将继续使用系统默认执行方式。启用并配置 E2B 后，两类脚本都会优先进入沙箱执行。"
         />
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
