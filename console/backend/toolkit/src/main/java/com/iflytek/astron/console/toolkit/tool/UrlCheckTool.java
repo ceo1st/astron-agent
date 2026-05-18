@@ -96,7 +96,11 @@ public class UrlCheckTool {
         HttpURLConnection conn = null;
         try {
             URL u = new URL(url);
-            conn = (HttpURLConnection) u.openConnection();
+            URLConnection urlConnection = u.openConnection();
+            if (!(urlConnection instanceof HttpURLConnection httpURLConnection)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_HTTP_HTTPS_ONLY);
+            }
+            conn = httpURLConnection;
             conn.setInstanceFollowRedirects(false);
             conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
             conn.setReadTimeout(READ_TIMEOUT_MS);
@@ -174,7 +178,7 @@ public class UrlCheckTool {
             String currentUrl = url;
             Set<String> visitedUrls = new HashSet<>();
             for (int i = 0; i <= MAX_REDIRECTS; i++) {
-                validateUrlAgainstBlacklist(currentUrl, ipBlackList, segmentBlackList, domainWhiteList);
+                validateUrlPolicy(currentUrl, ipBlackList, segmentBlackList, domainWhiteList);
                 if (!visitedUrls.add(currentUrl)) {
                     throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
                 }
@@ -190,9 +194,20 @@ public class UrlCheckTool {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            // Silent: let main checkUrl handle uniform exception exit
-            log.debug("checkBlackList ignore error: {}", e.toString());
+            log.debug("checkBlackList error: {}", e.toString());
+            throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
         }
+    }
+
+    private void validateUrlPolicy(String url, List<String> ipBlackList,
+            List<String> segmentBlackList,
+            List<String> domainWhiteList) throws Exception {
+        checkHttpOrHttps(url);
+        symbolCheck(url);
+        IPv4MappedCheck(url);
+        checkUrlForIPv6(url);
+        resolveShortLink(url);
+        validateUrlAgainstBlacklist(url, ipBlackList, segmentBlackList, domainWhiteList);
     }
 
     /**
