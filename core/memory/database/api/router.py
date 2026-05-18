@@ -1,7 +1,7 @@
-"""API router module for Xingchen DB service.
+"""API router module for the Astron Agent memory database service.
 
 This module defines the main API router and includes all version 1 sub-routers.
-It sets up the common prefix '/xingchen-db/v1' for all API endpoints.
+It preserves the existing '/xingchen-db/v1' prefix for memory database endpoints.
 """
 
 from fastapi import APIRouter

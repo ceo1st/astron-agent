@@ -1,7 +1,7 @@
 """
-Spark Flow Main Application Module
+Astron Agent Workflow Main Application Module
 
-This module serves as the entry point for the Spark Flow workflow engine application.
+This module serves as the entry point for the Astron Agent workflow engine application.
 It initializes the FastAPI application with all necessary middleware, routers, and
 extensions including metrics, tracing, and graceful shutdown handling.
 """
@@ -117,7 +117,7 @@ def create_app() -> FastAPI:
 
 
 if __name__ == "__main__":
-    # Main entry point for the Spark Flow application.
+    # Main entry point for the Astron Agent workflow application.
     # This block initializes the application environment and starts the Uvicorn
     # ASGI server with appropriate configuration for different platforms.
 

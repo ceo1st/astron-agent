@@ -794,7 +794,7 @@ class WorkflowEngine(BaseModel):
 
     engine_ctx: WorkflowEngineCtx = None  # type: ignore
 
-    # Currently running SparkFlow engine node
+    # Currently running workflow engine node
     sparkflow_engine_node: SparkFlowEngineNode
 
     # Set of node IDs that support streaming processing
@@ -2080,7 +2080,7 @@ class WorkflowEngineBuilder:
 
     def build_nodes(self, span_context: Span) -> "WorkflowEngineBuilder":
         """
-        Build SparkFlow nodes.
+        Build workflow nodes.
 
         :param span_context: Tracing span for observability
         :return: Self for method chaining
@@ -2212,7 +2212,7 @@ class WorkflowEngineBuilder:
 
         :param node_id: The ID of the node to create
         :param span_context: Tracing span for observability
-        :return: SparkFlowEngineNode instance
+        :return: Workflow engine node instance
         """
         node = self.sparkflow_dsl.check_nodes_exist(node_id)
         # Validate node configuration
@@ -2266,7 +2266,7 @@ class WorkflowEngineBuilder:
         Handle special node types.
 
         :param node: The node instance
-        :param spark_node_instance: The SparkFlow engine node instance
+        :param spark_node_instance: The workflow engine node instance
         :return: None
         """
         node_type = node.get_node_type()
@@ -2351,7 +2351,7 @@ class WorkflowEngineBuilder:
         """
         Handle end node.
 
-        :param spark_node_instance: The SparkFlow engine node instance
+        :param spark_node_instance: The workflow engine node instance
         :return: None
         """
         output_mode = (

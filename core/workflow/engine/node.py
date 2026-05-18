@@ -109,7 +109,7 @@ class NodeExecutionTemplate:
     def __init__(self, node: "SparkFlowEngineNode") -> None:
         """Initialize the node execution template.
 
-        :param node: The SparkFlow engine node to execute
+        :param node: The workflow engine node to execute
         """
         self.node = node
         self.parameter_strategies = self._init_parameter_strategies()
@@ -459,7 +459,7 @@ class NodeExecutionTemplate:
 
 class SparkFlowEngineNode(BaseModel):
     """
-    Spark Flow Engine Node class.
+    Astron Agent workflow engine node class.
 
     Manages individual nodes in a workflow, including node execution, logging,
     and relationship management. Uses strategy pattern and template method pattern
@@ -500,7 +500,7 @@ class SparkFlowEngineNode(BaseModel):
     ]
 
     def __init__(self, **kwargs: Any) -> None:
-        """Initialize the SparkFlow engine node.
+        """Initialize the workflow engine node.
 
         :param kwargs: Node initialization parameters including node_id, node_type, etc.
         """
@@ -665,7 +665,7 @@ class SparkFlowEngineNode(BaseModel):
 
 
 class NodeFactory:
-    """Factory class for creating SparkFlow engine nodes."""
+    """Factory class for creating workflow engine nodes."""
 
     @staticmethod
     def create(node: Node, span_context: Span) -> SparkFlowEngineNode:
