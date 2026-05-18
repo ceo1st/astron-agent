@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -242,6 +242,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9d/05/b16d6ac5eea465d42e65941436eab7d2e6f6ebef01ba4d70b6f5d0b992ce/botocore-1.42.75.tar.gz", hash = "sha256:95c8e716b6be903ee1601531caa4f50217400aa877c18fe9a2c3047d2945d477", size = 15016308, upload-time = "2026-03-24T21:13:48.802Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/04/21/22148ff8d37d8706fc63cdc8ec292f4abbbd18b500d9970f6172f7f3bb30/botocore-1.42.75-py3-none-any.whl", hash = "sha256:915e43b7ac8f50cf3dbc937ba713de5acb999ea48ad8fecd1589d92ad415f787", size = 14689910, upload-time = "2026-03-24T21:13:43.939Z" },
+]
+
+[[package]]
+name = "bracex"
+version = "2.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/63/9a/fec38644694abfaaeca2798b58e276a8e61de49e2e37494ace423395febc/bracex-2.6.tar.gz", hash = "sha256:98f1347cd77e22ee8d967a30ad4e310b233f7754dbf31ff3fceb76145ba47dc7", size = 26642, upload-time = "2025-06-22T19:12:31.254Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/2a/9186535ce58db529927f6cf5990a849aa9e052eea3e2cfefe20b9e1802da/bracex-2.6-py3-none-any.whl", hash = "sha256:0b0049264e7340b3ec782b5cb99beb325f36c3782a32e36e876452fd49a09952", size = 11508, upload-time = "2025-06-22T19:12:29.781Z" },
 ]
 
 [[package]]
@@ -661,12 +670,43 @@ wheels = [
 ]
 
 [[package]]
+name = "dockerfile-parse"
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/df/929ee0b5d2c8bd8d713c45e71b94ab57c7e11e322130724d54f469b2cd48/dockerfile-parse-2.0.1.tar.gz", hash = "sha256:3184ccdc513221983e503ac00e1aa504a2aa8f84e5de673c46b0b6eee99ec7bc", size = 24556, upload-time = "2023-07-18T13:36:07.897Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/6c/79cd5bc1b880d8c1a9a5550aa8dacd57353fa3bb2457227e1fb47383eb49/dockerfile_parse-2.0.1-py2.py3-none-any.whl", hash = "sha256:bdffd126d2eb26acf1066acb54cb2e336682e1d72b974a40894fac76a4df17f6", size = 14845, upload-time = "2023-07-18T13:36:06.052Z" },
+]
+
+[[package]]
 name = "docstring-parser"
 version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b2/9d/c3b43da9515bd270df0f80548d9944e389870713cc1fe2b8fb35fe2bcefd/docstring_parser-0.17.0.tar.gz", hash = "sha256:583de4a309722b3315439bb31d64ba3eebada841f2e2cee23b99df001434c912", size = 27442, upload-time = "2025-07-21T07:35:01.868Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/55/e2/2537ebcff11c1ee1ff17d8d0b6f4db75873e3b0fb32c2d4a2ee31ecb310a/docstring_parser-0.17.0-py3-none-any.whl", hash = "sha256:cf2569abd23dce8099b300f9b4fa8191e9582dda731fd533daf54c4551658708", size = 36896, upload-time = "2025-07-21T07:35:00.684Z" },
+]
+
+[[package]]
+name = "e2b"
+version = "2.21.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "dockerfile-parse" },
+    { name = "h2" },
+    { name = "httpcore" },
+    { name = "httpx" },
+    { name = "packaging" },
+    { name = "protobuf" },
+    { name = "python-dateutil" },
+    { name = "rich" },
+    { name = "typing-extensions" },
+    { name = "wcmatch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/97/0e86ccb9e05c18e6e795e0808f14e2dc9f5c9ffb7be2a5cb77afd6d9f59e/e2b-2.21.1.tar.gz", hash = "sha256:2eff473ca03173cee1ccd9f9ec9e90c2b4705cca418e080e3104753d7ec33490", size = 157458, upload-time = "2026-05-14T17:36:02.318Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6f/d4/8b6a9a120e724dd8f91aededa89348a667a01fffbba28ae1a42cb397b0f0/e2b-2.21.1-py3-none-any.whl", hash = "sha256:9ec4646f3dba4a6da855baa8adeab239aa988e15904611e38bf12aeec2562ac9", size = 297476, upload-time = "2026-05-14T17:36:00.351Z" },
 ]
 
 [[package]]
@@ -968,6 +1008,28 @@ wheels = [
 ]
 
 [[package]]
+name = "h2"
+version = "4.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "hpack" },
+    { name = "hyperframe" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1d/17/afa56379f94ad0fe8defd37d6eb3f89a25404ffc71d4d848893d270325fc/h2-4.3.0.tar.gz", hash = "sha256:6c59efe4323fa18b47a632221a1888bd7fde6249819beda254aeca909f221bf1", size = 2152026, upload-time = "2025-08-23T18:12:19.778Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/b2/119f6e6dcbd96f9069ce9a2665e0146588dc9f88f29549711853645e736a/h2-4.3.0-py3-none-any.whl", hash = "sha256:c438f029a25f7945c69e0ccf0fb951dc3f73a5f6412981daee861431b70e2bdd", size = 61779, upload-time = "2025-08-23T18:12:17.779Z" },
+]
+
+[[package]]
+name = "hpack"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/48/71de9ed269fdae9c8057e5a4c0aa7402e8bb16f2c6e90b3aa53327b113f8/hpack-4.1.0.tar.gz", hash = "sha256:ec5eca154f7056aa06f196a557655c5b009b382873ac8d1e66e79e87535f1dca", size = 51276, upload-time = "2025-01-22T21:44:58.347Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/c6/80c95b1b2b94682a72cbdbfb85b81ae2daffa4291fbfa1b1464502ede10d/hpack-4.1.0-py3-none-any.whl", hash = "sha256:157ac792668d995c657d93111f46b4535ed114f0c9c8d672271bbec7eae1b496", size = 34357, upload-time = "2025-01-22T21:44:56.92Z" },
+]
+
+[[package]]
 name = "httpcore"
 version = "1.0.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1016,6 +1078,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5c/2d/3da5bdf4408b8b2800061c339f240c1802f2e82d55e50bd39c5a881f47f0/httpx-0.27.0.tar.gz", hash = "sha256:a0cb88a46f32dc874e04ee956e4c2764aba2aa228f650b06788ba6bda2962ab5", size = 126413, upload-time = "2024-02-21T13:07:52.434Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/7b/ddacf6dcebb42466abd03f368782142baa82e08fc0c1f8eaa05b4bae87d5/httpx-0.27.0-py3-none-any.whl", hash = "sha256:71d5465162c13681bff01ad59b2cc68dd838ea1f10e51574bac27103f00c91a5", size = 75590, upload-time = "2024-02-21T13:07:50.455Z" },
+]
+
+[[package]]
+name = "hyperframe"
+version = "6.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/02/e7/94f8232d4a74cc99514c13a9f995811485a6903d48e5d952771ef6322e30/hyperframe-6.1.0.tar.gz", hash = "sha256:f630908a00854a7adeabd6382b43923a4c4cd4b821fcb527e6ab9e15382a3b08", size = 26566, upload-time = "2025-01-22T21:41:49.302Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/30/47d0bf6072f7252e6521f3447ccfa40b421b6824517f82854703d0f5a98b/hyperframe-6.1.0-py3-none-any.whl", hash = "sha256:b03380493a519fce58ea5af42e4a42317bf9bd425596f7a0835ffce80f1a42e5", size = 13007, upload-time = "2025-01-22T21:41:47.295Z" },
 ]
 
 [[package]]
@@ -1538,18 +1609,6 @@ wheels = [
 ]
 
 [[package]]
-name = "opencensus-proto"
-version = "0.1.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "grpcio" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/25/6f/e6c7fd03ebce30aa7e8cd29b68daef10fb07891fc6ad6de49a67c863befc/opencensus-proto-0.1.0.tar.gz", hash = "sha256:963e4524fef4596482581d3cff0943f68839c7c33a56cdf20967672175ed25bc", size = 21002, upload-time = "2019-04-12T22:28:50.587Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/9e/17a8b163de58cef28df79c1939adb07ea8d45df9ca5f75e3fd2f52eb51a5/opencensus_proto-0.1.0-py2.py3-none-any.whl", hash = "sha256:93ce05977abff815dfee3cef2db9124f8ffe2f037a6f3c903020b9be06a24d39", size = 35409, upload-time = "2019-04-12T22:28:49.181Z" },
-]
-
-[[package]]
 name = "opentelemetry-api"
 version = "1.25.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1560,23 +1619,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/df/0d/10357006dc10fc65f7c7b46c18232e466e355f9e606ac461cfc7193b4cbe/opentelemetry_api-1.25.0.tar.gz", hash = "sha256:77c4985f62f2614e42ce77ee4c9da5fa5f0bc1e1821085e9a47533a9323ae869", size = 60383, upload-time = "2024-05-31T01:40:38.766Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/b2/4bc5e52c9a23df0ac17dbb23923e609a8269cd67000a712b4f5bcfae1490/opentelemetry_api-1.25.0-py3-none-any.whl", hash = "sha256:757fa1aa020a0f8fa139f8959e53dec2051cc26b832e76fa839a6d76ecefd737", size = 59910, upload-time = "2024-05-31T01:40:00.911Z" },
-]
-
-[[package]]
-name = "opentelemetry-exporter-opencensus"
-version = "0.46b0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "grpcio" },
-    { name = "opencensus-proto" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-sdk" },
-    { name = "protobuf" },
-    { name = "setuptools" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/0a/3a/4496b62499e2988e78b99e08da5092ec5288540d7192ef8d1e2f8a438a9d/opentelemetry_exporter_opencensus-0.46b0.tar.gz", hash = "sha256:5dd81edb2026e6163e2c3f788da6eaa64d9517e2b4d9079a284da825db5d2917", size = 10405, upload-time = "2024-05-31T01:40:39.915Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/4b/4505ee6724bdd4812d0fc1e583fb626a30ca8cb24c601f41371e8fe0d1f0/opentelemetry_exporter_opencensus-0.46b0-py3-none-any.whl", hash = "sha256:e82f4e2bbd2e5f34e4945a6640a6ebb7b5d01b15bf531bd1820236cb77d28dae", size = 11276, upload-time = "2024-05-31T01:40:03.327Z" },
 ]
 
 [[package]]
@@ -1863,11 +1905,16 @@ wheels = [
 
 [[package]]
 name = "protobuf"
-version = "3.20.3"
+version = "4.25.9"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/55/5b/e3d951e34f8356e5feecacd12a8e3b258a1da6d9a03ad1770f28925f29bc/protobuf-3.20.3.tar.gz", hash = "sha256:2e3427429c9cffebf259491be0af70189607f365c2f41c7c3764af6f337105f2", size = 216768, upload-time = "2022-09-29T22:39:47.592Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/8e/d08c41a8c004e1d437ef467e7c4f9c3295cd784eba48ed5d1d01f94b1dad/protobuf-4.25.9.tar.gz", hash = "sha256:b0dc7e7c68de8b1ce831dacb12fb407e838edbb8b6cc0dc3a2a6b4cbf6de9cff", size = 381040, upload-time = "2026-03-25T23:09:36.423Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/14/619e24a4c70df2901e1f4dbc50a6291eb63a759172558df326347dce1f0d/protobuf-3.20.3-py2.py3-none-any.whl", hash = "sha256:a7ca6d488aa8ff7f329d4c545b2dbad8ac31464f1d8b1c87ad1346717731e4db", size = 162128, upload-time = "2022-09-29T22:39:44.547Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/e9/59435bd04bdd46cb38c42a336b22f9843e8e586ff83c35a5423f8b14704e/protobuf-4.25.9-cp310-abi3-win32.whl", hash = "sha256:bde396f568b0b46fc8fbfe9f02facf25b6755b2578a3b8ac61e74b9d69499e03", size = 392879, upload-time = "2026-03-25T23:09:21.32Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/16/42a5c7f1001783d2b5bfcecde10127f09010f78982c86ae409122ce3ece6/protobuf-4.25.9-cp310-abi3-win_amd64.whl", hash = "sha256:3683c05154252206f7cb2d371626514b3708199d9bcf683b503dabf3a2e38e06", size = 413900, upload-time = "2026-03-25T23:09:23.589Z" },
+    { url = "https://files.pythonhosted.org/packages/56/5b/0074a0a9eb01f3d1c4648ca5e81b22090c811b210b61df9018ac6d6c5cda/protobuf-4.25.9-cp37-abi3-macosx_10_9_universal2.whl", hash = "sha256:9560813560e6ee72c11ca8873878bdb7ee003c96a57ebb013245fe84e2540904", size = 394826, upload-time = "2026-03-25T23:09:25.194Z" },
+    { url = "https://files.pythonhosted.org/packages/54/aa/b2dba856f64c36b2a06c67be1472de98cca07a2322d0f0cbf03279a40e5b/protobuf-4.25.9-cp37-abi3-manylinux2014_aarch64.whl", hash = "sha256:999146ef02e7fa6a692477badd1528bcd7268df211852a3df2d834ba2b480791", size = 294191, upload-time = "2026-03-25T23:09:26.613Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/5c/53f18822017b8bda6bd8bb4e02048e911fdc79a3dafdc83ab994fe922a84/protobuf-4.25.9-cp37-abi3-manylinux2014_x86_64.whl", hash = "sha256:438c636de8fb706a0de94a12a268ef1ae8f5ba5ae655a7671fcda5968ba3c9be", size = 295178, upload-time = "2026-03-25T23:09:27.839Z" },
+    { url = "https://files.pythonhosted.org/packages/16/28/d5065b212685875d3924bcdb3201cbf467cb4d58a18aa19a8dfd99ea80a9/protobuf-4.25.9-py3-none-any.whl", hash = "sha256:d49b615e7c935194ac161f0965699ac84df6112c378e05ec53da65d2e4cbb6d4", size = 156822, upload-time = "2026-03-25T23:09:34.957Z" },
 ]
 
 [[package]]
@@ -2187,15 +2234,15 @@ wheels = [
 
 [[package]]
 name = "rich"
-version = "13.7.1"
+version = "14.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown-it-py" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b3/01/c954e134dc440ab5f96952fe52b4fdc64225530320a910473c1fe270d9aa/rich-13.7.1.tar.gz", hash = "sha256:9be308cb1fe2f1f57d67ce99e95af38a1e2bc71ad9813b0e247cf7ffbcc3a432", size = 221248, upload-time = "2024-02-28T14:51:19.472Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/67/cae617f1351490c25a4b8ac3b8b63a4dda609295d8222bad12242dfdc629/rich-14.3.4.tar.gz", hash = "sha256:817e02727f2b25b40ef56f5aa2217f400c8489f79ca8f46ea2b70dd5e14558a9", size = 230524, upload-time = "2026-04-11T02:57:45.419Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/67/a37f6214d0e9fe57f6ae54b2956d550ca8365857f42a1ce0392bb21d9410/rich-13.7.1-py3-none-any.whl", hash = "sha256:4edbae314f59eb482f54e9e30bf00d33350aaa94f4bfcd4e9e3110e64d0d7222", size = 240681, upload-time = "2024-02-28T14:51:14.353Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/76/6d163cfac87b632216f71879e6b2cf17163f773ff59c00b5ff4900a80fa3/rich-14.3.4-py3-none-any.whl", hash = "sha256:07e7adb4690f68864777b1450859253bed81a99a31ac321ac1817b2313558952", size = 310480, upload-time = "2026-04-11T02:57:47.484Z" },
 ]
 
 [[package]]
@@ -2634,6 +2681,18 @@ wheels = [
 ]
 
 [[package]]
+name = "wcmatch"
+version = "10.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "bracex" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/3e/c0bdc27cf06f4e47680bd5803a07cb3dfd17de84cde92dd217dcb9e05253/wcmatch-10.1.tar.gz", hash = "sha256:f11f94208c8c8484a16f4f48638a85d771d9513f4ab3f37595978801cb9465af", size = 117421, upload-time = "2025-06-22T19:14:02.49Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/d8/0d1d2e9d3fabcf5d6840362adcf05f8cf3cd06a73358140c3a97189238ae/wcmatch-10.1-py3-none-any.whl", hash = "sha256:5848ace7dbb0476e5e55ab63c6bbd529745089343427caa5537f230cc01beb8a", size = 39854, upload-time = "2025-06-22T19:14:00.978Z" },
+]
+
+[[package]]
 name = "wcwidth"
 version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2698,216 +2757,214 @@ name = "workflow"
 version = "1.0.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "aiohappyeyeballs", marker = "python_full_version < '4.0'" },
-    { name = "aiohttp", marker = "python_full_version < '4.0'" },
-    { name = "aiosignal", marker = "python_full_version < '4.0'" },
-    { name = "alembic", marker = "python_full_version < '4.0'" },
-    { name = "annotated-types", marker = "python_full_version < '4.0'" },
+    { name = "aiohappyeyeballs", marker = "python_full_version < '4'" },
+    { name = "aiohttp", marker = "python_full_version < '4'" },
+    { name = "aiosignal", marker = "python_full_version < '4'" },
+    { name = "alembic", marker = "python_full_version < '4'" },
+    { name = "annotated-types", marker = "python_full_version < '4'" },
     { name = "anthropic" },
-    { name = "anyio", marker = "python_full_version < '4.0'" },
-    { name = "appdirs", marker = "python_full_version < '4.0'" },
-    { name = "attrs", marker = "python_full_version < '4.0'" },
+    { name = "anyio", marker = "python_full_version < '4'" },
+    { name = "appdirs", marker = "python_full_version < '4'" },
+    { name = "attrs", marker = "python_full_version < '4'" },
     { name = "black" },
     { name = "boto3" },
-    { name = "celery", marker = "python_full_version < '4.0'" },
-    { name = "certifi", marker = "python_full_version < '4.0'" },
-    { name = "charset-normalizer", marker = "python_full_version < '4.0'" },
-    { name = "click", marker = "python_full_version < '4.0'" },
-    { name = "colorama", marker = "python_full_version < '4.0' and sys_platform == 'win32'" },
-    { name = "confluent-kafka", marker = "python_full_version < '4.0'" },
-    { name = "deprecated", marker = "python_full_version < '4.0'" },
-    { name = "dnspython", marker = "python_full_version < '4.0'" },
-    { name = "email-validator", marker = "python_full_version < '4.0'" },
-    { name = "eventlet", marker = "python_full_version < '4.0'" },
-    { name = "fastapi", marker = "python_full_version < '4.0'" },
-    { name = "fastapi-cli", marker = "python_full_version < '4.0'" },
+    { name = "celery", marker = "python_full_version < '4'" },
+    { name = "certifi", marker = "python_full_version < '4'" },
+    { name = "charset-normalizer", marker = "python_full_version < '4'" },
+    { name = "click", marker = "python_full_version < '4'" },
+    { name = "colorama", marker = "python_full_version < '4' and sys_platform == 'win32'" },
+    { name = "confluent-kafka", marker = "python_full_version < '4'" },
+    { name = "deprecated", marker = "python_full_version < '4'" },
+    { name = "dnspython", marker = "python_full_version < '4'" },
+    { name = "e2b", marker = "python_full_version < '3.14'" },
+    { name = "email-validator", marker = "python_full_version < '4'" },
+    { name = "eventlet", marker = "python_full_version < '4'" },
+    { name = "fastapi", marker = "python_full_version < '4'" },
+    { name = "fastapi-cli", marker = "python_full_version < '4'" },
     { name = "flake8" },
-    { name = "frozenlist", marker = "python_full_version < '4.0'" },
-    { name = "gevent", marker = "python_full_version < '4.0'" },
+    { name = "frozenlist", marker = "python_full_version < '4'" },
+    { name = "gevent", marker = "python_full_version < '4'" },
     { name = "google-genai" },
-    { name = "googleapis-common-protos", marker = "python_full_version < '4.0'" },
+    { name = "googleapis-common-protos", marker = "python_full_version < '4'" },
     { name = "greenlet", marker = "(python_full_version < '3.13' and platform_machine == 'AMD64') or (python_full_version < '3.13' and platform_machine == 'WIN32') or (python_full_version < '3.13' and platform_machine == 'aarch64') or (python_full_version < '3.13' and platform_machine == 'amd64') or (python_full_version < '3.13' and platform_machine == 'ppc64le') or (python_full_version < '3.13' and platform_machine == 'win32') or (python_full_version < '3.13' and platform_machine == 'x86_64')" },
-    { name = "grpcio", marker = "python_full_version < '4.0'" },
-    { name = "h11", marker = "python_full_version < '4.0'" },
-    { name = "httpcore", marker = "python_full_version < '4.0'" },
-    { name = "httptools", marker = "python_full_version < '4.0'" },
-    { name = "httpx", marker = "python_full_version < '4.0'" },
-    { name = "idna", marker = "python_full_version < '4.0'" },
-    { name = "importlib-metadata", marker = "python_full_version < '4.0'" },
-    { name = "iniconfig", marker = "python_full_version < '4.0'" },
+    { name = "grpcio", marker = "python_full_version < '4'" },
+    { name = "h11", marker = "python_full_version < '4'" },
+    { name = "httpcore", marker = "python_full_version < '4'" },
+    { name = "httptools", marker = "python_full_version < '4'" },
+    { name = "httpx", marker = "python_full_version < '4'" },
+    { name = "idna", marker = "python_full_version < '4'" },
+    { name = "importlib-metadata", marker = "python_full_version < '4'" },
+    { name = "iniconfig", marker = "python_full_version < '4'" },
     { name = "isort" },
-    { name = "jinja2", marker = "python_full_version < '4.0'" },
-    { name = "jsonschema", marker = "python_full_version < '4.0'" },
-    { name = "jsonschema-specifications", marker = "python_full_version < '4.0'" },
+    { name = "jinja2", marker = "python_full_version < '4'" },
+    { name = "jsonschema", marker = "python_full_version < '4'" },
+    { name = "jsonschema-specifications", marker = "python_full_version < '4'" },
     { name = "langchain-sandbox" },
-    { name = "loguru", marker = "python_full_version < '4.0'" },
-    { name = "markdown-it-py", marker = "python_full_version < '4.0'" },
-    { name = "markupsafe", marker = "python_full_version < '4.0'" },
-    { name = "mdurl", marker = "python_full_version < '4.0'" },
-    { name = "multidict", marker = "python_full_version < '4.0'" },
+    { name = "loguru", marker = "python_full_version < '4'" },
+    { name = "markdown-it-py", marker = "python_full_version < '4'" },
+    { name = "markupsafe", marker = "python_full_version < '4'" },
+    { name = "mdurl", marker = "python_full_version < '4'" },
+    { name = "multidict", marker = "python_full_version < '4'" },
     { name = "mypy" },
     { name = "openai" },
-    { name = "opencensus-proto", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-api", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-exporter-opencensus", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-exporter-otlp", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-exporter-otlp-proto-common", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-proto", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-sdk", marker = "python_full_version < '4.0'" },
-    { name = "opentelemetry-semantic-conventions", marker = "python_full_version < '4.0'" },
-    { name = "orjson", marker = "python_full_version < '4.0'" },
-    { name = "packaging", marker = "python_full_version < '4.0'" },
-    { name = "pluggy", marker = "python_full_version < '4.0'" },
-    { name = "propcache", marker = "python_full_version < '4.0'" },
-    { name = "protobuf", marker = "python_full_version < '4.0'" },
-    { name = "pydantic", marker = "python_full_version < '4.0'" },
-    { name = "pydantic-core", marker = "python_full_version < '4.0'" },
-    { name = "pydantic-settings", marker = "python_full_version < '4.0'" },
-    { name = "pygments", marker = "python_full_version < '4.0'" },
+    { name = "opentelemetry-api", marker = "python_full_version < '4'" },
+    { name = "opentelemetry-exporter-otlp", marker = "python_full_version < '4'" },
+    { name = "opentelemetry-exporter-otlp-proto-common", marker = "python_full_version < '4'" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "python_full_version < '4'" },
+    { name = "opentelemetry-exporter-otlp-proto-http", marker = "python_full_version < '4'" },
+    { name = "opentelemetry-proto", marker = "python_full_version < '4'" },
+    { name = "opentelemetry-sdk", marker = "python_full_version < '4'" },
+    { name = "opentelemetry-semantic-conventions", marker = "python_full_version < '4'" },
+    { name = "orjson", marker = "python_full_version < '4'" },
+    { name = "packaging", marker = "python_full_version < '4'" },
+    { name = "pluggy", marker = "python_full_version < '4'" },
+    { name = "propcache", marker = "python_full_version < '4'" },
+    { name = "protobuf", marker = "python_full_version < '4'" },
+    { name = "pydantic", marker = "python_full_version < '4'" },
+    { name = "pydantic-core", marker = "python_full_version < '4'" },
+    { name = "pydantic-settings", marker = "python_full_version < '4'" },
+    { name = "pygments", marker = "python_full_version < '4'" },
     { name = "pylint" },
-    { name = "pymysql", marker = "python_full_version < '4.0'" },
-    { name = "pytest", marker = "python_full_version < '4.0'" },
+    { name = "pymysql", marker = "python_full_version < '4'" },
+    { name = "pytest", marker = "python_full_version < '4'" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
-    { name = "python-dotenv", marker = "python_full_version < '4.0'" },
-    { name = "python-multipart", marker = "python_full_version < '4.0'" },
-    { name = "pyyaml", marker = "python_full_version < '4.0'" },
-    { name = "redis", marker = "python_full_version < '4.0'" },
-    { name = "redis-py-cluster", marker = "python_full_version < '4.0'" },
-    { name = "referencing", marker = "python_full_version < '4.0'" },
-    { name = "requests", marker = "python_full_version < '4.0'" },
-    { name = "rich", marker = "python_full_version < '4.0'" },
-    { name = "rpds-py", marker = "python_full_version < '4.0'" },
-    { name = "setuptools", marker = "python_full_version < '4.0'" },
-    { name = "shellingham", marker = "python_full_version < '4.0'" },
-    { name = "sniffio", marker = "python_full_version < '4.0'" },
-    { name = "snowflake-id", marker = "python_full_version < '4.0'" },
-    { name = "sqlalchemy", marker = "python_full_version < '4.0'" },
-    { name = "sqlmodel", marker = "python_full_version < '4.0'" },
-    { name = "starlette", marker = "python_full_version < '4.0'" },
+    { name = "python-dotenv", marker = "python_full_version < '4'" },
+    { name = "python-multipart", marker = "python_full_version < '4'" },
+    { name = "pyyaml", marker = "python_full_version < '4'" },
+    { name = "redis", marker = "python_full_version < '4'" },
+    { name = "redis-py-cluster", marker = "python_full_version < '4'" },
+    { name = "referencing", marker = "python_full_version < '4'" },
+    { name = "requests", marker = "python_full_version < '4'" },
+    { name = "rich", marker = "python_full_version < '4'" },
+    { name = "rpds-py", marker = "python_full_version < '4'" },
+    { name = "setuptools", marker = "python_full_version < '4'" },
+    { name = "shellingham", marker = "python_full_version < '4'" },
+    { name = "sniffio", marker = "python_full_version < '4'" },
+    { name = "snowflake-id", marker = "python_full_version < '4'" },
+    { name = "sqlalchemy", marker = "python_full_version < '4'" },
+    { name = "sqlmodel", marker = "python_full_version < '4'" },
+    { name = "starlette", marker = "python_full_version < '4'" },
     { name = "tenacity" },
     { name = "toml" },
-    { name = "typer", marker = "python_full_version < '4.0'" },
-    { name = "typing-extensions", marker = "python_full_version < '4.0'" },
-    { name = "urllib3", marker = "python_full_version < '4.0'" },
-    { name = "uvicorn", extra = ["standard"], marker = "python_full_version < '4.0'" },
-    { name = "uvloop", marker = "python_full_version < '4.0' and platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'" },
-    { name = "versioned-fastapi", marker = "python_full_version < '4.0'" },
-    { name = "watchfiles", marker = "python_full_version < '4.0'" },
-    { name = "websockets", marker = "python_full_version < '4.0'" },
-    { name = "win32-setctime", marker = "python_full_version < '4.0' and sys_platform == 'win32'" },
-    { name = "wrapt", marker = "python_full_version < '4.0'" },
-    { name = "yarl", marker = "python_full_version < '4.0'" },
-    { name = "zipp", marker = "python_full_version < '4.0'" },
+    { name = "typer", marker = "python_full_version < '4'" },
+    { name = "typing-extensions", marker = "python_full_version < '4'" },
+    { name = "urllib3", marker = "python_full_version < '4'" },
+    { name = "uvicorn", extra = ["standard"], marker = "python_full_version < '4'" },
+    { name = "uvloop", marker = "python_full_version < '4' and platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'" },
+    { name = "versioned-fastapi", marker = "python_full_version < '4'" },
+    { name = "watchfiles", marker = "python_full_version < '4'" },
+    { name = "websockets", marker = "python_full_version < '4'" },
+    { name = "win32-setctime", marker = "python_full_version < '4' and sys_platform == 'win32'" },
+    { name = "wrapt", marker = "python_full_version < '4'" },
+    { name = "yarl", marker = "python_full_version < '4'" },
+    { name = "zipp", marker = "python_full_version < '4'" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohappyeyeballs", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.4.3" },
-    { name = "aiohttp", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.10.10" },
-    { name = "aiosignal", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.3.1" },
-    { name = "alembic", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.13.1" },
-    { name = "annotated-types", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.7.0" },
+    { name = "aiohappyeyeballs", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.4.3" },
+    { name = "aiohttp", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.10.10" },
+    { name = "aiosignal", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.3.1" },
+    { name = "alembic", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.13.1" },
+    { name = "annotated-types", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.7.0" },
     { name = "anthropic", specifier = ">=0.34.0" },
-    { name = "anyio", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==4.4.0" },
-    { name = "appdirs", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.4.4" },
-    { name = "attrs", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==23.2.0" },
+    { name = "anyio", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==4.4.0" },
+    { name = "appdirs", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.4.4" },
+    { name = "attrs", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==23.2.0" },
     { name = "black", specifier = "==24.4.2" },
     { name = "boto3", specifier = ">=1.40.22" },
-    { name = "celery", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = ">=5.6.2" },
-    { name = "certifi", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2024.7.4" },
-    { name = "charset-normalizer", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.3.2" },
-    { name = "click", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==8.1.7" },
-    { name = "colorama", marker = "python_full_version >= '3.11' and python_full_version < '4.0' and sys_platform == 'win32'", specifier = "==0.4.6" },
-    { name = "confluent-kafka", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.5.0" },
-    { name = "deprecated", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.2.14" },
-    { name = "dnspython", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.6.1" },
-    { name = "email-validator", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.2.0" },
-    { name = "eventlet", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.40.4" },
-    { name = "fastapi", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.111.1" },
-    { name = "fastapi-cli", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.0.4" },
+    { name = "celery", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = ">=5.6.2" },
+    { name = "certifi", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2024.7.4" },
+    { name = "charset-normalizer", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.3.2" },
+    { name = "click", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==8.1.7" },
+    { name = "colorama", marker = "python_full_version >= '3.11' and python_full_version < '4' and sys_platform == 'win32'", specifier = "==0.4.6" },
+    { name = "confluent-kafka", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.5.0" },
+    { name = "deprecated", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.2.14" },
+    { name = "dnspython", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.6.1" },
+    { name = "e2b", marker = "python_full_version >= '3.11' and python_full_version < '3.14'", specifier = ">=2.15.0" },
+    { name = "email-validator", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.2.0" },
+    { name = "eventlet", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.40.4" },
+    { name = "fastapi", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.111.1" },
+    { name = "fastapi-cli", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.0.4" },
     { name = "flake8", specifier = "==7.0.0" },
-    { name = "frozenlist", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.5.0" },
-    { name = "gevent", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==25.9.1" },
+    { name = "frozenlist", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.5.0" },
+    { name = "gevent", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==25.9.1" },
     { name = "google-genai", specifier = ">=0.8.0" },
-    { name = "googleapis-common-protos", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.60.0" },
+    { name = "googleapis-common-protos", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.60.0" },
     { name = "greenlet", marker = "(python_full_version >= '3.11' and python_full_version < '3.13' and platform_machine == 'AMD64') or (python_full_version >= '3.11' and python_full_version < '3.13' and platform_machine == 'WIN32') or (python_full_version >= '3.11' and python_full_version < '3.13' and platform_machine == 'aarch64') or (python_full_version >= '3.11' and python_full_version < '3.13' and platform_machine == 'amd64') or (python_full_version >= '3.11' and python_full_version < '3.13' and platform_machine == 'ppc64le') or (python_full_version >= '3.11' and python_full_version < '3.13' and platform_machine == 'win32') or (python_full_version >= '3.11' and python_full_version < '3.13' and platform_machine == 'x86_64')", specifier = ">=3.2.2" },
-    { name = "grpcio", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.64.1" },
-    { name = "h11", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.14.0" },
-    { name = "httpcore", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.0.5" },
-    { name = "httptools", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.6.1" },
-    { name = "httpx", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.27.0" },
-    { name = "idna", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.7" },
-    { name = "importlib-metadata", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==7.1.0" },
-    { name = "iniconfig", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.0.0" },
+    { name = "grpcio", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.64.1" },
+    { name = "h11", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.14.0" },
+    { name = "httpcore", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.0.5" },
+    { name = "httptools", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.6.1" },
+    { name = "httpx", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.27.0" },
+    { name = "idna", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.7" },
+    { name = "importlib-metadata", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==7.1.0" },
+    { name = "iniconfig", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.0.0" },
     { name = "isort", specifier = "==5.13.2" },
-    { name = "jinja2", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.1.4" },
-    { name = "jsonschema", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==4.23.0" },
-    { name = "jsonschema-specifications", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2023.12.1" },
+    { name = "jinja2", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.1.4" },
+    { name = "jsonschema", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==4.23.0" },
+    { name = "jsonschema-specifications", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2023.12.1" },
     { name = "langchain-sandbox", specifier = ">=0.0.6" },
-    { name = "loguru", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.7.2" },
-    { name = "markdown-it-py", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.0.0" },
-    { name = "markupsafe", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.1.5" },
-    { name = "mdurl", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.1.2" },
-    { name = "multidict", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==6.1.0" },
+    { name = "loguru", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.7.2" },
+    { name = "markdown-it-py", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.0.0" },
+    { name = "markupsafe", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.1.5" },
+    { name = "mdurl", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.1.2" },
+    { name = "multidict", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==6.1.0" },
     { name = "mypy", specifier = "==1.18.2" },
     { name = "openai", specifier = "==1.60.2" },
-    { name = "opencensus-proto", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.1.0" },
-    { name = "opentelemetry-api", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.25.0" },
-    { name = "opentelemetry-exporter-opencensus", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.46b0" },
-    { name = "opentelemetry-exporter-otlp", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.25.0" },
-    { name = "opentelemetry-exporter-otlp-proto-common", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.25.0" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.25.0" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.25.0" },
-    { name = "opentelemetry-proto", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.25.0" },
-    { name = "opentelemetry-sdk", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.25.0" },
-    { name = "opentelemetry-semantic-conventions", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.46b0" },
-    { name = "orjson", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.10.6" },
-    { name = "packaging", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==24.1" },
-    { name = "pluggy", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.5.0" },
-    { name = "propcache", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.2.0" },
-    { name = "protobuf", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.20.3" },
-    { name = "pydantic", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.9.2" },
-    { name = "pydantic-core", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.23.4" },
-    { name = "pydantic-settings", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.11.0" },
-    { name = "pygments", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.18.0" },
+    { name = "opentelemetry-api", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.25.0" },
+    { name = "opentelemetry-exporter-otlp", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.25.0" },
+    { name = "opentelemetry-exporter-otlp-proto-common", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.25.0" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.25.0" },
+    { name = "opentelemetry-exporter-otlp-proto-http", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.25.0" },
+    { name = "opentelemetry-proto", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.25.0" },
+    { name = "opentelemetry-sdk", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.25.0" },
+    { name = "opentelemetry-semantic-conventions", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.46b0" },
+    { name = "orjson", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.10.6" },
+    { name = "packaging", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==24.1" },
+    { name = "pluggy", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.5.0" },
+    { name = "propcache", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.2.0" },
+    { name = "protobuf", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = ">=4.21.0,<5" },
+    { name = "pydantic", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.9.2" },
+    { name = "pydantic-core", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.23.4" },
+    { name = "pydantic-settings", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.11.0" },
+    { name = "pygments", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.18.0" },
     { name = "pylint", specifier = "==3.1.0" },
-    { name = "pymysql", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.1.1" },
-    { name = "pytest", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==8.2.2" },
+    { name = "pymysql", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.1.1" },
+    { name = "pytest", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==8.2.2" },
     { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "python-dotenv", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.0.1" },
-    { name = "python-multipart", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.0.9" },
-    { name = "pyyaml", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==6.0.1" },
-    { name = "redis", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.5.3" },
-    { name = "redis-py-cluster", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.1.3" },
-    { name = "referencing", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.35.1" },
-    { name = "requests", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.32.3" },
-    { name = "rich", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==13.7.1" },
-    { name = "rpds-py", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.19.0" },
-    { name = "setuptools", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==70.3.0" },
-    { name = "shellingham", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.5.4" },
-    { name = "sniffio", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.3.1" },
-    { name = "snowflake-id", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.0.2" },
-    { name = "sqlalchemy", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.0.31" },
-    { name = "sqlmodel", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.0.19" },
-    { name = "starlette", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.37.2" },
+    { name = "python-dotenv", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.0.1" },
+    { name = "python-multipart", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.0.9" },
+    { name = "pyyaml", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==6.0.1" },
+    { name = "redis", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.5.3" },
+    { name = "redis-py-cluster", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.1.3" },
+    { name = "referencing", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.35.1" },
+    { name = "requests", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.32.3" },
+    { name = "rich", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = ">=14.0.0,<15" },
+    { name = "rpds-py", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.19.0" },
+    { name = "setuptools", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==70.3.0" },
+    { name = "shellingham", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.5.4" },
+    { name = "sniffio", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.3.1" },
+    { name = "snowflake-id", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.0.2" },
+    { name = "sqlalchemy", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.0.31" },
+    { name = "sqlmodel", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.0.19" },
+    { name = "starlette", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.37.2" },
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "toml", specifier = ">=0.10.2" },
-    { name = "typer", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.12.3" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==4.12.2" },
-    { name = "urllib3", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==2.2.2" },
-    { name = "uvicorn", extras = ["standard"], marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.30.1" },
-    { name = "uvloop", marker = "python_full_version >= '3.11' and python_full_version < '4.0' and platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'", specifier = "==0.19.0" },
-    { name = "versioned-fastapi", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.0.2" },
-    { name = "watchfiles", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==0.22.0" },
-    { name = "websockets", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = ">=12.0" },
-    { name = "win32-setctime", marker = "python_full_version >= '3.11' and python_full_version < '4.0' and sys_platform == 'win32'", specifier = "==1.1.0" },
-    { name = "wrapt", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.16.0" },
-    { name = "yarl", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==1.16.0" },
-    { name = "zipp", marker = "python_full_version >= '3.11' and python_full_version < '4.0'", specifier = "==3.19.2" },
+    { name = "typer", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.12.3" },
+    { name = "typing-extensions", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==4.12.2" },
+    { name = "urllib3", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.2.2" },
+    { name = "uvicorn", extras = ["standard"], marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.30.1" },
+    { name = "uvloop", marker = "python_full_version >= '3.11' and python_full_version < '4' and platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'", specifier = "==0.19.0" },
+    { name = "versioned-fastapi", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.0.2" },
+    { name = "watchfiles", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.22.0" },
+    { name = "websockets", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = ">=12.0" },
+    { name = "win32-setctime", marker = "python_full_version >= '3.11' and python_full_version < '4' and sys_platform == 'win32'", specifier = "==1.1.0" },
+    { name = "wrapt", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.16.0" },
+    { name = "yarl", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.16.0" },
+    { name = "zipp", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.19.2" },
 ]
 
 [[package]]
