@@ -46,6 +46,34 @@ class UrlCheckToolTest {
         assertThrows(BusinessException.class, () -> tool.checkBlackList("http://example.com/start"));
     }
 
+    @Test
+    void checkUrlRejectsRedirectToNonHttpProtocol() throws Exception {
+        ConfigInfoMapper mapper = mockConfigMapper("", "");
+        UrlCheckTool tool = new UrlCheckTool(mapper);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/redirect", exchange -> {
+            exchange.getResponseHeaders().set("Location", "file:///etc/passwd");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/redirect";
+            assertThrows(BusinessException.class, () -> tool.checkUrl(url));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void checkUrlRejectsRedirectWithUserInfo() {
+        ConfigInfoMapper mapper = mockConfigMapper("", "");
+        UrlCheckTool tool = new RedirectingUrlCheckTool(mapper, Map.of(
+                "http://example.com/start", "http://user@example.org/path"));
+
+        assertThrows(BusinessException.class, () -> tool.checkUrl("http://example.com/start"));
+    }
+
     private static ConfigInfoMapper mockConfigMapper(String ipBlackList, String segmentBlackList) {
         ConfigInfoMapper mapper = mock(ConfigInfoMapper.class);
         when(mapper.getListByCategory("IP_BLACK_LIST")).thenReturn(List.of(config(ipBlackList)));
