@@ -181,6 +181,63 @@ async def test_dml_split_success() -> None:
 
 
 @pytest.mark.asyncio
+async def test_dml_split_rejects_multi_statement_injection() -> None:
+    """Reject injected extra statements before table validation or execution."""
+    mock_db = AsyncMock(spec=AsyncSession)
+    mock_span_context = MagicMock()
+    mock_span_context.sid = "test-sid"
+    mock_span_context.add_error_event = MagicMock()
+
+    mock_result = MagicMock()
+    mock_result.fetchall.return_value = [("users",)]
+    with patch(
+        "memory.database.api.v1.exec_dml.parse_and_exec_sql", new_callable=AsyncMock
+    ) as mock_parse_exec:
+        mock_parse_exec.return_value = mock_result
+
+        dmls, error = await _dml_split(
+            dml="SELECT * FROM users WHERE name = 'x'; "
+            "DELETE FROM users WHERE id = 1;",
+            db=mock_db,
+            schema="prod_u1_1001",
+            uid="u1",
+            span_context=mock_span_context,
+        )
+
+    assert dmls is None
+    assert error is not None
+    body = json.loads(error.body)
+    assert body["code"] == CodeEnum.DMLNotAllowed.code
+
+
+@pytest.mark.asyncio
+async def test_dml_split_allows_semicolon_inside_string_literal() -> None:
+    """Allow a single statement that contains semicolons as data."""
+    mock_db = AsyncMock(spec=AsyncSession)
+    mock_span_context = MagicMock()
+    mock_span_context.sid = "test-sid"
+
+    mock_result = MagicMock()
+    mock_result.fetchall.return_value = [("users",)]
+    with patch(
+        "memory.database.api.v1.exec_dml.parse_and_exec_sql", new_callable=AsyncMock
+    ) as mock_parse_exec:
+        mock_parse_exec.return_value = mock_result
+
+        dmls, error = await _dml_split(
+            dml="SELECT * FROM users WHERE note = 'hello; still data';",
+            db=mock_db,
+            schema="prod_u1_1001",
+            uid="u1",
+            span_context=mock_span_context,
+        )
+
+        assert error is None
+        assert dmls == ["SELECT * FROM users WHERE note = 'hello; still data';"]
+        mock_parse_exec.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_exec_dml_sql_success() -> None:
     """Test SQL execution (success scenario) without parameters."""
     mock_db = AsyncMock(spec=AsyncSession)
@@ -681,13 +738,15 @@ async def test_validate_and_prepare_dml_success() -> None:
 
         assert error is None
         assert result is not None
-        app_id, uid, database_id, dml, env, schema_list = result
+        app_id, uid, database_id, dml, sql_params, env, schema_list, space_id = result
         assert app_id == "app123"
         assert uid == "u1"
         assert database_id == 1001
         assert dml == "SELECT * FROM users"
+        assert sql_params == {}
         assert env == "prod"
         assert schema_list == [["prod_u1_1001"], ["test_u1_1001"]]
+        assert space_id == ""
 
 
 @pytest.mark.asyncio
@@ -776,6 +835,73 @@ async def test_process_dml_statements_success() -> None:
                 assert "rewrite_dml" in result[0]
                 assert "insert_ids" in result[0]
                 assert "params" in result[0]
+
+
+@pytest.mark.asyncio
+async def test_process_dml_statements_merges_request_params() -> None:
+    """Keep caller-supplied values bound as parameters after SQL rewriting."""
+    dmls = ["SELECT * FROM users WHERE name = :input_0"]
+    sql_params = {"input_0": "x' OR '1'='1"}
+    span_context = MagicMock()
+    span_context.add_info_event = MagicMock()
+    mock_db = AsyncMock(spec=AsyncSession)
+
+    with patch(
+        "memory.database.api.v1.exec_dml._get_table_column_types",
+        new_callable=AsyncMock,
+    ) as mock_get_types:
+        mock_get_types.return_value = {}
+
+        result, error = await _process_dml_statements(
+            dmls=dmls,
+            app_id="app123",
+            uid="u1",
+            span_context=span_context,
+            db=mock_db,
+            schema="prod_u1_1001",
+            sql_params=sql_params,
+        )
+
+    assert error is None
+    assert result is not None
+    rewritten = result[0]["rewrite_dml"]
+    params = result[0]["params"]
+    assert "x' OR '1'='1" not in rewritten
+    assert ":input_0" in rewritten
+    assert params["input_0"] == "x' OR '1'='1"
+    assert "u1" in params.values()
+
+
+@pytest.mark.asyncio
+async def test_process_dml_statements_rejects_param_name_collision() -> None:
+    """Reject caller parameter names that collide with generated parameters."""
+    dmls = ["SELECT * FROM users WHERE name = :param_0"]
+    span_context = MagicMock()
+    span_context.sid = "test-sid"
+    span_context.add_info_event = MagicMock()
+    span_context.add_error_event = MagicMock()
+    mock_db = AsyncMock(spec=AsyncSession)
+
+    with patch(
+        "memory.database.api.v1.exec_dml._get_table_column_types",
+        new_callable=AsyncMock,
+    ) as mock_get_types:
+        mock_get_types.return_value = {}
+
+        result, error = await _process_dml_statements(
+            dmls=dmls,
+            app_id="app123",
+            uid="u1",
+            span_context=span_context,
+            db=mock_db,
+            schema="prod_u1_1001",
+            sql_params={"param_0": "attacker-controlled"},
+        )
+
+    assert result is None
+    assert error is not None
+    body = json.loads(error.body)
+    assert body["code"] == CodeEnum.DMLNotAllowed.code
 
 
 @pytest.mark.asyncio

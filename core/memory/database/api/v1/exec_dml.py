@@ -38,6 +38,11 @@ exec_dml_router = APIRouter(tags=["EXEC_DML"])
 INSERT_EXTRA_COLUMNS = ["id", "uid", "create_time", "update_time"]
 
 
+def _normalize_bind_placeholders(sql: str) -> str:
+    """Normalize SQLGlot placeholders to SQLAlchemy text() bind syntax."""
+    return re.sub(r"%\(([a-zA-Z_][a-zA-Z0-9_]*)\)s", r":\1", sql)
+
+
 def _build_insert_literal_map(
     parsed: exp.Insert, table_name: str, literal_column_map: Dict[int, str]
 ) -> None:
@@ -413,7 +418,9 @@ def rewrite_dml_with_uid_and_limit(
     params_dict = _parameterize_literals(parsed, literal_column_map, column_types)
 
     return (
-        parsed.sql(dialect=get_adapter().get_sqlglot_dialect()),
+        _normalize_bind_placeholders(
+            parsed.sql(dialect=get_adapter().get_sqlglot_dialect())
+        ),
         insert_ids,
         params_dict,
     )
@@ -801,6 +808,7 @@ async def _validate_and_prepare_dml(db: Any, dml_input: Any, span_context: Any) 
     uid = dml_input.uid
     database_id = dml_input.database_id
     dml = dml_input.dml
+    sql_params = dml_input.params
     env = dml_input.env
     space_id = dml_input.space_id
 
@@ -809,6 +817,7 @@ async def _validate_and_prepare_dml(db: Any, dml_input: Any, span_context: Any) 
         "database_id": database_id,
         "uid": uid,
         "dml": dml,
+        "params": sql_params,
         "env": env,
         "space_id": space_id,
     }
@@ -833,7 +842,7 @@ async def _validate_and_prepare_dml(db: Any, dml_input: Any, span_context: Any) 
     if error_resp:
         return None, error_resp
 
-    return (app_id, uid, database_id, dml, env, schema_list, space_id), None
+    return (app_id, uid, database_id, dml, sql_params, env, schema_list, space_id), None
 
 
 async def _get_table_column_types(
@@ -878,6 +887,7 @@ async def _process_dml_statements(
     db: AsyncSession,
     schema: str,
     space_id: Optional[str] = None,
+    sql_params: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Process and rewrite DML statements.
 
@@ -889,7 +899,9 @@ async def _process_dml_statements(
         db: Database session
         schema: Database schema name
         space_id: Optional team space ID for team data sharing
+        sql_params: Optional bind parameters supplied by the caller
     """
+    sql_params = sql_params or {}
     rewrite_dmls = []
     for statement in dmls:
         error_legality = await _validate_dml_legality(statement, uid, span_context)
@@ -926,6 +938,21 @@ async def _process_dml_statements(
             column_types=column_types,
             space_id=space_id,
         )
+        duplicate_params = set(params) & set(sql_params)
+        if duplicate_params:
+            duplicate_names = ", ".join(sorted(duplicate_params))
+            span_context.add_error_event(
+                f"DML parameter names conflict with generated parameters: {duplicate_names}"
+            )
+            logger.error(
+                f"DML parameter names conflict with generated parameters: {duplicate_names}"
+            )
+            return None, format_response(
+                code=CodeEnum.DMLNotAllowed.code,
+                message="DML parameter names conflict with generated parameters",
+                sid=span_context.sid,
+            )
+        params = {**params, **sql_params}
         span_context.add_info_event(f"rewrite dml sql: {rewrite_dml}")
         logger.info(f"rewrite dml sql: {rewrite_dml}")
         span_context.add_info_event(f"rewrite dml params: {params}")
@@ -975,7 +1002,9 @@ async def exec_dml(
             if error:
                 return error  # type: ignore[no-any-return]
 
-            app_id, uid, database_id, dml, env, schema_list, space_id = validated_data
+            app_id, uid, database_id, dml, sql_params, env, schema_list, space_id = (
+                validated_data
+            )
 
             schema, error_search = await _set_search_path(
                 db, schema_list, env, uid, span_context
@@ -988,7 +1017,7 @@ async def exec_dml(
                 return error_split  # type: ignore[no-any-return]
 
             rewrite_dmls, error_legality = await _process_dml_statements(
-                dmls, app_id, uid, span_context, db, schema, space_id
+                dmls, app_id, uid, span_context, db, schema, space_id, sql_params
             )
             if error_legality:
                 return error_legality  # type: ignore[no-any-return]
@@ -1120,6 +1149,15 @@ async def _dml_split(
     dmls = sqlparse.split(dml)
     span_context.add_info_event(f"Split DML statements: {dmls}")
     logger.info(f"Split DML statements: {dmls}")
+
+    if len(dmls) != 1:
+        span_context.add_error_event("DML request contains multiple SQL statements")
+        logger.error("DML request contains multiple SQL statements")
+        return None, format_response(
+            code=CodeEnum.DMLNotAllowed.code,
+            message="Only one SQL statement is allowed per DML request",
+            sid=span_context.sid,
+        )
 
     for statement in dmls:
         try:
