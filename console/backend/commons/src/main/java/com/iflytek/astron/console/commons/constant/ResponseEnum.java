@@ -413,6 +413,9 @@ public enum ResponseEnum {
     MODEL_URL_ILLEGAL_FAILED(8912, "model.url.illegal.failed"),
     NOT_CUSTOM_MODEL(8913, "not.custom.model"),
 
+    // 9100 - 9199 (Platform account related)
+    PLATFORM_ACCOUNT_NOT_CONFIGURED(9100, "platform.account.not.configured"),
+
     // Notification center related errors 90xxx
     NOTIFICATION_NOT_EXISTS(90001, "notification.not.exists"),
     NOTIFICATION_SEND_FAILED(90002, "notification.send.failed"),

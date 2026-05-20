@@ -15,12 +15,13 @@ import com.iflytek.astron.console.commons.entity.chat.ChatReqRecords;
 import com.iflytek.astron.console.commons.entity.chat.ChatTraceSource;
 import com.iflytek.astron.console.commons.service.ChatRecordModelService;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import okio.BufferedSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -36,14 +37,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SparkChatService {
 
-    @Value("${spark.api.password}")
-    private String apiPassword;
-
     @Autowired
     private ChatDataService chatDataService;
 
     @Autowired
     private ChatRecordModelService chatRecordModelService;
+
+    @Autowired
+    private PlatformAccountService platformAccountService;
 
     /**
      * Create and return an SseEmitter object for handling chat room streaming requests
@@ -73,7 +74,11 @@ public class SparkChatService {
         }
         try {
             SparkModel sparkModel = getSparkModel(request.getModel());
-            SparkChatClient client = new SparkChatClient.Builder().signatureHttp(apiPassword, sparkModel).build();
+            PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                    platformAccountService.requireIflytekOpenPlatform();
+            SparkChatClient client = new SparkChatClient.Builder()
+                    .signatureHttp(config.getSparkApiPassword(), sparkModel)
+                    .build();
 
             SparkChatParam sendParam = buildSparkChatParam(request);
             log.info("request:{}", request);

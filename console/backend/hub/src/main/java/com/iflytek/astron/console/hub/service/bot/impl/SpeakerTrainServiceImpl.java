@@ -13,6 +13,8 @@ import com.iflytek.astron.console.commons.util.AudioValidator;
 import com.iflytek.astron.console.hub.entity.CustomSpeaker;
 import com.iflytek.astron.console.hub.service.bot.CustomSpeakerService;
 import com.iflytek.astron.console.hub.service.bot.SpeakerTrainService;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -47,13 +49,13 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
 
     private final CustomSpeakerService customSpeakerService;
 
-    private final VoiceTrainClient voiceTrainClient;
+    private final PlatformAccountService platformAccountService;
 
     @Override
     @Cacheable(value = "speakerTrain", key = "#root.methodName", unless = "#result == null", cacheManager = "cacheManager5min")
     public JSONObject getText() {
         try {
-            String trainText = voiceTrainClient.trainText(5001L);
+            String trainText = buildVoiceTrainClient().trainText(5001L);
             if (StringUtils.isBlank(trainText)) {
                 log.error("train text is blank");
                 return null;
@@ -90,6 +92,7 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
                     .ageGroup(AgeGroupEnum.YOUTH.getValue())
                     .language(language)
                     .build();
+            VoiceTrainClient voiceTrainClient = buildVoiceTrainClient();
             String taskResp = voiceTrainClient.createTask(createTaskParam);
             JSONObject taskObj = JSONObject.parseObject(taskResp);
             if (taskObj == null || !SUCCESS_CODE.equals(taskObj.get("code"))) {
@@ -123,6 +126,7 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
     @Override
     public JSONObject trainStatus(String taskId, Long spaceId, String uid) {
         try {
+            VoiceTrainClient voiceTrainClient = buildVoiceTrainClient();
             String trainStatus = voiceTrainClient.result(taskId);
             if (StringUtils.isBlank(trainStatus)) {
                 throw new BusinessException(ResponseEnum.OPERATION_FAILED);
@@ -226,5 +230,11 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
 
         log.error("Training timeout, taskId: {}", taskId);
         throw new BusinessException(ResponseEnum.OPERATION_FAILED, "Training timeout");
+    }
+
+    private VoiceTrainClient buildVoiceTrainClient() {
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
+        return new VoiceTrainClient.Builder(config.getPlatformAppId(), config.getPlatformApiKey()).build();
     }
 }
