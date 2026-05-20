@@ -51,21 +51,6 @@ spec:
         {{- if and (eq $key "ossDownloadHost") (or (eq $serviceName "coreAitools") (eq $serviceName "coreWorkflow")) }}
         - name: {{ upper (snakecase $key) }}
           value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.minio.service.nodePort | int) | quote }}
-        {{- else if and (eq $key "aiAppId") (eq $serviceName "coreAitools") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformAppId | quote }}
-        {{- else if and (eq $key "aiApiKey") (eq $serviceName "coreAitools") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformApiKey | quote }}
-        {{- else if and (eq $key "aiApiSecret") (eq $serviceName "coreAitools") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformApiSecret | quote }}
-        {{- else if and (eq $key "xinghuoAppId") (eq $serviceName "coreKnowledge") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformAppId | quote }}
-        {{- else if and (eq $key "xinghuoAppSecret") (eq $serviceName "coreKnowledge") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformApiSecret | quote }}
         {{- else if or (eq $key "mysqlPassword") (eq $key "databasePassword") }}
         - name: {{ upper (snakecase $key) }}
           valueFrom:

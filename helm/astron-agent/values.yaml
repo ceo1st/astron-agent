@@ -7,24 +7,6 @@ global:
   # Host base address for external access (e.g., http://your-domain.com)
   # Used for MinIO server URL and other external endpoints
   hostBaseAddress: "http://astron-agent.example.com"
-  # iFLYTEK Platform API Configuration
-  # You can get your own API key and secret on the iFLYTEK Open Platform official website
-  # SPARK LLM API: https://xinghuo.xfyun.cn/sparkapi
-  # IMAGE-GEN API: https://www.xfyun.cn/services/wtop
-  platformAppId: "your-app-id"
-  platformApiKey: "your-api-key"
-  platformApiSecret: "your-api-secret"
-  # For RTASR API, you need to apply for a separate API key from the console website
-  # https://console.xfyun.cn/services/rta
-  sparkRtasrApiKey: "your-rtasr-api-key"
-  # For Spark LLM API, there will be an additional API password from the console website
-  # https://console.xfyun.cn/services/bm4
-  sparkApiPassword: "your-api-password"
-  # For virtual-man API, you need to apply for a separate API key from the console website (https://virtual-man.xfyun.cn/console/applications)
-  sparkVirtualManAppId: "your-virtual-man-app-id"
-  sparkVirtualManApiKey: "your-virtual-man-api-key"
-  sparkVirtualManApiSecret: "your-virtual-man-api-secret"
-
 # Override the full name for consistent resource naming
 fullnameOverride: "astron-agent"
 
@@ -277,9 +259,6 @@ coreAitools:
   env:
     servicePort: 18668
     ossDownloadHost: ""
-    aiAppId: ""
-    aiApiKey: ""
-    aiApiSecret: ""
     ossType: s3
     ossEndpoint: "http://astron-agent-minio:9000"
     ossAccessKeyId: ""
@@ -364,14 +343,7 @@ coreKnowledge:
     port: 20010
   env:
     servicePort: 20010
-    xinghuoAppId: ""
-    xinghuoAppSecret: ""
     otlpEnable: "0"
-    ragflowBaseUrl: ""
-    ragflowApiToken: ""
-    ragflowTimeout: "60"
-    ragflowDefaultGroup: ""
-    xinghuoDatasetId: ""
 
 coreWorkflow:
   enabled: true
@@ -538,21 +510,6 @@ consoleHub:
     wechatToken: your-wechat-token
     wechatEncodingAesKey: your-wechat-encoding-aes-key
     adminUid: "9999"
-    platformAppId: ""
-    sparkAppId: ""
-    sparkRtasrAppid: ""
-    sparkImageAppId: ""
-    platformApiKey: ""
-    sparkApiKey: ""
-    sparkImageApiKey: ""
-    platformApiSecret: ""
-    sparkApiSecret: ""
-    sparkImageApiSecret: ""
-    sparkApiPassword: ""
-    sparkRtasrKey: ""
-    sparkVirtualManAppId: ""
-    sparkVirtualManApiKey: ""
-    sparkVirtualManApiSecret: ""
     botApiMaasBaseUrl: ""
 
 # Ingress configuration

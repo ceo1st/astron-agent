@@ -23,6 +23,7 @@ except ImportError:
     RAGFlow = None  # type: ignore[assignment]
 
 from knowledge.consts.error_code import CodeEnum
+from knowledge.domain.platform_account_config import get_config_value
 from knowledge.exceptions.exception import ThirdPartyException
 
 # Import constants module to ensure environment variables are loaded properly
@@ -37,22 +38,23 @@ _RAGFLOW_DATA_ERROR = 102
 # Module-level configuration cache and session management
 _config_cache = None
 _session_cache = None
+_session_config_key = None
 _session_lock = asyncio.Lock()
 _rag_object = None
+_rag_object_config_key = None
 
 
 def get_rag_object() -> Any:
     """
     Get or create RAGFlow client instance with proper configuration loading
     """
-    global _rag_object
-    if _rag_object is None:
+    global _rag_object, _rag_object_config_key
+    base_url = _config_value("base_url", "RAGFLOW_BASE_URL", "")
+    api_key = _config_value("api_token", "RAGFLOW_API_TOKEN", "")
+    config_key = (base_url, api_key)
+    if _rag_object is None or _rag_object_config_key != config_key:
         if RAGFlow is None:
             raise ImportError("ragflow_sdk is not available")
-
-        # Use os.getenv directly to get environment variables, consistent with aiui.py
-        base_url = os.getenv("RAGFLOW_BASE_URL", "")
-        api_key = os.getenv("RAGFLOW_API_TOKEN", "")
 
         if not base_url:
             raise ValueError("RAGFLOW_BASE_URL not configured in environment variables")
@@ -62,6 +64,7 @@ def get_rag_object() -> Any:
             )
 
         _rag_object = RAGFlow(api_key=api_key, base_url=base_url)
+        _rag_object_config_key = config_key
         print(f"RAGFlow client initialized with base_url: {base_url}")
 
     return _rag_object
@@ -76,35 +79,33 @@ def _load_ragflow_config() -> Dict[str, Any]:
     """
     global _config_cache
 
-    if _config_cache is None:
+    # Safe conversion of timeout to integer
+    timeout_value = _config_value("timeout", "RAGFLOW_TIMEOUT", "30")
+    try:
+        timeout_int = int(timeout_value) if timeout_value else 30
+    except (ValueError, TypeError):
+        timeout_int = 30
+        logger.warning(
+            f"Invalid RAGFLOW_TIMEOUT value: {timeout_value}, using default: 30"
+        )
 
-        # Safe conversion of timeout to integer
-        timeout_value = os.getenv("RAGFLOW_TIMEOUT", "30")
-        try:
-            timeout_int = int(timeout_value) if timeout_value else 30
-        except (ValueError, TypeError):
-            timeout_int = 30
-            logger.warning(
-                f"Invalid RAGFLOW_TIMEOUT value: {timeout_value}, using default: 30"
-            )
+    _config_cache = {
+        "base_url": _config_value("base_url", "RAGFLOW_BASE_URL", ""),
+        "api_token": _config_value("api_token", "RAGFLOW_API_TOKEN", ""),
+        "timeout": timeout_int,
+        "default_group": _config_value("default_group", "RAGFLOW_DEFAULT_GROUP", ""),
+    }
 
-        _config_cache = {
-            "base_url": os.getenv("RAGFLOW_BASE_URL", ""),
-            "api_token": os.getenv("RAGFLOW_API_TOKEN", ""),
-            "timeout": timeout_int,
-            "default_group": os.getenv("RAGFLOW_DEFAULT_GROUP", ""),
-        }
-
-        # Validate required configuration
-        if not _config_cache["base_url"] or not _config_cache["api_token"]:
-            logger.warning(
-                "RAGFlow configuration incomplete, please check config.env file"
-            )
-            logger.warning(
-                "Required configuration: RAGFLOW_BASE_URL and RAGFLOW_API_TOKEN"
-            )
-        else:
-            logger.info(f"RAGFlow configuration loaded: {_config_cache['base_url']}")
+    # Validate required configuration
+    if not _config_cache["base_url"] or not _config_cache["api_token"]:
+        logger.warning(
+            "RAGFlow configuration incomplete, please check config.env file"
+        )
+        logger.warning(
+            "Required configuration: RAGFLOW_BASE_URL and RAGFLOW_API_TOKEN"
+        )
+    else:
+        logger.info(f"RAGFlow configuration loaded: {_config_cache['base_url']}")
 
     return _config_cache
 
@@ -120,13 +121,22 @@ async def _get_session() -> aiohttp.ClientSession:
 
     async with _session_lock:
         # Create new session if it doesn't exist, is closed, or connector is closed
+        global _session_config_key
+        config = _load_ragflow_config()
+        config_key = (
+            config.get("base_url"),
+            config.get("api_token"),
+            config.get("timeout"),
+        )
+        if _session_cache is not None and _session_config_key != config_key:
+            await _session_cache.close()
+            _session_cache = None
+
         if (
             _session_cache is None
             or _session_cache.closed
             or (_session_cache.connector and _session_cache.connector.closed)
         ):
-
-            config = _load_ragflow_config()
 
             timeout_config = aiohttp.ClientTimeout(total=config["timeout"])
             connector = aiohttp.TCPConnector(
@@ -146,6 +156,7 @@ async def _get_session() -> aiohttp.ClientSession:
             )
 
             logger.debug("RAGFlow HTTP session created and cached")
+            _session_config_key = config_key
 
     return _session_cache
 
@@ -372,10 +383,18 @@ def reload_config() -> None:
     """
     Reload configuration (called after configuration changes)
     """
-    global _config_cache, _rag_object
+    global _config_cache, _rag_object, _rag_object_config_key
     _config_cache = None
     _rag_object = None  # Reset RAGFlow client instance
+    _rag_object_config_key = None
     logger.info("RAGFlow configuration cache cleared, will reload on next request")
+
+
+def _config_value(key: str, env_name: str, default: str = "") -> str:
+    value = get_config_value("ragflow", key)
+    if value not in (None, ""):
+        return str(value)
+    return os.getenv(env_name, default)
 
 
 # ==================== Query Related APIs ====================
@@ -539,7 +558,7 @@ async def _upload_via_default_group(file_content: bytes, filename: str) -> List[
 
     Kept separate to avoid increasing ``upload_document_to_dataset`` complexity.
     """
-    group_name = os.getenv("RAGFLOW_DEFAULT_GROUP", "")
+    group_name = _config_value("default_group", "RAGFLOW_DEFAULT_GROUP", "")
     if not group_name:
         raise ValueError(
             "RAGFLOW_DEFAULT_GROUP is not set; cannot upload without dataset_id"

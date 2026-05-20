@@ -8,6 +8,8 @@ import com.iflytek.astron.console.toolkit.common.constant.ProjectContent;
 import com.iflytek.astron.console.toolkit.config.properties.RepoAuthorizedConfig;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
 import com.iflytek.astron.console.toolkit.entity.core.knowledge.*;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import com.iflytek.astron.console.toolkit.util.OkHttpUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,8 @@ public class KnowledgeV2ServiceCallHandler {
     private ApiUrl apiUrl;
     @Resource
     private RepoAuthorizedConfig repoAuthorizedConfig;
+    @Resource
+    private PlatformAccountService platformAccountService;
 
     private static final String DATASET_ID_FIELD = "datasetId";
 
@@ -38,10 +42,11 @@ public class KnowledgeV2ServiceCallHandler {
      */
     public String createRagflowDataset(String name, String description) {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/dataset/create");
+        Map<String, String> headers = buildKnowledgeHeaders(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
         DatasetCreateRequest req = new DatasetCreateRequest(name, description);
         String reqBody = JSON.toJSONString(req);
         log.info("createRagflowDataset url = {}, name = {}", url, name);
-        String resp = postJson(url, reqBody);
+        String resp = postJson(url, headers, reqBody);
         log.info("createRagflowDataset response = {}", resp);
         KnowledgeResponse parsed = JSON.parseObject(resp, KnowledgeResponse.class);
         if (parsed == null || parsed.getCode() == null || parsed.getCode() != 0) {
@@ -82,9 +87,10 @@ public class KnowledgeV2ServiceCallHandler {
     public KnowledgeResponse documentSplit(SplitRequest request, String datasetId) {
         applyDatasetIdToSplitRequest(request, datasetId);
         String url = apiUrl.getKnowledgeUrl().concat("/v1/document/split");
+        Map<String, String> headers = buildKnowledgeHeaders(request.getRagType());
         String reqBody = JSON.toJSONString(request);
         log.info("documentSplit url = {}, request = {}", url, reqBody);
-        String post = postJson(url, reqBody);
+        String post = postJson(url, headers, reqBody);
         log.info("documentSplit response = {}", post);
         return JSON.parseObject(post, KnowledgeResponse.class);
     }
@@ -128,9 +134,10 @@ public class KnowledgeV2ServiceCallHandler {
                 params.put("documentId", oldDocId);
             }
             applyDatasetIdToUploadParams(params, ragType, datasetId);
+            Map<String, String> headers = buildKnowledgeHeaders(ragType);
 
             log.info("documentUpload url = {}, ragType = {}, resourceType = {}", url, ragType, resourceType);
-            String post = OkHttpUtil.postMultipart(url, null, null, params, null);
+            String post = OkHttpUtil.postMultipart(url, null, headers, params, null);
             log.info("documentUpload response = {}", post);
             return JSON.parseObject(post, KnowledgeResponse.class);
         } catch (Exception e) {
@@ -165,41 +172,75 @@ public class KnowledgeV2ServiceCallHandler {
 
     public KnowledgeResponse saveChunk(KnowledgeRequest request) {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/chunks/save");
+        Map<String, String> headers = buildKnowledgeHeaders(request.getRagType());
         String reqBody = JSON.toJSONString(request);
         log.info("saveChunk url = {}, request = {}", url, reqBody);
-        String post = postJson(url, reqBody);
+        String post = postJson(url, headers, reqBody);
         log.info("saveChunk response = {}", post);
         return JSON.parseObject(post, KnowledgeResponse.class);
     }
 
     public KnowledgeResponse updateChunk(KnowledgeRequest request) {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/chunk/update");
+        Map<String, String> headers = buildKnowledgeHeaders(request.getRagType());
         String reqBody = JSON.toJSONString(request);
         log.info("updateChunk url = {}, request = {}", url, reqBody);
-        String post = postJson(url, reqBody);
+        String post = postJson(url, headers, reqBody);
         log.info("updateChunk response = {}", post);
         return JSON.parseObject(post, KnowledgeResponse.class);
     }
 
     public KnowledgeResponse deleteDocOrChunk(KnowledgeRequest request) {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/chunk/delete");
+        Map<String, String> headers = buildKnowledgeHeaders(request.getRagType());
         String reqBody = JSON.toJSONString(request);
         log.info("deleteDocOrChunk url = {}, request = {}", url, reqBody);
-        String post = postJson(url, reqBody);
+        String post = postJson(url, headers, reqBody);
         log.info("deleteDocOrChunk response = {}", post);
         return JSON.parseObject(post, KnowledgeResponse.class);
     }
 
     public KnowledgeResponse knowledgeQuery(QueryRequest request) {
         String url = apiUrl.getKnowledgeUrl().concat("/v1/chunk/query");
+        Map<String, String> headers = buildKnowledgeHeaders(request.getRagType());
         String reqBody = JSON.toJSONString(request);
         log.info("knowledgeQuery request url:{}\ndata:{}", url, reqBody);
-        String respData = postJson(url, reqBody);
+        String respData = postJson(url, headers, reqBody);
         log.info("knowledgeQuery response data:{}", respData);
         return JSON.parseObject(respData, KnowledgeResponse.class);
     }
 
     private String postJson(String url, String reqBody) {
         return OkHttpUtil.post(url, reqBody);
+    }
+
+    private String postJson(String url, Map<String, String> headers, String reqBody) {
+        return OkHttpUtil.post(url, headers, reqBody);
+    }
+
+    private Map<String, String> buildKnowledgeHeaders(String ragType) {
+        Map<String, String> headers = new HashMap<>();
+        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(ragType)) {
+            PlatformAccountConfigDto.RagflowConfig ragflow = platformAccountService.requireRagflow();
+            headers.put("x-ragflow-base-url", ragflow.getBaseUrl());
+            headers.put("x-ragflow-api-token", ragflow.getApiToken());
+            if (ragflow.getTimeout() != null) {
+                headers.put("x-ragflow-timeout", String.valueOf(ragflow.getTimeout()));
+            }
+            if (StringUtils.isNotBlank(ragflow.getDefaultGroup())) {
+                headers.put("x-ragflow-default-group", ragflow.getDefaultGroup());
+            }
+            return headers;
+        }
+        if (ProjectContent.FILE_SOURCE_CBG_RAG_STR.equals(ragType)) {
+            PlatformAccountConfigDto.XinghuoKnowledgeConfig xinghuo =
+                    platformAccountService.requireXinghuoKnowledge();
+            PlatformAccountConfigDto.IflytekOpenPlatformConfig platform =
+                    platformAccountService.requireIflytekOpenPlatform();
+            headers.put("x-xinghuo-dataset-id", xinghuo.getDatasetId());
+            headers.put("x-xinghuo-app-id", platform.getPlatformAppId());
+            headers.put("x-xinghuo-app-secret", platform.getPlatformApiSecret());
+        }
+        return headers;
     }
 }
