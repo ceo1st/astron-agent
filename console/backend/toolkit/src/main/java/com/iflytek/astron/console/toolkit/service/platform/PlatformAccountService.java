@@ -117,6 +117,16 @@ public class PlatformAccountService {
         return config.getIflytekOpenPlatform();
     }
 
+    public PlatformAccountConfigDto.IflytekOpenPlatformConfig requireXinghuoKnowledgePlatformCredentials() {
+        PlatformAccountConfigDto config = getConfig(PlatformAccountType.IFLYTEK_OPEN_PLATFORM);
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig item =
+                config == null ? null : config.getIflytekOpenPlatform();
+        if (item == null || !hasText(item.getPlatformAppId()) || !hasText(item.getPlatformApiSecret())) {
+            throwNotConfigured("讯飞开放平台（星火知识库需要 PLATFORM_APP_ID 和 PLATFORM_API_SECRET）");
+        }
+        return item;
+    }
+
     public PlatformAccountConfigDto.AiAbilityChatConfig requireAiAbilityChat() {
         PlatformAccountConfigDto config = getConfig(PlatformAccountType.AI_ABILITY_CHAT);
         if (!isConfigured(PlatformAccountType.AI_ABILITY_CHAT, config)) {
