@@ -103,4 +103,16 @@ class PlatformAccountServiceTest {
 
         verify(redisUtil, never()).put(eq("platform_account:ai_ability_chat"), any());
     }
+
+    @Test
+    void requireXinghuoKnowledgePlatformCredentialsOnlyNeedsAppIdAndApiSecret() {
+        when(redisUtil.getStr("platform_account:iflytek_open_platform"))
+                .thenReturn("{\"platformAppId\":\"platform-app\",\"platformApiSecret\":\"secret\"}");
+
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireXinghuoKnowledgePlatformCredentials();
+
+        assertThat(config.getPlatformAppId()).isEqualTo("platform-app");
+        assertThat(config.getPlatformApiSecret()).isEqualTo("secret");
+    }
 }

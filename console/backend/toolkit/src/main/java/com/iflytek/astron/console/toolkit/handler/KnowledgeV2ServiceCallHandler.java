@@ -137,7 +137,7 @@ public class KnowledgeV2ServiceCallHandler {
             Map<String, String> headers = buildKnowledgeHeaders(ragType);
 
             log.info("documentUpload url = {}, ragType = {}, resourceType = {}", url, ragType, resourceType);
-            String post = OkHttpUtil.postMultipart(url, null, headers, params, null);
+            String post = OkHttpUtil.postMultipart(url, headers, null, params, null);
             log.info("documentUpload response = {}", post);
             return JSON.parseObject(post, KnowledgeResponse.class);
         } catch (Exception e) {
@@ -236,7 +236,7 @@ public class KnowledgeV2ServiceCallHandler {
             PlatformAccountConfigDto.XinghuoKnowledgeConfig xinghuo =
                     platformAccountService.requireXinghuoKnowledge();
             PlatformAccountConfigDto.IflytekOpenPlatformConfig platform =
-                    platformAccountService.requireIflytekOpenPlatform();
+                    platformAccountService.requireXinghuoKnowledgePlatformCredentials();
             headers.put("x-xinghuo-dataset-id", xinghuo.getDatasetId());
             headers.put("x-xinghuo-app-id", platform.getPlatformAppId());
             headers.put("x-xinghuo-app-secret", platform.getPlatformApiSecret());
