@@ -42,13 +42,14 @@ public class PlatformAccountService {
     public PlatformAccountConfigDto getConfig(PlatformAccountType type) {
         String cached = redisUtil.getStr(cacheKey(type));
         if (StringUtils.isNotBlank(cached)) {
+            redisUtil.putString(textCacheKey(type), cached);
             return parse(type, cached);
         }
         ConfigInfo configInfo = configInfoMapper.getByCategoryAndCode(CATEGORY, type.getCode());
         if (configInfo == null || StringUtils.isBlank(configInfo.getValue())) {
             return new PlatformAccountConfigDto();
         }
-        redisUtil.put(cacheKey(type), configInfo.getValue());
+        cacheConfigValue(type, configInfo.getValue());
         return parse(type, configInfo.getValue());
     }
 
@@ -83,6 +84,7 @@ public class PlatformAccountService {
             configInfoMapper.updateById(existing);
         }
         redisUtil.remove(cacheKey(type));
+        redisUtil.removeString(textCacheKey(type));
         return getMaskedConfig(type);
     }
 
@@ -337,6 +339,15 @@ public class PlatformAccountService {
 
     private String cacheKey(PlatformAccountType type) {
         return RedisKeyConstant.PLATFORM_ACCOUNT_CONFIG_PREFIX + type.getValue();
+    }
+
+    private String textCacheKey(PlatformAccountType type) {
+        return RedisKeyConstant.PLATFORM_ACCOUNT_CONFIG_TEXT_PREFIX + type.getValue();
+    }
+
+    private void cacheConfigValue(PlatformAccountType type, String value) {
+        redisUtil.put(cacheKey(type), value);
+        redisUtil.putString(textCacheKey(type), value);
     }
 
     private void throwNotConfigured(String name) {

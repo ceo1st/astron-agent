@@ -45,7 +45,26 @@ class PlatformAccountServiceTest {
                 platformAccountService.getConfig(PlatformAccountType.IFLYTEK_OPEN_PLATFORM);
 
         assertThat(config.getIflytekOpenPlatform().getPlatformAppId()).isEqualTo("appid");
+        verify(redisUtil).putString("platform_account_text:iflytek_open_platform",
+                "{\"platformAppId\":\"appid\",\"platformApiKey\":\"key\","
+                        + "\"platformApiSecret\":\"secret\",\"sparkApiPassword\":\"pwd\","
+                        + "\"sparkRtasrApiKey\":\"rtasr\"}");
         verify(configInfoMapper, never()).getByCategoryAndCode(any(), any());
+    }
+
+    @Test
+    void getConfigPublishesPlainRedisCacheForCoreServices() {
+        when(redisUtil.getStr("platform_account:iflytek_open_platform")).thenReturn(null);
+        ConfigInfo configInfo = new ConfigInfo();
+        configInfo.setValue("{\"platformAppId\":\"appid\",\"platformApiKey\":\"key\","
+                + "\"platformApiSecret\":\"secret\"}");
+        when(configInfoMapper.getByCategoryAndCode("PLATFORM_ACCOUNT", "IFLYTEK_OPEN_PLATFORM"))
+                .thenReturn(configInfo);
+
+        platformAccountService.getConfig(PlatformAccountType.IFLYTEK_OPEN_PLATFORM);
+
+        verify(redisUtil).put("platform_account:iflytek_open_platform", configInfo.getValue());
+        verify(redisUtil).putString("platform_account_text:iflytek_open_platform", configInfo.getValue());
     }
 
     @Test
@@ -71,6 +90,7 @@ class PlatformAccountServiceTest {
         verify(configInfoMapper).updateById(captor.capture());
         assertThat(captor.getValue().getValue()).contains("https://example.test/v1");
         verify(redisUtil).remove("platform_account:ai_ability_chat");
+        verify(redisUtil).removeString("platform_account_text:ai_ability_chat");
     }
 
     @Test
