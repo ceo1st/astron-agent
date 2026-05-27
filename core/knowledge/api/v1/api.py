@@ -18,6 +18,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from knowledge.consts.error_code import CodeEnum
+from knowledge.domain.platform_account_config import set_platform_account_config
 from knowledge.domain.entity.chunk_dto import (
     ChunkDeleteReq,
     ChunkQueryReq,
@@ -37,7 +38,28 @@ from knowledge.infra.ragflow.ragflow_utils import RagflowUtils
 from knowledge.service.rag_strategy_factory import RAGStrategyFactory
 from knowledge.service.rq.rewrite_query import rewrite_query
 
-rag_router = APIRouter(prefix="/knowledge/v1")
+async def bind_platform_account_config(request: Request) -> None:
+    set_platform_account_config(
+        {
+            "ragflow": {
+                "base_url": request.headers.get("x-ragflow-base-url", ""),
+                "api_token": request.headers.get("x-ragflow-api-token", ""),
+                "timeout": request.headers.get("x-ragflow-timeout", ""),
+                "default_group": request.headers.get("x-ragflow-default-group", ""),
+            },
+            "xinghuo": {
+                "dataset_id": request.headers.get("x-xinghuo-dataset-id", ""),
+                "app_id": request.headers.get("x-xinghuo-app-id", ""),
+                "app_secret": request.headers.get("x-xinghuo-app-secret", ""),
+            },
+        }
+    )
+
+
+rag_router = APIRouter(
+    prefix="/knowledge/v1",
+    dependencies=[Depends(bind_platform_account_config)],
+)
 
 
 # --- Dependency Functions ---
