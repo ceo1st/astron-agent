@@ -602,6 +602,7 @@ services:
       BOT_API_MAAS_BASE_URL: "${BOT_API_MAAS_BASE_URL:-}"
       TENANT_CREATE_APP: "${TENANT_CREATE_APP:-}"
       TENANT_GET_APP_DETAIL: "${TENANT_GET_APP_DETAIL:-}"
+      TENANT_VERIFY_APP_AUTH: "${TENANT_VERIFY_APP_AUTH:-http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/key/verify}"
       
     expose:
       - "8080"

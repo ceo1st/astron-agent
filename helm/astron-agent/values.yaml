@@ -497,6 +497,7 @@ consoleHub:
     # Tenant APIs
     tenantCreateApp: "http://astron-agent-core-tenant:5052/v2/app"
     tenantGetAppDetail: "http://astron-agent-core-tenant:5052/v2/app/details"
+    tenantVerifyAppAuth: "http://astron-agent-core-tenant:5052/v2/app/key/verify"
     # MaaS Platform Configuration
     maasAppId: "680ab54f"
     maasApiKey: "7b709739e8da44536127a333c7603a83"
