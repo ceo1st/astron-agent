@@ -204,3 +204,4 @@ wechat:
 tenant:
   create-app: ${TENANT_CREATE_APP:http://localhost:5052/v2/app}
   get-app-detail: ${TENANT_GET_APP_DETAIL:http://localhost:5052/v2/app/details}
+  verify-app-auth: ${TENANT_VERIFY_APP_AUTH:http://localhost:5052/v2/app/key/verify}
