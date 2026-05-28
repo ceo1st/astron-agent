@@ -10,6 +10,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -26,6 +27,7 @@ public class HttpTenantGatewayAuthClient implements TenantGatewayAuthClient {
     private final OkHttpClient httpClient;
     private final String verifyAppAuthUrl;
 
+    @Autowired
     public HttpTenantGatewayAuthClient(@Value("${tenant.verify-app-auth}") String verifyAppAuthUrl) {
         this(new OkHttpClient(), verifyAppAuthUrl);
     }
