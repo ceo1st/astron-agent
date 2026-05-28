@@ -12,11 +12,11 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
 import uvicorn
+from common.health import create_health_router
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
-
 from workflow.api.v1.router import old_auth_router, sparkflow_router, workflow_router
 from workflow.cache.event_registry import EventRegistry
 from workflow.extensions.fastapi.handler.validation import validation_exception_handler
@@ -30,6 +30,7 @@ from workflow.extensions.fastapi.middleware.otlp import OtlpMiddleware
 from workflow.extensions.graceful_shutdown.graceful_shutdown import GracefulShutdown
 from workflow.extensions.middleware.base import FactoryConfig, ServiceType
 from workflow.extensions.middleware.initialize import initialize_services
+from workflow.extensions.middleware.manager import service_manager
 from workflow.utils.system_workers import worker_count
 
 
@@ -103,6 +104,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)  # type: ignore[arg-type]
 
     # Include API routers for different endpoints
+    app.include_router(create_health_router("core-workflow", service_manager))
     app.include_router(sparkflow_router)
     app.include_router(workflow_router)
     app.include_router(old_auth_router)
