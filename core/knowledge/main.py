@@ -14,15 +14,16 @@ import os
 import sys
 
 import uvicorn
+from common.health import create_health_router
 from common.initialize.initialize import initialize_services
+from common.service import service_manager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from loguru import logger
-
 from knowledge.api.v1.api import rag_router
 from knowledge.consts.error_code import CodeEnum
 from knowledge.domain.response import ErrorResponse
+from loguru import logger
 
 
 def initialize_extensions() -> None:
@@ -40,6 +41,7 @@ def initialize_extensions() -> None:
 def create_app() -> FastAPI:
     logging.info(""" KNOWLEDGE SERVER START """)
     app = FastAPI()
+    app.include_router(create_health_router("core-knowledge", service_manager))
     app.include_router(rag_router)
 
     @app.exception_handler(RequestValidationError)

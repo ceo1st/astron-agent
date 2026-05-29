@@ -397,6 +397,11 @@ services:
       - ./config/agent/config.env:/opt/core/agent/config.env
     networks:
       - astron-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; urllib.request.urlopen('http://localhost:%s/health/ready' % os.getenv('SERVICE_PORT', '17870'), timeout=5).read()\""]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
     restart: always
 
   # Knowledge Base Service
@@ -423,6 +428,11 @@ services:
       - ./config/knowledge/logs/:/opt/core/logs
     networks:
       - astron-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; urllib.request.urlopen('http://localhost:%s/health/ready' % os.getenv('SERVICE_PORT', '20010'), timeout=5).read()\""]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
     restart: always
 
   # Workflow Service
@@ -484,6 +494,11 @@ services:
       - ./config/workflow/logs/:/opt/core/logs
     networks:
       - astron-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; urllib.request.urlopen('http://localhost:%s/health/ready' % os.getenv('SERVICE_PORT', '7880'), timeout=5).read()\""]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
     restart: always
 
   # ============================================================================
