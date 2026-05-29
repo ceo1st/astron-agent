@@ -36,7 +36,6 @@ def initialize_extensions() -> None:
     need_init_services = [
         "settings_service",
         "log_service",
-        "database_service",
         "kafka_producer_service",
         "otlp_sid_service",
         "otlp_span_service",
