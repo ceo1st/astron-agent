@@ -152,7 +152,7 @@ const translation = {
   providerDoubao: '豆包',
   providerHintOpenAI: '使用 OpenAI 接口地址，例如 /v1/chat/completions。',
   providerHintMiniMax:
-    '使用 MiniMax 官方接口地址，并填写 MiniMax-Text-01 等模型名称。',
+    '使用 MiniMax 官方接口地址，并填写 MiniMax-M3 等模型名称。',
   providerHintZhipu:
     '使用智谱官方接口地址，并填写 glm-4.5、glm-4-flash 等模型名称。',
   providerHintQwen:
@@ -169,7 +169,7 @@ const translation = {
     '使用 Anthropic Messages API 地址，并填写 Claude Sonnet / Opus 等模型名。',
   providerHintGoogle:
     '使用 Gemini API 地址，并填写 gemini-2.5-flash 等模型名。',
-  minimaxModelPlaceholder: '例如 MiniMax-Text-01',
+  minimaxModelPlaceholder: '例如 MiniMax-M3 或 MiniMax-M2.7',
   minimaxEndpointPlaceholder: '请输入 MiniMax API 地址',
   zhipuModelPlaceholder: '例如 glm-4.5 或 glm-4-flash',
   zhipuEndpointPlaceholder: '请输入智谱 API 地址',

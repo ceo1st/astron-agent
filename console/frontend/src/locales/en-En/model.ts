@@ -157,7 +157,7 @@ const translation = {
   providerHintOpenAI:
     'Use an OpenAI-compatible endpoint such as /v1/chat/completions.',
   providerHintMiniMax:
-    'Use the MiniMax official endpoint and a model such as MiniMax-Text-01.',
+    'Use the MiniMax official endpoint and a model such as MiniMax-M3.',
   providerHintZhipu:
     'Use the Zhipu AI official endpoint and a model such as glm-4.5 or glm-4-flash.',
   providerHintQwen:
@@ -174,7 +174,7 @@ const translation = {
     'Use an Anthropic Messages API endpoint and a Claude model such as Sonnet or Opus.',
   providerHintGoogle:
     'Use a Gemini API endpoint and a Gemini model such as gemini-2.5-flash.',
-  minimaxModelPlaceholder: 'e.g. MiniMax-Text-01',
+  minimaxModelPlaceholder: 'e.g. MiniMax-M3 or MiniMax-M2.7',
   minimaxEndpointPlaceholder: 'Please enter the MiniMax API endpoint',
   zhipuModelPlaceholder: 'e.g. glm-4.5 or glm-4-flash',
   zhipuEndpointPlaceholder: 'Please enter the Zhipu AI API endpoint',
