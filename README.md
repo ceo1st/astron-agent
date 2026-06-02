@@ -28,6 +28,24 @@ The platform supports **high-availability** deployment, enabling organizations t
 - **Ready-to-Use Tool Ecosystem:** Integrates massive AI capabilities and tools from the [iFLYTEK Open Platform](https://www.xfyun.cn), validated by millions of developers, supporting plug-and-play integration without extra development.  
 - **Flexible Large Model Support:** Offers diverse access methods, from rapid API-based model access and validation to one-click deployment of enterprise-level MaaS (Model as a Service) on-premises clusters, meeting needs of all scales.  
 
+## 🤝 [落地用户](https://iflytek.github.io/astron-agent/cases/)
+
+<div align="center">
+
+<img src="./docs/cases/imgs/donghua.png" alt="东华软件" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/chinatelecom.png" alt="中国电信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/yunsuan.jpg" alt="云算数字科技" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/xiaoqu.png" alt="小趣科技" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/shandongyungu.png" alt="山东云谷" height="56" />
+<br/><br/>
+<img src="./docs/cases/imgs/guangwu.jpg" alt="广物互联" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/yugou.jpg" alt="北京榆构" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/fiberhome.png" alt="烽火通信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/foxit.jpg" alt="厦门福昕中数" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/xiangyang-dongsheng.png" alt="襄阳东昇" height="56" />
+
+</div>
+
 ## 📰 News
 
 ### 🔄 Ongoing
