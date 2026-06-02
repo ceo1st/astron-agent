@@ -82,7 +82,7 @@ const zhContent: CasesContent = {
   galleryText: "",
   labelScenario: "业务场景",
   labelDelivery: "落地方式",
-  labelOutcome: "阶段成果",
+  labelOutcome: "应用成果",
   cards: [
     {
       logo: donghuaLogo,
