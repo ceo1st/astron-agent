@@ -50,7 +50,7 @@ const zhContent: CasesContent = {
     "Astron Agent 已在金融、电信、制造、园区运营等真实企业场景中落地，覆盖从智能分析、工作流编排到 RPA 执行的完整链路。",
   heroTags: ["Agent + RPA", "私有化与内网", "知识库与客服", "数据清洗与自动化"],
   stats: [
-    { value: "10+", label: "带 logo 的企业案例" },
+    { value: "10+", label: "企业案例" },
     { value: "4 类", label: "核心落地方向" },
     { value: "多行业", label: "覆盖金融、电信、制造、园区等场景" }
   ],
@@ -75,7 +75,7 @@ const zhContent: CasesContent = {
     }
   ],
   galleryTitle: "企业案例一览",
-  galleryText: "以下案例基于项目沟通记录整理，统一从业务场景、落地方式与阶段成果三个维度做对外展示。",
+  galleryText: "",
   labelScenario: "业务场景",
   labelDelivery: "落地方式",
   labelOutcome: "阶段成果",
@@ -190,7 +190,7 @@ const enContent: CasesContent = {
     "Astron Agent has been delivered in real enterprise scenarios across finance, telecom, manufacturing, and smart campus operations, covering the full path from intelligent analysis to workflow execution.",
   heroTags: ["Agent + RPA", "Private Deployment", "Knowledge + Support", "Data Structuring"],
   stats: [
-    { value: "10+", label: "Customer stories with logo assets" },
+    { value: "10+", label: "Customer stories" },
     { value: "4 Types", label: "Core delivery patterns" },
     { value: "Multi-Industry", label: "Finance, telecom, manufacturing, campus services and more" }
   ],
@@ -215,7 +215,7 @@ const enContent: CasesContent = {
     }
   ],
   galleryTitle: "Customer Gallery",
-  galleryText: "The stories below are distilled from project communication records and presented through business scenario, delivery approach, and measurable outcome.",
+  galleryText: "",
   labelScenario: "Scenario",
   labelDelivery: "Delivery",
   labelOutcome: "Outcome",
@@ -363,22 +363,24 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
       <div class="cases-page__heading">
         <span class="cases-page__eyebrow">Case Gallery</span>
         <h2>{{ content.galleryTitle }}</h2>
-        <p>{{ content.galleryText }}</p>
+        <p v-if="content.galleryText">{{ content.galleryText }}</p>
       </div>
       <div class="cases-page__grid">
         <article v-for="card in content.cards" :key="card.company" class="case-card">
-          <div class="case-card__brand">
-            <div class="case-card__logo-wrap">
-              <img :src="card.logo" :alt="card.logoAlt">
+          <div class="case-card__side">
+            <div class="case-card__brand">
+              <div class="case-card__logo-wrap">
+                <img :src="card.logo" :alt="card.logoAlt">
+              </div>
+              <div class="case-card__brand-copy">
+                <h3>{{ card.company }}</h3>
+                <p>{{ card.subtitle }}</p>
+              </div>
             </div>
-            <div class="case-card__brand-copy">
-              <h3>{{ card.company }}</h3>
-              <p>{{ card.subtitle }}</p>
-            </div>
-          </div>
 
-          <div class="case-card__tags">
-            <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
+            <div class="case-card__tags">
+              <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
+            </div>
           </div>
 
           <dl class="case-card__details">
@@ -573,9 +575,10 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
 }
 
 .case-card {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
   padding: 24px;
   background: linear-gradient(180deg, #fdfefe 0%, #f3f7fb 100%);
   box-shadow: 0 18px 38px rgba(14, 29, 48, 0.08);
@@ -591,6 +594,11 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
 .case-card__brand {
   display: flex;
   align-items: center;
+  gap: 16px;
+}
+
+.case-card__side {
+  display: grid;
   gap: 16px;
 }
 
@@ -632,6 +640,7 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
 
 .case-card__details {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin: 0;
 }
@@ -639,6 +648,11 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
 .case-card__detail {
   display: grid;
   gap: 6px;
+  min-height: 100%;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(232, 241, 255, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(38, 86, 166, 0.08);
 }
 
 .case-card__detail dt {
@@ -660,6 +674,11 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
   .cases-page__grid {
     grid-template-columns: 1fr;
   }
+
+  .case-card,
+  .case-card__details {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -672,6 +691,10 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
   .case-card__brand {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .case-card__detail {
+    padding: 14px 16px;
   }
 
   .case-card__brand-copy h3 {

@@ -31,13 +31,11 @@ export default defineConfig({
         ],
         sidebar: [
           {
-            text: "入门指南",
+            text: "开始使用",
             items: [
+              { text: "项目概览", link: "/README-zh" },
               { text: "快速开始", link: "/guide/quick-start" },
-              { text: "部署指南", link: "/guide/deploy" },
-              { text: "配置说明", link: "/guide/config" },
-              { text: "FAQ", link: "/faq" },
-              { text: "README（中文）", link: "/README-zh" }
+              { text: "FAQ", link: "/faq" }
             ]
           },
           {
@@ -47,13 +45,15 @@ export default defineConfig({
             ]
           },
           {
-            text: "部署与运维",
+            text: "部署与配置",
             items: [
+              { text: "部署总览", link: "/guide/deploy" },
+              { text: "配置说明", link: "/guide/config" },
               { text: "标准部署指南", link: "/DEPLOYMENT_GUIDE_zh" },
               { text: "鉴权部署指南", link: "/DEPLOYMENT_GUIDE_WITH_AUTH_zh" },
               { text: "鉴权 + RPA 部署指南", link: "/DEPLOYMENT_GUIDE_WITH_AUTH_RPA_zh" },
               { text: "部署常见问题", link: "/DEPLOYMENT_FAQ_zh" },
-              { text: "配置文档", link: "/CONFIGURATION_zh" }
+              { text: "配置参考", link: "/CONFIGURATION_zh" }
             ]
           },
           {
@@ -113,11 +113,9 @@ export default defineConfig({
           {
             text: "Getting Started",
             items: [
+              { text: "Project Overview", link: "/en/README" },
               { text: "Quick Start", link: "/en/guide/quick-start" },
-              { text: "Deployment Guide", link: "/en/guide/deploy" },
-              { text: "Configuration", link: "/en/guide/config" },
-              { text: "FAQ", link: "/en/faq" },
-              { text: "Project README", link: "/en/README" }
+              { text: "FAQ", link: "/en/faq" }
             ]
           },
           {
@@ -127,8 +125,10 @@ export default defineConfig({
             ]
           },
           {
-            text: "Deployment And Operations",
+            text: "Deployment And Configuration",
             items: [
+              { text: "Deployment Overview", link: "/en/guide/deploy" },
+              { text: "Configuration Guide", link: "/en/guide/config" },
               { text: "Full Deployment Guide", link: "/en/DEPLOYMENT_GUIDE" },
               { text: "Auth Deployment Guide", link: "/en/DEPLOYMENT_GUIDE_WITH_AUTH" },
               { text: "Auth + RPA Deployment Guide", link: "/en/DEPLOYMENT_GUIDE_WITH_AUTH_RPA" },
@@ -140,14 +140,14 @@ export default defineConfig({
             text: "Architecture And Development",
             items: [
               { text: "Project Modules", link: "/en/PROJECT_MODULES" },
-              { text: "Makefile Guide", link: "/en/Makefile-readme" },
-              { text: "Pre-commit Guide", link: "/en/PRE-COMMIT" }
+              { text: "Makefile Guide", link: "/en/Makefile-readme" }
             ]
           },
           {
             text: "Contribution",
             items: [
-              { text: "Contributing Guide", link: "/en/CONTRIBUTING" }
+              { text: "Contributing Guide", link: "/en/CONTRIBUTING" },
+              { text: "Pre-commit Guide", link: "/en/PRE-COMMIT" }
             ]
           }
         ],
