@@ -110,6 +110,7 @@ docker compose -f docker-compose-with-auth.yaml up -d
 - [🏗️ 模块说明](PROJECT_MODULES_zh.md)
 - [🤝 贡献指南](CONTRIBUTING_CN.md)
 - [✅ Pre-commit 使用指南](PRE-COMMIT_zh.md)
+- [🏢 用户案例](cases/index.md)
 - [🚀 快速开始](https://www.xfyun.cn/doc/spark/Agent02-%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html)
 - [📘 开发指南](https://www.xfyun.cn/doc/spark/Agent03-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.html#_1-%E6%8C%87%E4%BB%A4%E5%9E%8B%E6%99%BA%E8%83%BD%E4%BD%93%E5%BC%80%E5%8F%91)
 - [📖 教程](https://scn5s6198j3j.feishu.cn/wiki/VefnwvPbridJBikCUb1cYXO9nYb)

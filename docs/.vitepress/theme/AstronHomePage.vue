@@ -124,6 +124,11 @@ const zhContent = {
       title: "FAQ",
       description: "收敛常见问题、定位思路和下一步排查入口，减少重复沟通。",
       href: "/faq"
+    },
+    {
+      title: "案例实践",
+      description: "查看 Astron Agent 在金融、电信、制造与园区等真实场景中的落地成果。",
+      href: "/cases/"
     }
   ],
   communityEyebrow: "Community",
@@ -306,6 +311,7 @@ onBeforeUnmount(() => {
         <div class="astron-home__nav-links">
           <a :href="localizePath('/guide/quick-start')">{{ content.nav.quickStart }}</a>
           <a :href="localizePath('/guide/deploy')">{{ content.nav.deploy }}</a>
+          <a v-if="!isEnglish" :href="withBase('/cases/')">案例实践</a>
           <a :href="localizePath('/guide/config')">{{ content.nav.config }}</a>
           <a :href="localizePath('/faq')">FAQ</a>
           <a class="astron-home__nav-locale" :href="localeSwitchHref">{{ localeSwitchLabel }}</a>

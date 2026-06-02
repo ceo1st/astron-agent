@@ -25,6 +25,7 @@ export default defineConfig({
           { text: "首页", link: "/" },
           { text: "快速开始", link: "/guide/quick-start" },
           { text: "部署与运维", link: "/guide/deploy" },
+          { text: "案例实践", link: "/cases/" },
           { text: "架构与开发", link: "/PROJECT_MODULES_zh" },
           { text: "贡献协作", link: "/CONTRIBUTING_CN" }
         ],
@@ -37,6 +38,12 @@ export default defineConfig({
               { text: "配置说明", link: "/guide/config" },
               { text: "FAQ", link: "/faq" },
               { text: "README（中文）", link: "/README-zh" }
+            ]
+          },
+          {
+            text: "案例实践",
+            items: [
+              { text: "用户案例", link: "/cases/" }
             ]
           },
           {
