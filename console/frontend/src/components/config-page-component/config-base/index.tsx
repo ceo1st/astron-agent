@@ -27,7 +27,10 @@ import InputBox from '@/components/prompt-try/input-box';
 import WxModal from '@/components/wx-modal';
 
 import { configListRepos } from '@/services/knowledge';
-import { handleAgentStatus } from '@/services/release-management';
+import {
+  handleAgentStatus,
+  isPublishApprovalDecision,
+} from '@/services/release-management';
 import {
   getBotInfo,
   getBotType,
@@ -555,8 +558,12 @@ const BaseConfig: React.FC<ChatProps> = ({
               publishType: 'MARKET',
               publishData: {},
             })
-              .then(() => {
-                message.success(t('configBase.publishSuccess'));
+              .then(result => {
+                message.success(
+                  isPublishApprovalDecision(result)
+                    ? t('releaseModal.submitApprovalPending')
+                    : t('configBase.publishSuccess')
+                );
                 navigate('/space/agent');
               })
               .catch(err => {
@@ -579,8 +586,12 @@ const BaseConfig: React.FC<ChatProps> = ({
             publishType: 'MARKET',
             publishData: {},
           })
-            .then(() => {
-              message.success(t('configBase.publishSuccess'));
+            .then(result => {
+              message.success(
+                isPublishApprovalDecision(result)
+                  ? t('releaseModal.submitApprovalPending')
+                  : t('configBase.publishSuccess')
+              );
               navigate('/space/agent');
             })
             .catch(err => {
