@@ -2,16 +2,16 @@
 import { computed } from "vue";
 import { useData } from "vitepress";
 
-import chinatelecomLogo from "../../../cases/imgs/chinatelecom.png";
-import donghuaLogo from "../../../cases/imgs/donghua.png";
-import fiberhomeLogo from "../../../cases/imgs/fiberhome.png";
-import foxitLogo from "../../../cases/imgs/foxit.jpg";
-import guangwuLogo from "../../../cases/imgs/guangwu.jpg";
-import shandongYunguLogo from "../../../cases/imgs/shandongyungu.png";
-import xiangyangDongshengLogo from "../../../cases/imgs/xiangyang-dongsheng.png";
-import xiaoquLogo from "../../../cases/imgs/xiaoqu.png";
-import yugouLogo from "../../../cases/imgs/yugou.jpg";
-import yunsuanLogo from "../../../cases/imgs/yunsuan.jpg";
+import chinatelecomLogo from "../../cases/imgs/chinatelecom.png";
+import donghuaLogo from "../../cases/imgs/donghua.png";
+import fiberhomeLogo from "../../cases/imgs/fiberhome.png";
+import foxitLogo from "../../cases/imgs/foxit.jpg";
+import guangwuLogo from "../../cases/imgs/guangwu.jpg";
+import shandongYunguLogo from "../../cases/imgs/shandongyungu.png";
+import xiangyangDongshengLogo from "../../cases/imgs/xiangyang-dongsheng.png";
+import xiaoquLogo from "../../cases/imgs/xiaoqu.png";
+import yugouLogo from "../../cases/imgs/yugou.jpg";
+import yunsuanLogo from "../../cases/imgs/yunsuan.jpg";
 
 type CaseCard = {
   logo: string;
