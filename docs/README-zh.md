@@ -27,6 +27,24 @@
 - **即用工具生态**：集成[讯飞开放平台](https://www.xfyun.cn)海量AI能力与工具，历经数百万开发者验证，免开发快速接入。
 - **灵活模型支持**：多种接入方式，支持大模型API快速接入验证到企业级MaaS本地集群一键部署，满足不同规模需求。
 
+## 🤝 [落地用户](https://iflytek.github.io/astron-agent/cases/)
+
+<div align="center">
+
+<img src="./cases/imgs/donghua.png" alt="东华软件" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./cases/imgs/chinatelecom.png" alt="中国电信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./cases/imgs/yunsuan.jpg" alt="云算数字科技" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./cases/imgs/xiaoqu.png" alt="小趣科技" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./cases/imgs/shandongyungu.png" alt="山东云谷" height="56" />
+<br/><br/>
+<img src="./cases/imgs/guangwu.jpg" alt="广物互联" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./cases/imgs/yugou.jpg" alt="北京榆构" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./cases/imgs/fiberhome.png" alt="烽火通信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./cases/imgs/foxit.jpg" alt="厦门福昕中数" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./cases/imgs/xiangyang-dongsheng.png" alt="襄阳东昇" height="56" />
+
+</div>
+
 ## 📰 新闻动态
 
 ### 🔄 进行中

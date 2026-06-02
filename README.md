@@ -28,7 +28,7 @@ The platform supports **high-availability** deployment, enabling organizations t
 - **Ready-to-Use Tool Ecosystem:** Integrates massive AI capabilities and tools from the [iFLYTEK Open Platform](https://www.xfyun.cn), validated by millions of developers, supporting plug-and-play integration without extra development.  
 - **Flexible Large Model Support:** Offers diverse access methods, from rapid API-based model access and validation to one-click deployment of enterprise-level MaaS (Model as a Service) on-premises clusters, meeting needs of all scales.  
 
-## 🤝 [落地用户](https://iflytek.github.io/astron-agent/cases/)
+## 🤝 [Adopters](https://iflytek.github.io/astron-agent/cases/)
 
 <div align="center">
 
