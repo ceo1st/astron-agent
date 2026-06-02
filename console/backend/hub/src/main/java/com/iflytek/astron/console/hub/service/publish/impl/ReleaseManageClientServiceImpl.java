@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.enums.bot.ReleaseTypeEnum;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
+import com.iflytek.astron.console.commons.util.I18nUtil;
 import com.iflytek.astron.console.commons.util.MaasUtil;
 import com.iflytek.astron.console.hub.dto.publish.ReleaseBotReqDto;
 import com.iflytek.astron.console.hub.dto.publish.ReleaseBotRespDto;
@@ -30,6 +31,15 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
     @Value("${maas.workflowVersion}")
     private String baseUrl;
 
+    @Value("${maas.consumerId}")
+    private String consumerId;
+
+    @Value("${maas.consumerKey}")
+    private String consumerKey;
+
+    @Value("${maas.consumerSecret}")
+    private String consumerSecret;
+
     // User language chain data service dependency injection
     @Autowired
     private UserLangChainDataService userLangChainDataService;
@@ -47,6 +57,10 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
     private static final String AUTHORIZATION_HEADER = "Authorization";
     // HTTP header field name related to space ID
     private static final String SPACE_ID_HEADER = "space-id";
+    private static final String X_CONSUMER_USERNAME_HEADER = "X-Consumer-Username";
+    private static final String LANG_CODE_HEADER = "Lang-Code";
+    private static final String X_AUTH_SOURCE_HEADER = "x-auth-source";
+    private static final String X_AUTH_SOURCE_VALUE = "xfyun";
 
 
     // OkHttp client instance, configured with connection pool, timeouts and other parameters
@@ -141,15 +155,26 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
      * @return Returns configured Request.Builder instance
      */
     private Request.Builder buildRequest(String url, Long spaceId, HttpServletRequest request) {
+        String requestAuthorization = request == null ? "" : MaasUtil.getAuthorizationHeader(request);
+        boolean useServiceAuthorization = StrUtil.isBlank(requestAuthorization);
         Request.Builder builder = new Request.Builder()
                 .url(baseUrl + url) // Concatenate complete URL
-                .addHeader(AUTHORIZATION_HEADER, MaasUtil.getAuthorizationHeader(request)); // Add authentication header
+                .addHeader(AUTHORIZATION_HEADER, useServiceAuthorization ? serviceAuthorizationHeader() : requestAuthorization)
+                .addHeader(X_AUTH_SOURCE_HEADER, X_AUTH_SOURCE_VALUE);
+        if (useServiceAuthorization) {
+            builder.addHeader(X_CONSUMER_USERNAME_HEADER, consumerId)
+                    .addHeader(LANG_CODE_HEADER, I18nUtil.getLanguage());
+        }
         // If space ID exists, add it to request headers
         if (spaceId != null) {
             builder.addHeader(SPACE_ID_HEADER, spaceId.toString());
             log.debug("Added space-id header: {}", spaceId);
         }
         return builder;
+    }
+
+    private String serviceAuthorizationHeader() {
+        return "Bearer %s:%s".formatted(consumerKey, consumerSecret);
     }
 
     /**

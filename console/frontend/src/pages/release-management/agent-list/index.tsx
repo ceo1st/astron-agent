@@ -38,6 +38,8 @@ import { useTranslation } from 'react-i18next';
 
 import styles from './index.module.scss';
 import useScreenWidth from '@/hooks/use-screen-width';
+import useUserStore from '@/store/user-store';
+import { RoleType, SpaceType } from '@/types/permission';
 interface AgentListProps {
   AgentType?: 'agent' | 'workflow' | 'virtual' | 'all';
 }
@@ -74,6 +76,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const screenWidth = useScreenWidth();
   const botInfo = useBotStateStore(state => state.botDetailInfo);
   const setBotDetailInfo = useBotStateStore(state => state.setBotDetailInfo);
+  const user = useUserStore(state => state.user);
   const [botMultiFileParam, setBotMultiFileParam] = useState<boolean>(false);
   const [moreParams, setMoreParams] = useState(false);
   const [editV2Visible, { setLeft: hide, setRight: show }] = useToggle();
@@ -85,6 +88,10 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const [loading, setLoading] = useState(false);
   const [botList, setBotList] = useState<(BotData & { action: BotData })[]>([]);
   const { t } = useTranslation();
+  const canManageMarketRelease =
+    user.spaceType !== SpaceType.ENTERPRISE ||
+    user.roleType === RoleType.OWNER ||
+    user.roleType === RoleType.ADMIN;
 
   const [total, setTotal] = useState<number>();
   const reasonRef = useRef<string | undefined>(undefined);
@@ -237,7 +244,10 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   };
 
   /** ## 查看智能体 */
-  const checkAgent = (bot: { botId?: string; maasId?: string }): void => {
+  const checkAgent = (bot: {
+    botId?: string;
+    maasId?: string | number;
+  }): void => {
     if (AgentType === 'agent') {
       navigate(`/space/config/overview?botId=${bot.botId}&flag=true`);
     } else {
@@ -247,7 +257,10 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   };
 
   /** ## 编辑智能体 */
-  const updateAgent = (bot: { botId?: string; maasId?: string }): void => {
+  const updateAgent = (bot: {
+    botId?: string;
+    maasId?: string | number;
+  }): void => {
     if (AgentType === 'agent') {
       navigate(`/space/config/base?botId=${bot?.botId}`);
       // 记录选择状态
@@ -526,7 +539,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
           )}
 
           {/* 下架按钮 - 已发布状态显示 */}
-          {canTakeDownMarket(bot) && (
+          {canManageMarketRelease && canTakeDownMarket(bot) && (
             <span
               style={{ marginRight: '10px' }}
               onClick={() =>
@@ -551,7 +564,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
     });
 
     return cols;
-  }, [pageInfo.botStatus, AgentType, t, styles]);
+  }, [pageInfo.botStatus, AgentType, t, styles, canManageMarketRelease]);
 
   const updateBotList = (info: {
     pageIndex: number;

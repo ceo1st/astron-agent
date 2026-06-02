@@ -4,6 +4,7 @@ import com.iflytek.astron.console.commons.enums.bot.ReleaseTypeEnum;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotApiMapper;
 import com.iflytek.astron.console.commons.dto.bot.ChatBotApi;
+import com.iflytek.astron.console.commons.util.I18nUtil;
 import com.iflytek.astron.console.commons.util.MaasUtil;
 import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion;
@@ -49,10 +50,24 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
     @Value("${maas.appId}")
     private String maasAppId;
 
+    @Value("${maas.consumerId}")
+    private String consumerId;
+
+    @Value("${maas.consumerKey}")
+    private String consumerKey;
+
+    @Value("${maas.consumerSecret}")
+    private String consumerSecret;
+
     // API endpoints for workflow version management
     private static final String ADD_VERSION_URL = ""; // Create new version
     private static final String UPDATE_RESULT_URL = "/update-channel-result"; // Update audit result
     private static final String GET_VERSION_NAME_URL = "/get-version-name"; // Get next version name
+    private static final String AUTHORIZATION_HEADER = "Authorization";
+    private static final String X_CONSUMER_USERNAME_HEADER = "X-Consumer-Username";
+    private static final String LANG_CODE_HEADER = "Lang-Code";
+    private static final String X_AUTH_SOURCE_HEADER = "x-auth-source";
+    private static final String X_AUTH_SOURCE_VALUE = "xfyun";
 
     // Release status constants (reserved for future use)
     @SuppressWarnings("unused")
@@ -148,13 +163,12 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
         requestBody.put("flowId", flowId);
 
         String jsonBody = requestBody.toJSONString();
-        String authHeader = getAuthorizationHeader();
 
         Request.Builder requestBuilder = new Request.Builder()
                 .url(baseUrl + GET_VERSION_NAME_URL)
                 .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Authorization", authHeader);
+                .addHeader("Content-Type", "application/json");
+        addAuthorizationHeaders(requestBuilder);
 
         if (spaceId != null) {
             requestBuilder.addHeader("space-id", spaceId.toString());
@@ -252,19 +266,14 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             requestWithVersionNum.setVersionNum(timestampVersionNum);
 
             String jsonBody = JSON.toJSONString(requestWithVersionNum);
-            String authHeader = getAuthorizationHeader();
-
-            if (authHeader.isEmpty()) {
-                return createErrorResponse("No authorization header available");
-            }
 
             // Send request using OkHttp
-            Request httpRequest = new Request.Builder()
+            Request.Builder requestBuilder = new Request.Builder()
                     .url(baseUrl + ADD_VERSION_URL)
                     .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
-                    .addHeader("Content-Type", "application/json")
-                    .addHeader("Authorization", authHeader)
-                    .build();
+                    .addHeader("Content-Type", "application/json");
+            addAuthorizationHeaders(requestBuilder);
+            Request httpRequest = requestBuilder.build();
 
             try (Response response = okHttpClient.newCall(httpRequest).execute()) {
                 ResponseBody body = response.body();
@@ -401,20 +410,14 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             requestBody.put("publishResult", auditResult);
 
             String jsonBody = requestBody.toJSONString();
-            String authHeader = getAuthorizationHeader();
-
-            if (authHeader.isEmpty()) {
-                log.error("No authorization header available for audit result update");
-                return false;
-            }
 
             // Send request using OkHttp
-            Request httpRequest = new Request.Builder()
+            Request.Builder requestBuilder = new Request.Builder()
                     .url(baseUrl + UPDATE_RESULT_URL)
                     .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
-                    .addHeader("Content-Type", "application/json")
-                    .addHeader("Authorization", authHeader)
-                    .build();
+                    .addHeader("Content-Type", "application/json");
+            addAuthorizationHeaders(requestBuilder);
+            Request httpRequest = requestBuilder.build();
 
             try (Response response = okHttpClient.newCall(httpRequest).execute()) {
                 ResponseBody body = response.body();
@@ -502,15 +505,32 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
     }
 
     /**
-     * Get authorization header from current request context
+     * Add user authorization headers when available; otherwise fall back to service credentials for
+     * backend publish execution.
      */
-    private String getAuthorizationHeader() {
+    private void addAuthorizationHeaders(Request.Builder requestBuilder) {
+        String requestAuthorization = getRequestAuthorizationHeader();
+        boolean useServiceAuthorization = !StringUtils.hasText(requestAuthorization);
+        requestBuilder.addHeader(
+                AUTHORIZATION_HEADER,
+                useServiceAuthorization ? serviceAuthorizationHeader() : requestAuthorization);
+        requestBuilder.addHeader(X_AUTH_SOURCE_HEADER, X_AUTH_SOURCE_VALUE);
+        if (useServiceAuthorization) {
+            requestBuilder.addHeader(X_CONSUMER_USERNAME_HEADER, consumerId)
+                    .addHeader(LANG_CODE_HEADER, I18nUtil.getLanguage());
+        }
+    }
+
+    private String getRequestAuthorizationHeader() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attributes == null) {
-            log.warn("No request context available for Authorization header");
             return "";
         }
         return MaasUtil.getAuthorizationHeader(attributes.getRequest());
+    }
+
+    private String serviceAuthorizationHeader() {
+        return "Bearer %s:%s".formatted(consumerKey, consumerSecret);
     }
 
     /**

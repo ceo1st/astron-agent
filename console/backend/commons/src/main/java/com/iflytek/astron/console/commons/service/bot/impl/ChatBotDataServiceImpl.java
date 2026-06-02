@@ -695,8 +695,12 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
 
     @Override
     public ChatBotBase findOne(String uid, Long botId) {
+        return findOne(uid, botId, SpaceInfoUtil.getSpaceId());
+    }
+
+    @Override
+    public ChatBotBase findOne(String uid, Long botId, Long spaceId) {
         LambdaQueryWrapper<ChatBotBase> botSearch = Wrappers.lambdaQuery(ChatBotBase.class).eq(ChatBotBase::getId, botId);
-        Long spaceId = SpaceInfoUtil.getSpaceId();
         if (spaceId == null) {
             botSearch.eq(ChatBotBase::getUid, uid)
                     .isNull(ChatBotBase::getSpaceId);
