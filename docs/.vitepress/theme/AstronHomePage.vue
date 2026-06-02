@@ -17,6 +17,7 @@ const zhContent = {
   nav: {
     quickStart: "快速开始",
     deploy: "部署指南",
+    cases: "案例实践",
     config: "配置说明",
     faq: "FAQ",
     github: "GitHub"
@@ -145,6 +146,7 @@ const enContent = {
   nav: {
     quickStart: "Quick Start",
     deploy: "Deployment",
+    cases: "Case Studies",
     config: "Configuration",
     faq: "FAQ",
     github: "GitHub"
@@ -252,6 +254,11 @@ const enContent = {
       href: "/guide/config"
     },
     {
+      title: "Case Studies",
+      description: "Explore how Astron Agent is delivered across finance, telecom, manufacturing, and smart campus scenarios.",
+      href: "/cases/"
+    },
+    {
       title: "FAQ",
       description: "Find the main troubleshooting paths and reduce repeated onboarding questions.",
       href: "/faq"
@@ -311,7 +318,7 @@ onBeforeUnmount(() => {
         <div class="astron-home__nav-links">
           <a :href="localizePath('/guide/quick-start')">{{ content.nav.quickStart }}</a>
           <a :href="localizePath('/guide/deploy')">{{ content.nav.deploy }}</a>
-          <a v-if="!isEnglish" :href="withBase('/cases/')">案例实践</a>
+          <a :href="localizePath('/cases/')">{{ content.nav.cases }}</a>
           <a :href="localizePath('/guide/config')">{{ content.nav.config }}</a>
           <a :href="localizePath('/faq')">FAQ</a>
           <a class="astron-home__nav-locale" :href="localeSwitchHref">{{ localeSwitchLabel }}</a>

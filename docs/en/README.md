@@ -106,6 +106,7 @@ After startup, you can access the services at the following addresses:
 
 - [🚀 Deployment Guide](/en/DEPLOYMENT_GUIDE)
 - [🔧 Configuration](/en/CONFIGURATION)
+- [🏢 Case Studies](/en/cases/)
 - [🚀 Quick Start](https://www.xfyun.cn/doc/spark/Agent02-%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html)
 - [📘 Development Guide](https://www.xfyun.cn/doc/spark/Agent03-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.html#_1-%E6%8C%87%E4%BB%A4%E5%9E%8B%E6%99%BA%E8%83%BD%E4%BD%93%E5%BC%80%E5%8F%91)
 - [📖 Tutorial](https://scn5s6198j3j.feishu.cn/wiki/VefnwvPbridJBikCUb1cYXO9nYb)

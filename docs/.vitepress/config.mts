@@ -105,6 +105,7 @@ export default defineConfig({
           { text: "Home", link: "/en/" },
           { text: "Quick Start", link: "/en/guide/quick-start" },
           { text: "Deployment", link: "/en/guide/deploy" },
+          { text: "Case Studies", link: "/en/cases/" },
           { text: "Architecture", link: "/en/PROJECT_MODULES" },
           { text: "Contributing", link: "/en/CONTRIBUTING" }
         ],
@@ -117,6 +118,12 @@ export default defineConfig({
               { text: "Configuration", link: "/en/guide/config" },
               { text: "FAQ", link: "/en/faq" },
               { text: "Project README", link: "/en/README" }
+            ]
+          },
+          {
+            text: "Case Studies",
+            items: [
+              { text: "Customer Stories", link: "/en/cases/" }
             ]
           },
           {
