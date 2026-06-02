@@ -400,3 +400,30 @@
     padding: 72px 0;
   }
 }
+
+/* ---------- Cases page width override ---------- */
+/* VitePress applies scoped [data-v-*] selectors that cap .container at
+   1104px and .content at 784px; the cases landing page needs full width.
+   Scope via :has(.cases-page) so other doc pages are unaffected, and use
+   !important to overpower the scoped selectors' specificity. */
+
+.VPDoc:has(.cases-page) .container {
+  max-width: 1280px !important;
+}
+
+.VPDoc:has(.cases-page) .content {
+  max-width: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.VPDoc:has(.cases-page) .content-container {
+  max-width: none !important;
+}
+
+@media (max-width: 768px) {
+  .VPDoc:has(.cases-page) {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
