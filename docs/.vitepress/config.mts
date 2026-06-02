@@ -24,7 +24,7 @@ export default defineConfig({
         nav: [
           { text: "首页", link: "/" },
           { text: "快速开始", link: "/guide/quick-start" },
-          { text: "部署与运维", link: "/guide/deploy" },
+          { text: "部署与配置", link: "/guide/deploy" },
           { text: "案例实践", link: "/cases/" },
           { text: "架构与开发", link: "/PROJECT_MODULES_zh" },
           { text: "贡献协作", link: "/CONTRIBUTING_CN" }
@@ -45,20 +45,20 @@ export default defineConfig({
             ]
           },
           {
-            text: "部署与配置",
+            text: "部署指南",
             items: [
               { text: "部署总览", link: "/guide/deploy" },
-              { text: "配置说明", link: "/guide/config" },
               { text: "标准部署指南", link: "/DEPLOYMENT_GUIDE_zh" },
               { text: "鉴权部署指南", link: "/DEPLOYMENT_GUIDE_WITH_AUTH_zh" },
               { text: "鉴权 + RPA 部署指南", link: "/DEPLOYMENT_GUIDE_WITH_AUTH_RPA_zh" },
-              { text: "部署常见问题", link: "/DEPLOYMENT_FAQ_zh" },
-              { text: "配置参考", link: "/CONFIGURATION_zh" }
+              { text: "部署 FAQ", link: "/DEPLOYMENT_FAQ_zh" }
             ]
           },
           {
-            text: "架构与开发",
+            text: "配置与开发",
             items: [
+              { text: "配置说明", link: "/guide/config" },
+              { text: "配置参考", link: "/CONFIGURATION_zh" },
               { text: "模块说明", link: "/PROJECT_MODULES_zh" },
               { text: "Makefile 使用指南", link: "/Makefile-readme-zh" }
             ]
@@ -106,7 +106,7 @@ export default defineConfig({
           { text: "Quick Start", link: "/en/guide/quick-start" },
           { text: "Deployment", link: "/en/guide/deploy" },
           { text: "Case Studies", link: "/en/cases/" },
-          { text: "Architecture", link: "/en/PROJECT_MODULES" },
+          { text: "Architecture & Dev", link: "/en/PROJECT_MODULES" },
           { text: "Contributing", link: "/en/CONTRIBUTING" }
         ],
         sidebar: [
@@ -125,20 +125,20 @@ export default defineConfig({
             ]
           },
           {
-            text: "Deployment And Configuration",
+            text: "Deployment Guides",
             items: [
               { text: "Deployment Overview", link: "/en/guide/deploy" },
-              { text: "Configuration Guide", link: "/en/guide/config" },
               { text: "Full Deployment Guide", link: "/en/DEPLOYMENT_GUIDE" },
               { text: "Auth Deployment Guide", link: "/en/DEPLOYMENT_GUIDE_WITH_AUTH" },
               { text: "Auth + RPA Deployment Guide", link: "/en/DEPLOYMENT_GUIDE_WITH_AUTH_RPA" },
-              { text: "Deployment FAQ", link: "/en/DEPLOYMENT_FAQ" },
-              { text: "Configuration Reference", link: "/en/CONFIGURATION" }
+              { text: "Deployment FAQ", link: "/en/DEPLOYMENT_FAQ" }
             ]
           },
           {
-            text: "Architecture And Development",
+            text: "Configuration And Development",
             items: [
+              { text: "Configuration Guide", link: "/en/guide/config" },
+              { text: "Configuration Reference", link: "/en/CONFIGURATION" },
               { text: "Project Modules", link: "/en/PROJECT_MODULES" },
               { text: "Makefile Guide", link: "/en/Makefile-readme" }
             ]
