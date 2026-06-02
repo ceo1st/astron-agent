@@ -41,7 +41,7 @@
 <img src="./cases/imgs/yugou.jpg" alt="北京榆构" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="./cases/imgs/fiberhome.png" alt="烽火通信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="./cases/imgs/foxit.jpg" alt="厦门福昕中数" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
-<img src="./cases/imgs/xiangyang-dongsheng.png" alt="襄阳东昇" height="56" />
+<img src="./cases/imgs/xiangyang-dongsheng.png" alt="襄阳东昇" height="36" />
 
 </div>
 
