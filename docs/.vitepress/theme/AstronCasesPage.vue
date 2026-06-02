@@ -30,9 +30,11 @@ type CasesContent = {
   lead: string;
   heroTags: string[];
   stats: Array<{ value: string; label: string }>;
+  pillarsEyebrow: string;
   pillarsTitle: string;
   pillarsText: string;
   pillars: Array<{ title: string; description: string }>;
+  galleryEyebrow: string;
   galleryTitle: string;
   galleryText: string;
   labelScenario: string;
@@ -54,6 +56,7 @@ const zhContent: CasesContent = {
     { value: "4 类", label: "核心落地方向" },
     { value: "多行业", label: "覆盖金融、电信、制造、园区等场景" }
   ],
+  pillarsEyebrow: "Delivery Patterns",
   pillarsTitle: "典型落地方向",
   pillarsText: "围绕企业落地最常见的四类需求，Astron Agent 提供从理解、决策到执行的完整能力。",
   pillars: [
@@ -74,6 +77,7 @@ const zhContent: CasesContent = {
       description: "支持围绕 SSO、企微集成、插件扩展和 Skill 演进持续建设企业自己的智能体能力。"
     }
   ],
+  galleryEyebrow: "Case Gallery",
   galleryTitle: "企业案例一览",
   galleryText: "",
   labelScenario: "业务场景",
@@ -194,6 +198,7 @@ const enContent: CasesContent = {
     { value: "4 Types", label: "Core delivery patterns" },
     { value: "Multi-Industry", label: "Finance, telecom, manufacturing, campus services and more" }
   ],
+  pillarsEyebrow: "Delivery Patterns",
   pillarsTitle: "Where Astron Lands",
   pillarsText: "Astron Agent typically creates value in four repeatable delivery patterns across enterprise projects.",
   pillars: [
@@ -214,6 +219,7 @@ const enContent: CasesContent = {
       description: "Extend the platform around SSO, WeCom integration, plugins, and Skill evolution based on real business requirements."
     }
   ],
+  galleryEyebrow: "Case Gallery",
   galleryTitle: "Customer Gallery",
   galleryText: "",
   labelScenario: "Scenario",
@@ -324,35 +330,45 @@ const enContent: CasesContent = {
 };
 
 const content = computed(() => (lang.value === "en-US" ? enContent : zhContent));
+
+const pad = (n: number) => String(n).padStart(2, "0");
 </script>
 
 <template>
   <div class="cases-page">
     <section class="cases-page__hero">
-      <div class="cases-page__hero-copy">
-        <span class="cases-page__eyebrow">{{ content.eyebrow }}</span>
-        <h1>{{ content.title }}</h1>
-        <p>{{ content.lead }}</p>
-        <div class="cases-page__hero-tags">
-          <span v-for="tag in content.heroTags" :key="tag">{{ tag }}</span>
+      <div class="cases-page__hero-grid" aria-hidden="true"></div>
+      <div class="cases-page__hero-inner">
+        <div class="cases-page__hero-copy">
+          <span class="cases-page__eyebrow cases-page__eyebrow--hero">{{ content.eyebrow }}</span>
+          <h1>{{ content.title }}</h1>
+          <p>{{ content.lead }}</p>
+          <div class="cases-page__hero-tags">
+            <span v-for="tag in content.heroTags" :key="tag">{{ tag }}</span>
+          </div>
         </div>
-      </div>
-      <div class="cases-page__stats">
-        <article v-for="stat in content.stats" :key="stat.label" class="cases-page__stat-card">
-          <strong>{{ stat.value }}</strong>
-          <span>{{ stat.label }}</span>
-        </article>
+        <div class="cases-page__stats">
+          <article v-for="stat in content.stats" :key="stat.label" class="cases-page__stat-card">
+            <strong>{{ stat.value }}</strong>
+            <span>{{ stat.label }}</span>
+          </article>
+        </div>
       </div>
     </section>
 
     <section class="cases-page__section">
       <div class="cases-page__heading">
-        <span class="cases-page__eyebrow">Delivery Patterns</span>
+        <span class="cases-page__eyebrow">{{ content.pillarsEyebrow }}</span>
         <h2>{{ content.pillarsTitle }}</h2>
         <p>{{ content.pillarsText }}</p>
       </div>
       <div class="cases-page__pillars">
-        <article v-for="pillar in content.pillars" :key="pillar.title" class="cases-page__pillar-card">
+        <article
+          v-for="(pillar, idx) in content.pillars"
+          :key="pillar.title"
+          class="pillar-card"
+        >
+          <span class="pillar-card__index">{{ pad(idx + 1) }}</span>
           <h3>{{ pillar.title }}</h3>
           <p>{{ pillar.description }}</p>
         </article>
@@ -361,27 +377,24 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
 
     <section class="cases-page__section">
       <div class="cases-page__heading">
-        <span class="cases-page__eyebrow">Case Gallery</span>
+        <span class="cases-page__eyebrow">{{ content.galleryEyebrow }}</span>
         <h2>{{ content.galleryTitle }}</h2>
         <p v-if="content.galleryText">{{ content.galleryText }}</p>
       </div>
       <div class="cases-page__grid">
         <article v-for="card in content.cards" :key="card.company" class="case-card">
-          <div class="case-card__side">
-            <div class="case-card__brand">
-              <div class="case-card__logo-wrap">
-                <img :src="card.logo" :alt="card.logoAlt">
-              </div>
-              <div class="case-card__brand-copy">
-                <h3>{{ card.company }}</h3>
-                <p>{{ card.subtitle }}</p>
+          <header class="case-card__header">
+            <div class="case-card__logo-wrap">
+              <img :src="card.logo" :alt="card.logoAlt">
+            </div>
+            <div class="case-card__brand-copy">
+              <h3>{{ card.company }}</h3>
+              <p>{{ card.subtitle }}</p>
+              <div class="case-card__tags">
+                <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
               </div>
             </div>
-
-            <div class="case-card__tags">
-              <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
-            </div>
-          </div>
+          </header>
 
           <dl class="case-card__details">
             <div class="case-card__detail">
@@ -407,209 +420,270 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
 .cases-page {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 56px;
+  padding-bottom: 24px;
 }
 
+/* ---------- Hero ---------- */
+
 .cases-page__hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-  gap: 24px;
-  padding: 36px;
+  position: relative;
+  overflow: hidden;
   border-radius: 28px;
   color: #f7fbff;
   background:
-    radial-gradient(circle at top right, rgba(102, 240, 207, 0.18), transparent 30%),
-    radial-gradient(circle at top left, rgba(93, 168, 255, 0.22), transparent 34%),
-    linear-gradient(135deg, #0c2037 0%, #102946 54%, #0a1b30 100%);
-  box-shadow: 0 28px 72px rgba(9, 20, 38, 0.18);
+    radial-gradient(circle at 85% -10%, rgba(102, 240, 207, 0.22), transparent 42%),
+    radial-gradient(circle at 0% 0%, rgba(93, 168, 255, 0.28), transparent 38%),
+    linear-gradient(135deg, #0a1c33 0%, #0f2a4a 50%, #081628 100%);
+  box-shadow: 0 32px 80px rgba(7, 18, 36, 0.22);
 }
 
-.cases-page__hero-copy h1,
-.cases-page__heading h2,
-.cases-page__pillar-card h3,
-.case-card__brand-copy h3 {
-  margin: 0;
+.cases-page__hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at 50% 35%, #000 35%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 35%, #000 35%, transparent 75%);
+  pointer-events: none;
+}
+
+.cases-page__hero-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+  gap: 28px;
+  padding: 44px 40px;
+}
+
+.cases-page__hero-copy h1 {
+  margin: 18px 0 0;
+  font-size: clamp(36px, 4.4vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.cases-page__hero-copy p {
+  margin: 18px 0 0;
+  max-width: 680px;
+  font-size: 16px;
+  line-height: 1.7;
+  color: #cfdcef;
+}
+
+.cases-page__hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.cases-page__hero-tags span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #eaf1fb;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .cases-page__eyebrow {
   display: inline-flex;
   align-items: center;
-  min-height: 32px;
-  padding: 0 14px;
+  height: 26px;
+  padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: #7af0d4;
-  font-size: 12px;
+  border: 1px solid rgba(54, 95, 145, 0.22);
+  background: rgba(93, 168, 255, 0.08);
+  color: #2f6dbf;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.cases-page__hero-copy h1 {
-  margin-top: 18px;
-  font-size: clamp(38px, 4.6vw, 60px);
-  line-height: 1.03;
-  letter-spacing: -0.04em;
-}
-
-.cases-page__hero-copy p,
-.cases-page__heading p,
-.cases-page__pillar-card p,
-.case-card__brand-copy p,
-.case-card__detail dd {
-  color: #d4e1f3;
-  line-height: 1.75;
-}
-
-.cases-page__hero-copy p {
-  margin: 18px 0 0;
-  max-width: 720px;
-  font-size: 17px;
-}
-
-.cases-page__hero-tags,
-.case-card__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.cases-page__hero-tags {
-  margin-top: 24px;
-}
-
-.cases-page__hero-tags span,
-.case-card__tags span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #eef6ff;
-  font-size: 13px;
-  white-space: nowrap;
+.cases-page__eyebrow--hero {
+  border-color: rgba(122, 240, 212, 0.32);
+  background: rgba(122, 240, 212, 0.08);
+  color: #7af0d4;
 }
 
 .cases-page__stats {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   align-content: end;
 }
 
-.cases-page__stat-card,
-.cases-page__pillar-card,
-.case-card {
-  border-radius: 22px;
-  border: 1px solid rgba(150, 176, 220, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
-}
-
 .cases-page__stat-card {
-  padding: 20px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
 }
 
 .cases-page__stat-card strong {
   display: block;
   color: #ffffff;
-  font-size: 30px;
-  line-height: 1;
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 
 .cases-page__stat-card span {
   display: block;
-  margin-top: 10px;
-  color: #d4e1f3;
-  line-height: 1.6;
+  margin-top: 8px;
+  color: #cfdcef;
+  font-size: 13.5px;
+  line-height: 1.55;
 }
+
+/* ---------- Section heading ---------- */
 
 .cases-page__section {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 24px;
+}
+
+.cases-page__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .cases-page__heading h2 {
-  margin-top: 16px;
-  font-size: clamp(30px, 3.5vw, 44px);
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  color: #14233a;
+  margin: 4px 0 0;
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--vp-c-text-1);
 }
 
 .cases-page__heading p {
-  margin: 12px 0 0;
-  max-width: 760px;
-  color: #5e6e85;
+  margin: 0;
+  max-width: 720px;
+  color: var(--vp-c-text-2);
+  line-height: 1.7;
 }
+
+/* ---------- Pillars ---------- */
 
 .cases-page__pillars {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 16px;
 }
 
-.cases-page__pillar-card {
-  padding: 24px;
-  background: linear-gradient(180deg, #f8fbff 0%, #edf4fb 100%);
-  box-shadow: 0 14px 32px rgba(18, 35, 58, 0.08);
+.pillar-card {
+  position: relative;
+  padding: 24px 24px 22px;
+  border-radius: 20px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.cases-page__pillar-card h3 {
-  color: #13243c;
-  font-size: 20px;
+.pillar-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(93, 168, 255, 0.45);
+  box-shadow: 0 18px 36px rgba(14, 29, 48, 0.08);
 }
 
-.cases-page__pillar-card p {
-  margin: 12px 0 0;
-  color: #607087;
+.pillar-card__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 22px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #5da8ff 0%, #2f7dff 100%);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
+
+.pillar-card h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--vp-c-text-1);
+}
+
+.pillar-card p {
+  margin: 10px 0 0;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* ---------- Case grid ---------- */
 
 .cases-page__grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 18px;
+  gap: 16px;
 }
 
 .case-card {
-  display: grid;
-  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+  position: relative;
+  display: flex;
+  flex-direction: column;
   gap: 22px;
-  align-items: start;
-  padding: 24px;
-  background: linear-gradient(180deg, #fdfefe 0%, #f3f7fb 100%);
-  box-shadow: 0 18px 38px rgba(14, 29, 48, 0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  padding: 26px 28px;
+  border-radius: 22px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.case-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(90deg, #5da8ff 0%, #66f0cf 100%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
 }
 
 .case-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(93, 168, 255, 0.3);
-  box-shadow: 0 24px 44px rgba(14, 29, 48, 0.12);
+  border-color: rgba(93, 168, 255, 0.45);
+  box-shadow: 0 22px 44px rgba(14, 29, 48, 0.1);
 }
 
-.case-card__brand {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.case-card:hover::before {
+  opacity: 1;
 }
 
-.case-card__side {
+.case-card__header {
   display: grid;
-  gap: 16px;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--vp-c-divider-light, var(--vp-c-divider));
 }
 
 .case-card__logo-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 88px;
-  height: 88px;
-  padding: 12px;
-  border-radius: 20px;
+  width: 72px;
+  height: 72px;
+  padding: 10px;
+  border-radius: 16px;
   background: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(20, 35, 58, 0.08);
 }
@@ -622,88 +696,150 @@ const content = computed(() => (lang.value === "en-US" ? enContent : zhContent))
 }
 
 .case-card__brand-copy h3 {
-  color: #16263f;
-  font-size: 24px;
-  line-height: 1.15;
+  margin: 0;
+  color: var(--vp-c-text-1);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
 }
 
 .case-card__brand-copy p {
-  margin: 8px 0 0;
-  color: #607087;
+  margin: 4px 0 0;
+  color: var(--vp-c-text-2);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.case-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .case-card__tags span {
-  background: #e8f1ff;
-  border-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: rgba(93, 168, 255, 0.1);
   color: #2656a6;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .case-card__details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   margin: 0;
 }
 
-.case-card__detail:first-child {
-  grid-column: 1 / -1;
-}
-
 .case-card__detail {
+  position: relative;
   display: grid;
-  gap: 6px;
-  min-height: 100%;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(232, 241, 255, 0.58);
-  box-shadow: inset 0 0 0 1px rgba(38, 86, 166, 0.08);
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(93, 168, 255, 0.22);
 }
 
 .case-card__detail dt {
-  color: #173154;
-  font-size: 13px;
+  margin: 0;
+  padding-top: 2px;
+  color: var(--vp-c-text-1);
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .case-card__detail dd {
   margin: 0;
-  color: #54657d;
+  color: var(--vp-c-text-2);
   font-size: 14px;
   line-height: 1.7;
 }
 
-@media (max-width: 960px) {
-  .cases-page__hero,
-  .cases-page__pillars {
+/* ---------- Dark mode tuning ---------- */
+
+:global(.dark) .cases-page__eyebrow {
+  border-color: rgba(122, 169, 240, 0.28);
+  background: rgba(93, 168, 255, 0.1);
+  color: #9fc6ff;
+}
+
+:global(.dark) .case-card__tags span {
+  background: rgba(93, 168, 255, 0.16);
+  color: #a7c6f3;
+}
+
+:global(.dark) .case-card__logo-wrap {
+  background: #f4f8ff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+:global(.dark) .case-card__detail {
+  border-left-color: rgba(122, 169, 240, 0.3);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1000px) {
+  .cases-page__hero-inner {
     grid-template-columns: 1fr;
+    padding: 36px 32px;
   }
 
-  .case-card,
-  .case-card__details {
+  .cases-page__pillars {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
-  .cases-page__hero,
-  .case-card,
-  .cases-page__pillar-card {
-    padding: 20px;
+  .cases-page {
+    gap: 44px;
   }
 
-  .case-card__brand {
-    align-items: flex-start;
-    flex-direction: column;
+  .cases-page__hero {
+    border-radius: 22px;
   }
 
-  .case-card__detail {
-    padding: 14px 16px;
+  .cases-page__hero-inner {
+    padding: 30px 22px;
+    gap: 24px;
+  }
+
+  .case-card {
+    padding: 22px 20px;
+    border-radius: 18px;
+    gap: 18px;
+  }
+
+  .case-card__header {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 14px;
+    padding-bottom: 16px;
+  }
+
+  .case-card__logo-wrap {
+    width: 56px;
+    height: 56px;
+    padding: 8px;
+    border-radius: 12px;
   }
 
   .case-card__brand-copy h3 {
-    font-size: 22px;
+    font-size: 17px;
+  }
+
+  .case-card__detail {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 }
 </style>
