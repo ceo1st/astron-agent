@@ -41,8 +41,8 @@ The platform supports **high-availability** deployment, enabling organizations t
 <img src="./docs/cases/imgs/guangwu.jpg" alt="广物互联" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="./docs/cases/imgs/yugou.jpg" alt="北京榆构" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="./docs/cases/imgs/fiberhome.png" alt="烽火通信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
-<img src="./docs/cases/imgs/foxit.jpg" alt="厦门福昕中数" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
-<img src="./docs/cases/imgs/xiangyang-dongsheng.png" alt="襄阳东昇" height="36" />
+<img src="./docs/cases/imgs/foxit.jpg" alt="厦门福昕中数" height="56" />&nbsp;&nbsp;
+<img src="./docs/cases/imgs/xiangyang-dongsheng.png" alt="襄阳东昇" height="28" />
 
 </div>
 
