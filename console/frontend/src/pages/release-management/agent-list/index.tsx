@@ -38,8 +38,6 @@ import { useTranslation } from 'react-i18next';
 
 import styles from './index.module.scss';
 import useScreenWidth from '@/hooks/use-screen-width';
-import useUserStore from '@/store/user-store';
-import { RoleType, SpaceType } from '@/types/permission';
 interface AgentListProps {
   AgentType?: 'agent' | 'workflow' | 'virtual' | 'all';
 }
@@ -61,8 +59,11 @@ const hasMarketRelease = (releaseType?: number[] | number): boolean => {
 const canTakeDownMarket = (bot: {
   botStatus?: number;
   releaseType?: number[] | number;
+  canOffline?: boolean;
 }): boolean =>
-  isPublishedBot(bot.botStatus) && hasMarketRelease(bot.releaseType);
+  isPublishedBot(bot.botStatus) &&
+  hasMarketRelease(bot.releaseType) &&
+  bot.canOffline === true;
 
 const formatUtcListTime = (value?: string): string => {
   if (!value) return '-';
@@ -76,7 +77,6 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const screenWidth = useScreenWidth();
   const botInfo = useBotStateStore(state => state.botDetailInfo);
   const setBotDetailInfo = useBotStateStore(state => state.setBotDetailInfo);
-  const user = useUserStore(state => state.user);
   const [botMultiFileParam, setBotMultiFileParam] = useState<boolean>(false);
   const [moreParams, setMoreParams] = useState(false);
   const [editV2Visible, { setLeft: hide, setRight: show }] = useToggle();
@@ -88,11 +88,6 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const [loading, setLoading] = useState(false);
   const [botList, setBotList] = useState<(BotData & { action: BotData })[]>([]);
   const { t } = useTranslation();
-  const canManageMarketRelease =
-    user?.spaceType === SpaceType.PERSONAL ||
-    (user?.spaceType === SpaceType.ENTERPRISE &&
-      (user?.roleType === RoleType.OWNER || user?.roleType === RoleType.ADMIN));
-
   const [total, setTotal] = useState<number>();
   const reasonRef = useRef<string | undefined>(undefined);
   const [pageInfo, setPageInfo] = useState<{
@@ -539,7 +534,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
           )}
 
           {/* 下架按钮 - 已发布状态显示 */}
-          {canManageMarketRelease && canTakeDownMarket(bot) && (
+          {canTakeDownMarket(bot) && (
             <span
               style={{ marginRight: '10px' }}
               onClick={() =>
@@ -564,7 +559,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
     });
 
     return cols;
-  }, [pageInfo.botStatus, AgentType, t, styles, canManageMarketRelease]);
+  }, [pageInfo.botStatus, AgentType, t, styles]);
 
   const updateBotList = (info: {
     pageIndex: number;
