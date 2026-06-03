@@ -44,6 +44,7 @@ import {
   exportWorkflowTemplate,
   upgradeWorkflow,
 } from '@/services/spark-common';
+import { RoleType, SpaceType } from '@/types/permission';
 
 dayjs.extend(utc);
 
@@ -61,6 +62,10 @@ function index() {
   const typeAudit = [];
   const typeFail = [];
   const user = useUserStore((state: any) => state.user);
+  const canManageMarketRelease =
+    user?.spaceType === SpaceType.PERSONAL ||
+    (user?.spaceType === SpaceType.ENTERPRISE &&
+      (user?.roleType === RoleType.OWNER || user?.roleType === RoleType.ADMIN));
   const navigate = useNavigate();
   const { t } = useTranslation();
   const robotRef = useRef<HTMLDivElement | null>(null);
@@ -814,28 +819,31 @@ function index() {
                                     )}
                                   </div>
                                 )}
-                                <div
-                                  className="p-1 rounded hover:bg-[#F2F5FE] text-[#F74E43]"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    if (
-                                      k?.uid &&
-                                      user?.uid &&
-                                      k.uid !== user.uid
-                                    ) {
-                                      message.warning(
-                                        '\u65e0\u6cd5\u5220\u9664\u4ed6\u4eba\u521b\u5efa\u7684\u667a\u80fd\u4f53'
-                                      );
+                                {(!typePublished.includes(k?.botStatus) ||
+                                  canManageMarketRelease) && (
+                                  <div
+                                    className="p-1 rounded hover:bg-[#F2F5FE] text-[#F74E43]"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      if (
+                                        k?.uid &&
+                                        user?.uid &&
+                                        k.uid !== user.uid
+                                      ) {
+                                        message.warning(
+                                          '\u65e0\u6cd5\u5220\u9664\u4ed6\u4eba\u521b\u5efa\u7684\u667a\u80fd\u4f53'
+                                        );
+                                        setOperationId(null);
+                                        return;
+                                      }
+                                      setBotDetail(k);
+                                      setDeleteModal(true);
                                       setOperationId(null);
-                                      return;
-                                    }
-                                    setBotDetail(k);
-                                    setDeleteModal(true);
-                                    setOperationId(null);
-                                  }}
-                                >
-                                  {t('agentPage.agentPage.delete')}
-                                </div>
+                                    }}
+                                  >
+                                    {t('agentPage.agentPage.delete')}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

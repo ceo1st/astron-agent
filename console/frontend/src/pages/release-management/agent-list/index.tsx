@@ -89,9 +89,9 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const [botList, setBotList] = useState<(BotData & { action: BotData })[]>([]);
   const { t } = useTranslation();
   const canManageMarketRelease =
-    user.spaceType !== SpaceType.ENTERPRISE ||
-    user.roleType === RoleType.OWNER ||
-    user.roleType === RoleType.ADMIN;
+    user?.spaceType === SpaceType.PERSONAL ||
+    (user?.spaceType === SpaceType.ENTERPRISE &&
+      (user?.roleType === RoleType.OWNER || user?.roleType === RoleType.ADMIN));
 
   const [total, setTotal] = useState<number>();
   const reasonRef = useRef<string | undefined>(undefined);

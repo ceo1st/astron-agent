@@ -59,11 +59,16 @@ public class PublishApiController {
     @RateLimit(limit = 30, window = 60, dimension = "USER")
     @PostMapping("/create-bot-api")
     public ApiResult<Object> createBotApi(HttpServletRequest request, @RequestBody CreateBotApiVo createBotApiVo) {
-        PublishApprovalDecisionDto approvalDecision = publishApprovalService.submitIfRequired(buildBotApiApproval(createBotApiVo));
+        PublishApprovalSubmitDto approvalSubmit = buildBotApiApproval(createBotApiVo);
+        PublishApprovalDecisionDto approvalDecision = publishApprovalService.submitIfRequired(approvalSubmit);
         if (Boolean.TRUE.equals(approvalDecision.getApprovalRequired())) {
             return ApiResult.success(approvalDecision);
         }
-        return ApiResult.success(publishApiService.createBotApi(createBotApiVo, request));
+        return ApiResult.success(publishApiService.createBotApi(
+                createBotApiVo,
+                request,
+                approvalSubmit.getRequesterUid(),
+                approvalSubmit.getSpaceId()));
     }
 
     @Operation(summary = "Get Bot Api Info", description = "Get Bot Api Info")

@@ -167,21 +167,22 @@ public class BotPublishController {
                                 ". Supported actions: PUBLISH, OFFLINE");
             }
 
-            PublishApprovalDecisionDto approvalDecision = publishApprovalService.submitIfRequired(
-                    buildApprovalSubmitDto(botId, request, currentUid, spaceId));
+            PublishApprovalSubmitDto approvalSubmit = buildApprovalSubmitDto(botId, request, currentUid, spaceId);
+            PublishApprovalDecisionDto approvalDecision = publishApprovalService.submitIfRequired(approvalSubmit);
             if (Boolean.TRUE.equals(approvalDecision.getApprovalRequired())) {
                 log.info("Unified publish submitted for approval: botId={}, publishType={}, action={}, approvalId={}",
                         botId, request.getPublishType(), request.getAction(), approvalDecision.getApprovalId());
                 return ApiResult.success(approvalDecision);
             }
+            Long effectiveSpaceId = approvalSubmit.getSpaceId();
 
             ApiResult<Object> result;
             if ("PUBLISH".equalsIgnoreCase(request.getAction())) {
                 PublishStrategy strategy = publishStrategyFactory.getStrategy(request.getPublishType());
-                result = strategy.publish(botId, request.getPublishData(), currentUid, spaceId);
+                result = strategy.publish(botId, request.getPublishData(), currentUid, effectiveSpaceId);
             } else if ("OFFLINE".equalsIgnoreCase(request.getAction())) {
                 PublishStrategy strategy = publishStrategyFactory.getStrategy(request.getPublishType());
-                result = strategy.offline(botId, request.getPublishData(), currentUid, spaceId);
+                result = strategy.offline(botId, request.getPublishData(), currentUid, effectiveSpaceId);
             } else {
                 return ApiResult.error(ResponseEnum.PARAMETER_ERROR,
                         "Unsupported action: " + request.getAction() +
