@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -37,6 +38,7 @@ public class MarketPublishStrategy implements PublishStrategy {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ApiResult<Object> publish(Integer botId, Object publishData, String currentUid, Long spaceId) {
         log.info("Publishing bot to market: botId={}, currentUid={}, spaceId={}", botId, currentUid, spaceId);
 
@@ -93,6 +95,7 @@ public class MarketPublishStrategy implements PublishStrategy {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ApiResult<Object> offline(Integer botId, Object publishData, String currentUid, Long spaceId) {
         log.info("Offlining bot from market: botId={}, currentUid={}, spaceId={}", botId, currentUid, spaceId);
 
@@ -277,11 +280,11 @@ public class MarketPublishStrategy implements PublishStrategy {
         // Only update status and channels for offline operation
         int updateCount = chatBotMarketMapper.updatePublishStatus(botId, uid, spaceId, newStatus, newChannels);
         if (updateCount == 0) {
-            log.warn("Bot offline update failed, record not found: botId={}, uid={}, spaceId={}",
+            log.error("Bot offline update failed, record not found: botId={}, uid={}, spaceId={}",
                     botId, uid, spaceId);
-        } else {
-            log.info("Bot offline update successful: botId={}, status={}, channels={}",
-                    botId, newStatus, newChannels);
+            throw new BusinessException(ResponseEnum.BOT_UPDATE_FAILED);
         }
+        log.info("Bot offline update successful: botId={}, status={}, channels={}",
+                botId, newStatus, newChannels);
     }
 }

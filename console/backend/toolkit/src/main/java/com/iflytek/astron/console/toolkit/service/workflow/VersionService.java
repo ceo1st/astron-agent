@@ -151,12 +151,17 @@ public class VersionService {
     // Exception database operation rollback
     @Transactional
     public ApiResult<JSONObject> create(WorkflowVersion createDto) {
+        return createForSpace(createDto, SpaceInfoUtil.getSpaceId());
+    }
+
+    @Transactional
+    public ApiResult<JSONObject> createForSpace(WorkflowVersion createDto, Long spaceId) {
         log.info("Starting to add version, input data: {}", createDto);
         Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, createDto.getFlowId()));
         if (workflow == null) {
             throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
         }
-        dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
+        dataPermissionCheckTool.checkWorkflowBelong(workflow, spaceId);
 
         try {
             // Create workflow version
@@ -261,12 +266,16 @@ public class VersionService {
      * @return API result with suggested version name
      */
     public ApiResult<JSONObject> getVersionName(WorkflowVersion createDto) {
+        return getVersionNameForSpace(createDto, SpaceInfoUtil.getSpaceId());
+    }
+
+    public ApiResult<JSONObject> getVersionNameForSpace(WorkflowVersion createDto, Long spaceId) {
         log.info("Starting to get workflow version name, input data: {}", createDto);
         Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, createDto.getFlowId()));
         if (workflow == null) {
             throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
         }
-        dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
+        dataPermissionCheckTool.checkWorkflowBelong(workflow, spaceId);
 
         try {
             // Get the maximum version integer
