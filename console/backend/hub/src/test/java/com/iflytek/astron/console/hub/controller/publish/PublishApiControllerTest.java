@@ -2,8 +2,10 @@ package com.iflytek.astron.console.hub.controller.publish;
 
 import com.iflytek.astron.console.commons.config.JwtClaimsFilter;
 import com.iflytek.astron.console.commons.response.ApiResult;
+import com.iflytek.astron.console.hub.dto.publish.BotApiInfoDTO;
 import com.iflytek.astron.console.hub.dto.publish.CreateBotApiVo;
 import com.iflytek.astron.console.hub.dto.publish.approval.PublishApprovalDecisionDto;
+import com.iflytek.astron.console.hub.dto.publish.approval.PublishApprovalSubmitDto;
 import com.iflytek.astron.console.hub.service.publish.PublishApiService;
 import com.iflytek.astron.console.hub.service.publish.PublishApprovalService;
 import org.junit.jupiter.api.AfterEach;
@@ -60,5 +62,37 @@ class PublishApiControllerTest {
 
         assertThat(result.data()).isSameAs(decision);
         verify(publishApiService, never()).createBotApi(any(), any());
+    }
+
+    @Test
+    void createBotApiDirectExecutionShouldUseEffectiveSpaceId() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(JwtClaimsFilter.USER_ID_ATTRIBUTE, "owner-uid");
+        request.addHeader("space-id", "200");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        CreateBotApiVo createBotApiVo = CreateBotApiVo.builder()
+                .botId(42L)
+                .appId("app-1")
+                .build();
+        PublishApprovalDecisionDto decision = PublishApprovalDecisionDto.builder()
+                .approvalRequired(false)
+                .build();
+        BotApiInfoDTO apiInfo = BotApiInfoDTO.builder()
+                .botId(42)
+                .appId("app-1")
+                .build();
+        when(publishApprovalService.submitIfRequired(any())).thenAnswer(invocation -> {
+            PublishApprovalSubmitDto submitDto = invocation.getArgument(0);
+            submitDto.setSpaceId(100L);
+            return decision;
+        });
+        when(publishApiService.createBotApi(createBotApiVo, request, "owner-uid", 100L)).thenReturn(apiInfo);
+
+        ApiResult<Object> result = controller.createBotApi(request, createBotApiVo);
+
+        assertThat(result.data()).isSameAs(apiInfo);
+        verify(publishApiService).createBotApi(createBotApiVo, request, "owner-uid", 100L);
+        verify(publishApiService, never()).createBotApi(createBotApiVo, request, "owner-uid", 200L);
     }
 }

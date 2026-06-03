@@ -1,10 +1,13 @@
 package com.iflytek.astron.console.hub.service.publish.impl;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
+import com.iflytek.astron.console.commons.entity.bot.ChatBotBase;
+import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.enums.space.SpaceRoleEnum;
 import com.iflytek.astron.console.commons.enums.space.SpaceTypeEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
@@ -27,6 +30,7 @@ import com.iflytek.astron.console.hub.enums.publish.PublishApprovalTypeEnum;
 import com.iflytek.astron.console.hub.mapper.PublishApprovalMapper;
 import com.iflytek.astron.console.hub.service.publish.PublishApprovalService;
 import com.iflytek.astron.console.hub.service.publish.executor.PublishApprovalExecutor;
+import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowMapper;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.dao.DuplicateKeyException;
@@ -49,17 +53,21 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
     private final SpaceService spaceService;
     private final SpaceUserService spaceUserService;
     private final ChatBotBaseMapper chatBotBaseMapper;
+    private final WorkflowMapper workflowMapper;
     private final AppMstService appMstService;
     private final List<PublishApprovalExecutor> publishApprovalExecutors;
 
     @Override
     public PublishApprovalDecisionDto submitIfRequired(PublishApprovalSubmitDto submitDto) {
-        SpaceTypeEnum spaceType = resolveSpaceType(submitDto.getSpaceId());
+        Long effectiveSpaceId = resolveEffectiveSpaceId(submitDto);
+        submitDto.setSpaceId(effectiveSpaceId);
+        normalizePublishSnapshotSpaceId(submitDto);
+        SpaceTypeEnum spaceType = resolveSpaceType(effectiveSpaceId);
         if (spaceType == null || !spaceType.isTeam()) {
             return directDecision();
         }
 
-        SpaceRoleEnum currentRole = spaceUserService.getRole(submitDto.getSpaceId(), submitDto.getRequesterUid());
+        SpaceRoleEnum currentRole = spaceUserService.getRole(effectiveSpaceId, submitDto.getRequesterUid());
         if (currentRole == null) {
             throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
         }
@@ -198,11 +206,52 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
         return decision(false, approval.getId(), PublishApprovalStatusEnum.CANCELED.name());
     }
 
+    private Long resolveEffectiveSpaceId(PublishApprovalSubmitDto submitDto) {
+        Long requestSpaceId = submitDto.getSpaceId();
+        ResourceSpace resourceSpace = resolveResourceSpace(submitDto);
+        return resourceSpace.found() ? resourceSpace.spaceId() : requestSpaceId;
+    }
+
+    private ResourceSpace resolveResourceSpace(PublishApprovalSubmitDto submitDto) {
+        if (PublishApprovalResourceTypeEnum.BOT == submitDto.getResourceType()) {
+            ChatBotBase botBase = chatBotBaseMapper.selectById(parseBotId(submitDto.getResourceId()));
+            return botBase == null ? ResourceSpace.notFound() : ResourceSpace.found(botBase.getSpaceId());
+        }
+        if (PublishApprovalResourceTypeEnum.WORKFLOW == submitDto.getResourceType()) {
+            Workflow workflow = resolveWorkflow(submitDto.getResourceId());
+            return workflow == null ? ResourceSpace.notFound() : ResourceSpace.found(workflow.getSpaceId());
+        }
+        return ResourceSpace.notFound();
+    }
+
+    private record ResourceSpace(Long spaceId, boolean found) {
+        private static ResourceSpace found(Long spaceId) {
+            return new ResourceSpace(spaceId, true);
+        }
+
+        private static ResourceSpace notFound() {
+            return new ResourceSpace(null, false);
+        }
+    }
+
     private SpaceTypeEnum resolveSpaceType(Long spaceId) {
         if (spaceId == null) {
             return null;
         }
         return spaceService.getSpaceType(spaceId);
+    }
+
+    private void normalizePublishSnapshotSpaceId(PublishApprovalSubmitDto submitDto) {
+        if (StringUtils.isBlank(submitDto.getPublishSnapshot())) {
+            return;
+        }
+        try {
+            JSONObject snapshot = JSON.parseObject(submitDto.getPublishSnapshot());
+            snapshot.put("spaceId", submitDto.getSpaceId());
+            submitDto.setPublishSnapshot(snapshot.toJSONString());
+        } catch (Exception ignored) {
+            // Snapshot is auxiliary audit data; approval decisions use the normalized DTO spaceId.
+        }
     }
 
     private boolean isOwnerOrAdmin(SpaceRoleEnum role) {
@@ -241,6 +290,23 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
         } catch (NumberFormatException e) {
             throw new BusinessException(ResponseEnum.PARAMETER_ERROR);
         }
+    }
+
+    private Workflow resolveWorkflow(String resourceId) {
+        if (StringUtils.isBlank(resourceId)) {
+            throw new BusinessException(ResponseEnum.PARAMETER_ERROR);
+        }
+        Workflow workflow = null;
+        try {
+            workflow = workflowMapper.selectById(Long.valueOf(resourceId));
+        } catch (NumberFormatException ignored) {
+            // Resource ID may be the workflow flowId string for future workflow approval callers.
+        }
+        if (workflow != null) {
+            return workflow;
+        }
+        return workflowMapper.selectOne(new LambdaQueryWrapper<Workflow>()
+                .eq(Workflow::getFlowId, resourceId));
     }
 
     private void assertReviewer(Long spaceId, String uid) {

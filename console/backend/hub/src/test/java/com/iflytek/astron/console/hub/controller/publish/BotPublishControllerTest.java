@@ -4,9 +4,11 @@ import com.iflytek.astron.console.commons.config.JwtClaimsFilter;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.hub.dto.publish.UnifiedPublishRequestDto;
 import com.iflytek.astron.console.hub.dto.publish.approval.PublishApprovalDecisionDto;
+import com.iflytek.astron.console.hub.dto.publish.approval.PublishApprovalSubmitDto;
 import com.iflytek.astron.console.hub.service.publish.BotPublishService;
 import com.iflytek.astron.console.hub.service.publish.McpService;
 import com.iflytek.astron.console.hub.service.publish.PublishApprovalService;
+import com.iflytek.astron.console.hub.strategy.publish.PublishStrategy;
 import com.iflytek.astron.console.hub.strategy.publish.PublishStrategyFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,8 @@ class BotPublishControllerTest {
     private PublishStrategyFactory publishStrategyFactory;
     @Mock
     private PublishApprovalService publishApprovalService;
+    @Mock
+    private PublishStrategy publishStrategy;
 
     @InjectMocks
     private BotPublishController controller;
@@ -70,5 +74,37 @@ class BotPublishControllerTest {
 
         assertThat(result.data()).isSameAs(decision);
         verify(publishStrategyFactory, never()).getStrategy(any());
+    }
+
+    @Test
+    void unifiedPublishDirectExecutionShouldUseEffectiveSpaceId() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(JwtClaimsFilter.USER_ID_ATTRIBUTE, "owner-uid");
+        request.addHeader("space-id", "200");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        UnifiedPublishRequestDto publishRequest = new UnifiedPublishRequestDto();
+        publishRequest.setPublishType("MARKET");
+        publishRequest.setAction("PUBLISH");
+        publishRequest.setPublishData(Map.of("reason", "submit"));
+
+        PublishApprovalDecisionDto decision = PublishApprovalDecisionDto.builder()
+                .approvalRequired(false)
+                .build();
+        when(publishStrategyFactory.isSupported("MARKET")).thenReturn(true);
+        when(publishApprovalService.submitIfRequired(any())).thenAnswer(invocation -> {
+            PublishApprovalSubmitDto submitDto = invocation.getArgument(0);
+            submitDto.setSpaceId(100L);
+            return decision;
+        });
+        when(publishStrategyFactory.getStrategy("MARKET")).thenReturn(publishStrategy);
+        when(publishStrategy.publish(42, publishRequest.getPublishData(), "owner-uid", 100L))
+                .thenReturn(ApiResult.success("ok"));
+
+        ApiResult<Object> result = controller.unifiedPublish(42, publishRequest);
+
+        assertThat(result.data()).isEqualTo("ok");
+        verify(publishStrategy).publish(42, publishRequest.getPublishData(), "owner-uid", 100L);
+        verify(publishStrategy, never()).publish(42, publishRequest.getPublishData(), "owner-uid", 200L);
     }
 }
