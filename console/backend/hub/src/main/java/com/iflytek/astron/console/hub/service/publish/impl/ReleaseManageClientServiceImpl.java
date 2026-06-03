@@ -39,7 +39,7 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
 
         WorkflowVersion query = new WorkflowVersion();
         query.setFlowId(flowId);
-        ApiResult<JSONObject> response = versionService.getVersionNameForSpace(query, spaceId);
+        ApiResult<JSONObject> response = versionService.getVersionNameForBoundBotPublish(query);
         JSONObject data = response == null ? null : response.data();
         String versionName = data == null ? null : data.getString("workflowVersionName");
         if (response == null || response.code() != 0 || StrUtil.isBlank(versionName)) {
@@ -55,6 +55,12 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
         if (botId == null || StrUtil.isBlank(flowId) || StrUtil.isBlank(versionName)) {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_PUBLISH_FAILED);
         }
+        String boundFlowId = userLangChainDataService.findFlowIdByBotId(botId);
+        if (!StrUtil.equals(boundFlowId, flowId)) {
+            log.error("releaseBotApi - FlowId does not match bot binding, botId={}, flowId={}, boundFlowId={}",
+                    botId, flowId, boundFlowId);
+            throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_PUBLISH_FAILED);
+        }
 
         WorkflowVersion workflowVersion = new WorkflowVersion();
         workflowVersion.setBotId(botId.toString());
@@ -64,7 +70,7 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
         workflowVersion.setDescription("");
         workflowVersion.setName(versionName);
 
-        ApiResult<JSONObject> response = versionService.createForSpace(workflowVersion, spaceId);
+        ApiResult<JSONObject> response = versionService.createForBoundBotPublish(workflowVersion);
         if (response == null || response.code() != 0 || response.data() == null) {
             log.error("releaseBotApi - Failed to create workflow version, botId={}, flowId={}, versionName={}, spaceId={}",
                     botId, flowId, versionName, spaceId);

@@ -61,12 +61,12 @@ class WorkflowReleaseServiceImplTest {
     }
 
     @Test
-    void publishWorkflowShouldUseExplicitSpaceWhenRequestContextIsCleared() {
+    void publishWorkflowShouldUseBoundBotPublishVersionServiceWhenRequestContextIsCleared() {
         RequestContextHolder.resetRequestAttributes();
         when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
-        when(versionService.getVersionNameForSpace(any(WorkflowVersion.class), eq(1L)))
+        when(versionService.getVersionNameForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject().fluentPut("workflowVersionName", "v1.0")));
-        when(versionService.createForSpace(any(WorkflowVersion.class), eq(1L)))
+        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject()
                         .fluentPut("workflowVersionId", 18L)
                         .fluentPut("workflowVersionName", "v1.0")));
@@ -88,11 +88,11 @@ class WorkflowReleaseServiceImplTest {
         assertThat(RequestContextHolder.getRequestAttributes()).isNull();
 
         ArgumentCaptor<WorkflowVersion> versionNameCaptor = ArgumentCaptor.forClass(WorkflowVersion.class);
-        verify(versionService).getVersionNameForSpace(versionNameCaptor.capture(), eq(1L));
+        verify(versionService).getVersionNameForBoundBotPublish(versionNameCaptor.capture());
         assertThat(versionNameCaptor.getValue().getFlowId()).isEqualTo("flow-1");
 
         ArgumentCaptor<WorkflowVersion> createCaptor = ArgumentCaptor.forClass(WorkflowVersion.class);
-        verify(versionService).createForSpace(createCaptor.capture(), eq(1L));
+        verify(versionService).createForBoundBotPublish(createCaptor.capture());
         assertThat(createCaptor.getValue().getBotId()).isEqualTo("25");
         assertThat(createCaptor.getValue().getFlowId()).isEqualTo("flow-1");
         assertThat(createCaptor.getValue().getName()).isEqualTo("v1.0");
@@ -102,9 +102,9 @@ class WorkflowReleaseServiceImplTest {
     @Test
     void apiPublishShouldUseBotBoundAppId() {
         when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
-        when(versionService.getVersionNameForSpace(any(WorkflowVersion.class), eq(1L)))
+        when(versionService.getVersionNameForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject().fluentPut("workflowVersionName", "v1.0")));
-        when(versionService.createForSpace(any(WorkflowVersion.class), eq(1L)))
+        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject()
                         .fluentPut("workflowVersionId", 18L)
                         .fluentPut("workflowVersionName", "v1.0")));
@@ -126,7 +126,7 @@ class WorkflowReleaseServiceImplTest {
 
         assertThat(response.getSuccess()).isTrue();
         ArgumentCaptor<WorkflowVersion> createCaptor = ArgumentCaptor.forClass(WorkflowVersion.class);
-        verify(versionService).createForSpace(createCaptor.capture(), eq(1L));
+        verify(versionService).createForBoundBotPublish(createCaptor.capture());
         assertThat(createCaptor.getValue().getPublishChannel())
                 .isEqualTo(Long.valueOf(ReleaseTypeEnum.BOT_API.getCode()));
         verify(maasUtil).createApi(eq("flow-1"), eq("bound-app"), eq("v1.0"), any(JSONObject.class));
@@ -135,9 +135,9 @@ class WorkflowReleaseServiceImplTest {
     @Test
     void publishWorkflowShouldFailWhenVersionSysDataIsMissing() {
         when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
-        when(versionService.getVersionNameForSpace(any(WorkflowVersion.class), eq(1L)))
+        when(versionService.getVersionNameForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject().fluentPut("workflowVersionName", "v1.0")));
-        when(versionService.createForSpace(any(WorkflowVersion.class), eq(1L)))
+        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject()
                         .fluentPut("workflowVersionId", 18L)
                         .fluentPut("workflowVersionName", "v1.0")));
