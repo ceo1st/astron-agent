@@ -60,7 +60,7 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             }
 
             // 2. Get version name for new release
-            String versionName = getNextVersionName(flowId, spaceId);
+            String versionName = getNextVersionName(flowId);
             if (!StringUtils.hasText(versionName)) {
                 log.error("Failed to get version name by flowId: flowId={}", flowId);
                 return createErrorResponse("Unable to get version name");
@@ -82,7 +82,7 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             request.setDescription("");
             request.setName(versionName);
 
-            WorkflowReleaseResponseDto response = createWorkflowVersion(request, spaceId);
+            WorkflowReleaseResponseDto response = createWorkflowVersion(request);
             if (!response.getSuccess()) {
                 return response;
             }
@@ -114,13 +114,13 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
      * Get next version name for workflow release Simplified to match old project logic exactly - no
      * fallback
      */
-    private String getNextVersionName(String flowId, Long spaceId) {
-        log.info("Getting next workflow version name: flowId={}, spaceId={}", flowId, spaceId);
+    private String getNextVersionName(String flowId) {
+        log.info("Getting next workflow version name for bound bot publish: flowId={}", flowId);
 
         try {
             WorkflowVersion query = new WorkflowVersion();
             query.setFlowId(flowId);
-            var response = versionService.getVersionNameForSpace(query, spaceId);
+            var response = versionService.getVersionNameForBoundBotPublish(query);
             if (response != null && response.code() == 0 && response.data() != null) {
                 String versionName = response.data().getString("workflowVersionName");
                 if (StringUtils.hasText(versionName)) {
@@ -166,7 +166,7 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
         }
     }
 
-    private WorkflowReleaseResponseDto createWorkflowVersion(WorkflowReleaseRequestDto request, Long spaceId) {
+    private WorkflowReleaseResponseDto createWorkflowVersion(WorkflowReleaseRequestDto request) {
         log.info("Creating workflow version: request={}", request);
 
         try {
@@ -178,7 +178,7 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             workflowVersion.setDescription(request.getDescription());
             workflowVersion.setName(request.getName());
 
-            var response = versionService.createForSpace(workflowVersion, spaceId);
+            var response = versionService.createForBoundBotPublish(workflowVersion);
             JSONObject data = response == null ? null : response.data();
             if (response == null || response.code() != 0 || data == null) {
                 return createErrorResponse("Invalid response data format");
