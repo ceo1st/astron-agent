@@ -62,8 +62,7 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
         Long effectiveSpaceId = resolveEffectiveSpaceId(submitDto);
         submitDto.setSpaceId(effectiveSpaceId);
         normalizePublishSnapshotSpaceId(submitDto);
-        SpaceTypeEnum spaceType = resolveSpaceType(effectiveSpaceId);
-        if (spaceType == null || !spaceType.isTeam()) {
+        if (effectiveSpaceId == null) {
             return directDecision();
         }
 
@@ -83,6 +82,7 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
             return directDecision();
         }
 
+        SpaceTypeEnum spaceType = resolveSpaceType(effectiveSpaceId);
         validateApprovalTarget(submitDto);
         PublishApproval approval = buildApproval(submitDto, spaceType);
         PublishApproval existing = findActiveApproval(approval);
@@ -209,7 +209,7 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
     private Long resolveEffectiveSpaceId(PublishApprovalSubmitDto submitDto) {
         Long requestSpaceId = submitDto.getSpaceId();
         ResourceSpace resourceSpace = resolveResourceSpace(submitDto);
-        return resourceSpace.found() ? resourceSpace.spaceId() : requestSpaceId;
+        return resourceSpace.found() && resourceSpace.spaceId() != null ? resourceSpace.spaceId() : requestSpaceId;
     }
 
     private ResourceSpace resolveResourceSpace(PublishApprovalSubmitDto submitDto) {
@@ -419,7 +419,7 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
         LocalDateTime now = LocalDateTime.now();
         PublishApproval approval = new PublishApproval();
         approval.setSpaceId(submitDto.getSpaceId());
-        approval.setSpaceType(spaceType.getCode());
+        approval.setSpaceType(spaceType == null ? null : spaceType.getCode());
         approval.setResourceType(submitDto.getResourceType().name());
         approval.setResourceId(submitDto.getResourceId());
         approval.setResourceName(submitDto.getResourceName());

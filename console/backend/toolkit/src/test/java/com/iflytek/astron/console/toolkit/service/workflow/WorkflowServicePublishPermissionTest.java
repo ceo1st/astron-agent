@@ -7,9 +7,7 @@ import com.iflytek.astron.console.commons.config.JwtClaimsFilter;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.enums.space.SpaceRoleEnum;
-import com.iflytek.astron.console.commons.enums.space.SpaceTypeEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
-import com.iflytek.astron.console.commons.service.space.SpaceService;
 import com.iflytek.astron.console.commons.service.space.SpaceUserService;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import org.junit.jupiter.api.AfterEach;
@@ -41,8 +39,6 @@ class WorkflowServicePublishPermissionTest {
     @Mock
     private DataPermissionCheckTool dataPermissionCheckTool;
     @Mock
-    private SpaceService spaceService;
-    @Mock
     private SpaceUserService spaceUserService;
 
     private WorkflowService workflowService;
@@ -56,7 +52,6 @@ class WorkflowServicePublishPermissionTest {
     void setUp() {
         workflowService = spy(new WorkflowService());
         ReflectionTestUtils.setField(workflowService, "dataPermissionCheckTool", dataPermissionCheckTool);
-        ReflectionTestUtils.setField(workflowService, "spaceService", spaceService);
         ReflectionTestUtils.setField(workflowService, "spaceUserService", spaceUserService);
 
         MockHttpServletRequest request = new MockHttpServletRequest();
@@ -71,10 +66,9 @@ class WorkflowServicePublishPermissionTest {
     }
 
     @Test
-    void teamMemberShouldNotSetWorkflowCanPublish() {
+    void spaceMemberShouldNotSetWorkflowCanPublish() {
         Workflow workflow = workflow(100L);
         doReturn(workflow).when(workflowService).getById(1L);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
         when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
 
         assertThatThrownBy(() -> workflowService.canPublishSet(1L))
@@ -86,11 +80,10 @@ class WorkflowServicePublishPermissionTest {
     }
 
     @Test
-    void teamAdminShouldSetWorkflowCanPublish() {
+    void spaceAdminShouldSetWorkflowCanPublish() {
         Workflow workflow = workflow(100L);
         doReturn(workflow).when(workflowService).getById(1L);
         doReturn(true).when(workflowService).update(any(Wrapper.class));
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
         when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.ADMIN);
 
         Object result = workflowService.canPublishSet(1L);
@@ -101,12 +94,54 @@ class WorkflowServicePublishPermissionTest {
     }
 
     @Test
-    void canPublishSetNotShouldCheckWorkflowBelongAndTeamMember() {
+    void spaceMemberShouldNotSetWorkflowCanPublishNot() {
+        Workflow workflow = workflow(100L);
+        doReturn(workflow).when(workflowService).getById(1L);
+        when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
+
+        assertThatThrownBy(() -> workflowService.canPublishSetNot(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code")
+                .isEqualTo(ResponseEnum.INSUFFICIENT_PERMISSIONS.getCode());
+
+        verifyNoInteractions(dataPermissionCheckTool);
+        verify(workflowService, never()).update(any(Wrapper.class));
+    }
+
+    @Test
+    void spaceAdminShouldSetWorkflowCanPublishNot() {
         Workflow workflow = workflow(100L);
         doReturn(workflow).when(workflowService).getById(1L);
         doReturn(true).when(workflowService).update(any(Wrapper.class));
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
-        when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
+        when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.ADMIN);
+
+        Object result = workflowService.canPublishSetNot(1L);
+
+        assertThat(result).isEqualTo(true);
+        verifyNoInteractions(dataPermissionCheckTool);
+        verify(workflowService).update(any(Wrapper.class));
+    }
+
+    @Test
+    void spaceOwnerShouldSetWorkflowCanPublish() {
+        Workflow workflow = workflow(100L);
+        doReturn(workflow).when(workflowService).getById(1L);
+        doReturn(true).when(workflowService).update(any(Wrapper.class));
+        when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.OWNER);
+
+        Object result = workflowService.canPublishSet(1L);
+
+        assertThat(result).isEqualTo(true);
+        verifyNoInteractions(dataPermissionCheckTool);
+        verify(workflowService).update(any(Wrapper.class));
+    }
+
+    @Test
+    void spaceOwnerShouldSetWorkflowCanPublishNot() {
+        Workflow workflow = workflow(100L);
+        doReturn(workflow).when(workflowService).getById(1L);
+        doReturn(true).when(workflowService).update(any(Wrapper.class));
+        when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.OWNER);
 
         Object result = workflowService.canPublishSetNot(1L);
 

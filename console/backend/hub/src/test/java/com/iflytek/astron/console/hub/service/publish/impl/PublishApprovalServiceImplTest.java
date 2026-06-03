@@ -92,12 +92,26 @@ class PublishApprovalServiceImplTest {
     @Test
     void personalSpacePublishShouldNotCreateApproval() {
         PublishApprovalSubmitDto submit = submitDto("member-uid", PublishApprovalActionEnum.PUBLISH);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.FREE);
+        submit.setSpaceId(null);
 
         PublishApprovalDecisionDto decision = publishApprovalService.submitIfRequired(submit);
 
         assertThat(decision.getApprovalRequired()).isFalse();
         assertThat(decision.getStatus()).isNull();
+        verify(spaceService, never()).getSpaceType(any());
+        verify(spaceUserService, never()).getRole(any(), any());
+        verify(publishApprovalMapper, never()).insert(any(PublishApproval.class));
+    }
+
+    @Test
+    void personalSpaceOwnerPublishShouldNotCreateApproval() {
+        PublishApprovalSubmitDto submit = submitDto("owner-uid", PublishApprovalActionEnum.PUBLISH);
+        when(spaceUserService.getRole(100L, "owner-uid")).thenReturn(SpaceRoleEnum.OWNER);
+
+        PublishApprovalDecisionDto decision = publishApprovalService.submitIfRequired(submit);
+
+        assertThat(decision.getApprovalRequired()).isFalse();
+        verify(spaceService, never()).getSpaceType(100L);
         verify(publishApprovalMapper, never()).insert(any(PublishApproval.class));
     }
 
@@ -282,7 +296,6 @@ class PublishApprovalServiceImplTest {
     @Test
     void teamAdminPublishShouldNotCreateApproval() {
         PublishApprovalSubmitDto submit = submitDto("admin-uid", PublishApprovalActionEnum.PUBLISH);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
         when(spaceUserService.getRole(100L, "admin-uid")).thenReturn(SpaceRoleEnum.ADMIN);
 
         PublishApprovalDecisionDto decision = publishApprovalService.submitIfRequired(submit);
@@ -292,9 +305,9 @@ class PublishApprovalServiceImplTest {
     }
 
     @Test
-    void teamMemberPublishToMarketShouldCreatePendingApproval() {
+    void spaceMemberPublishToMarketShouldCreatePendingApproval() {
         PublishApprovalSubmitDto submit = submitDto("member-uid", PublishApprovalActionEnum.PUBLISH);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
+        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.FREE);
         when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
         when(chatBotBaseMapper.checkBotPermission(42, "member-uid", 100L)).thenReturn(1);
         when(publishApprovalMapper.selectOne(any())).thenReturn(null);
@@ -314,6 +327,7 @@ class PublishApprovalServiceImplTest {
         verify(publishApprovalMapper).insert(captor.capture());
         PublishApproval approval = captor.getValue();
         assertThat(approval.getSpaceId()).isEqualTo(100L);
+        assertThat(approval.getSpaceType()).isEqualTo(SpaceTypeEnum.FREE.getCode());
         assertThat(approval.getResourceType()).isEqualTo(PublishApprovalResourceTypeEnum.BOT.name());
         assertThat(approval.getPublishType()).isEqualTo(PublishApprovalTypeEnum.MARKET.name());
         assertThat(approval.getApprovalStatus()).isEqualTo(PublishApprovalStatusEnum.PENDING.name());
@@ -442,24 +456,34 @@ class PublishApprovalServiceImplTest {
     }
 
     @Test
-    void personalBotPublishShouldIgnoreStaleTeamRequestSpaceId() {
+    void botWithoutResourceSpaceShouldUseRequestSpaceIdForApproval() {
         PublishApprovalSubmitDto submit = submitDto("member-uid", PublishApprovalActionEnum.PUBLISH);
         submit.setSpaceId(100L);
         ChatBotBase botBase = new ChatBotBase();
         botBase.setId(42);
         botBase.setSpaceId(null);
         when(chatBotBaseMapper.selectById(42)).thenReturn(botBase);
+        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.FREE);
+        when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
+        when(chatBotBaseMapper.checkBotPermission(42, "member-uid", 100L)).thenReturn(1);
+        when(publishApprovalMapper.selectOne(any())).thenReturn(null);
+        when(publishApprovalMapper.insert(any(PublishApproval.class))).thenAnswer(invocation -> {
+            PublishApproval approval = invocation.getArgument(0);
+            approval.setId(127L);
+            return 1;
+        });
 
         PublishApprovalDecisionDto decision = publishApprovalService.submitIfRequired(submit);
 
-        assertThat(decision.getApprovalRequired()).isFalse();
-        verify(spaceService, never()).getSpaceType(100L);
-        verify(spaceUserService, never()).getRole(any(), any());
-        verify(publishApprovalMapper, never()).insert(any(PublishApproval.class));
+        assertThat(decision.getApprovalRequired()).isTrue();
+        assertThat(decision.getApprovalId()).isEqualTo(127L);
+        ArgumentCaptor<PublishApproval> captor = ArgumentCaptor.forClass(PublishApproval.class);
+        verify(publishApprovalMapper).insert(captor.capture());
+        assertThat(captor.getValue().getSpaceId()).isEqualTo(100L);
     }
 
     @Test
-    void personalWorkflowPublishShouldIgnoreStaleTeamRequestSpaceId() {
+    void workflowWithoutResourceSpaceShouldUseRequestSpaceIdForApproval() {
         PublishApprovalSubmitDto submit = submitDto("member-uid", PublishApprovalActionEnum.PUBLISH);
         submit.setResourceType(PublishApprovalResourceTypeEnum.WORKFLOW);
         submit.setResourceId("1000");
@@ -468,13 +492,22 @@ class PublishApprovalServiceImplTest {
         workflow.setId(1000L);
         workflow.setSpaceId(null);
         when(workflowMapper.selectById(1000L)).thenReturn(workflow);
+        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.FREE);
+        when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
+        when(publishApprovalMapper.selectOne(any())).thenReturn(null);
+        when(publishApprovalMapper.insert(any(PublishApproval.class))).thenAnswer(invocation -> {
+            PublishApproval approval = invocation.getArgument(0);
+            approval.setId(128L);
+            return 1;
+        });
 
         PublishApprovalDecisionDto decision = publishApprovalService.submitIfRequired(submit);
 
-        assertThat(decision.getApprovalRequired()).isFalse();
-        verify(spaceService, never()).getSpaceType(100L);
-        verify(spaceUserService, never()).getRole(any(), any());
-        verify(publishApprovalMapper, never()).insert(any(PublishApproval.class));
+        assertThat(decision.getApprovalRequired()).isTrue();
+        assertThat(decision.getApprovalId()).isEqualTo(128L);
+        ArgumentCaptor<PublishApproval> captor = ArgumentCaptor.forClass(PublishApproval.class);
+        verify(publishApprovalMapper).insert(captor.capture());
+        assertThat(captor.getValue().getSpaceId()).isEqualTo(100L);
     }
 
     @Test
@@ -517,7 +550,6 @@ class PublishApprovalServiceImplTest {
     void teamMemberPublishToReservedChannelShouldNotCreateApproval() {
         PublishApprovalSubmitDto submit = submitDto("member-uid", PublishApprovalActionEnum.PUBLISH);
         submit.setPublishType(PublishApprovalTypeEnum.MCP);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
         when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
 
         PublishApprovalDecisionDto decision = publishApprovalService.submitIfRequired(submit);
@@ -529,7 +561,6 @@ class PublishApprovalServiceImplTest {
     @Test
     void nonSpaceMemberShouldNotCreatePendingApproval() {
         PublishApprovalSubmitDto submit = submitDto("stranger-uid", PublishApprovalActionEnum.PUBLISH);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
         when(spaceUserService.getRole(100L, "stranger-uid")).thenReturn(null);
 
         assertThatThrownBy(() -> publishApprovalService.submitIfRequired(submit))
@@ -597,9 +628,30 @@ class PublishApprovalServiceImplTest {
     }
 
     @Test
+    void spaceMemberShouldCreateApiApprovalForOwnedAppInFreeSpace() {
+        PublishApprovalSubmitDto submit = submitDto("member-uid", PublishApprovalActionEnum.PUBLISH);
+        submit.setPublishType(PublishApprovalTypeEnum.API);
+        submit.setTargetId("app-1");
+        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.FREE);
+        when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
+        when(chatBotBaseMapper.checkBotPermission(42, "member-uid", 100L)).thenReturn(1);
+        when(appMstService.getByAppId("member-uid", "app-1")).thenReturn(AppMst.builder().appId("app-1").build());
+        when(publishApprovalMapper.selectOne(any())).thenReturn(null);
+        when(publishApprovalMapper.insert(any(PublishApproval.class))).thenAnswer(invocation -> {
+            PublishApproval approval = invocation.getArgument(0);
+            approval.setId(129L);
+            return 1;
+        });
+
+        PublishApprovalDecisionDto decision = publishApprovalService.submitIfRequired(submit);
+
+        assertThat(decision.getApprovalRequired()).isTrue();
+        assertThat(decision.getApprovalId()).isEqualTo(129L);
+    }
+
+    @Test
     void teamMemberOfflineShouldBeRejectedWithoutApproval() {
         PublishApprovalSubmitDto submit = submitDto("member-uid", PublishApprovalActionEnum.OFFLINE);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
         when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
 
         assertThatThrownBy(() -> publishApprovalService.submitIfRequired(submit))
@@ -618,7 +670,6 @@ class PublishApprovalServiceImplTest {
         botBase.setId(42);
         botBase.setSpaceId(100L);
         when(chatBotBaseMapper.selectById(42)).thenReturn(botBase);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
         when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
 
         assertThatThrownBy(() -> publishApprovalService.submitIfRequired(submit))
@@ -639,7 +690,6 @@ class PublishApprovalServiceImplTest {
         workflow.setId(1000L);
         workflow.setSpaceId(100L);
         when(workflowMapper.selectById(1000L)).thenReturn(workflow);
-        when(spaceService.getSpaceType(100L)).thenReturn(SpaceTypeEnum.TEAM);
         when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
 
         assertThatThrownBy(() -> publishApprovalService.submitIfRequired(submit))
