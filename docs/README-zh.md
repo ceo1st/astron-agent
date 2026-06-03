@@ -187,6 +187,7 @@ npm run docs:build
 - 💬 社区讨论: [GitHub Discussions](https://github.com/iflytek/astron-agent/discussions)
 - 🐛 问题反馈: [Issues](https://github.com/iflytek/astron-agent/issues)
 - 👥 企业微信群:
+- [![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/YgG2v9NEMH)
 
 <div align="center">
   <img src="./imgs/WeCom_Group.png" alt="企业微信群" width="300">

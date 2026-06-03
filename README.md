@@ -149,6 +149,7 @@ We welcome contributions of all kinds! Please see our [Contributing Guide](CONTR
 - 💬 Community Discussion: [GitHub Discussions](https://github.com/iflytek/astron-agent/discussions)
 - 🐛 Bug Reports: [Issues](https://github.com/iflytek/astron-agent/issues)
 - 👥 WeChat Work Group:
+- [![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/YgG2v9NEMH)
 
 <div align="center">
   <img src="./docs/imgs/WeCom_Group.png" alt="WeChat Work Group" width="300">
