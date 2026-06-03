@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Drawer,
@@ -11,8 +11,6 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import useUserStore from '@/store/user-store';
-import { RoleType } from '@/types/permission';
 import {
   approvePublishApproval,
   cancelPublishApproval,
@@ -50,7 +48,6 @@ const formatJson = (value?: string): string => {
 
 const ApprovalList: React.FC = () => {
   const { t } = useTranslation();
-  const user = useUserStore(state => state.user);
   const [loading, setLoading] = useState(false);
   const [approvals, setApprovals] = useState<PublishApproval[]>([]);
   const [detail, setDetail] = useState<PublishApproval | null>(null);
@@ -59,9 +56,14 @@ const ApprovalList: React.FC = () => {
   const [status, setStatus] = useState<string | undefined>('PENDING');
   const [resourceId, setResourceId] = useState('');
 
-  const canReview = useMemo(
-    () => [RoleType.OWNER, RoleType.ADMIN].includes(user.roleType as RoleType),
-    [user.roleType]
+  const canReviewApproval = useCallback(
+    (approval: PublishApproval) => approval.canReview === true,
+    []
+  );
+
+  const canCancelApproval = useCallback(
+    (approval: PublishApproval) => approval.canCancel === true,
+    []
   );
 
   const loadApprovals = useCallback(() => {
@@ -119,6 +121,7 @@ const ApprovalList: React.FC = () => {
           await rejectPublishApproval(approval.id, reviewComment);
           message.success(t('releaseManagement.rejectSuccess'));
         }
+        setDetail(null);
         loadApprovals();
       },
     });
@@ -132,6 +135,7 @@ const ApprovalList: React.FC = () => {
       onOk: async () => {
         await cancelPublishApproval(approval.id);
         message.success(t('releaseManagement.cancelApprovalSuccess'));
+        setDetail(null);
         loadApprovals();
       },
     });
@@ -189,7 +193,7 @@ const ApprovalList: React.FC = () => {
           <span onClick={() => setDetail(record)}>
             {t('releaseManagement.detail')}
           </span>
-          {canReview && record.approvalStatus === 'PENDING' && (
+          {canReviewApproval(record) && record.approvalStatus === 'PENDING' && (
             <>
               <span onClick={() => openReviewModal(record, 'approve')}>
                 {t('releaseManagement.approve')}
@@ -199,12 +203,11 @@ const ApprovalList: React.FC = () => {
               </span>
             </>
           )}
-          {record.requesterUid === user.uid &&
-            record.approvalStatus === 'PENDING' && (
-              <span onClick={() => cancelApproval(record)}>
-                {t('releaseManagement.cancelApprovalShort')}
-              </span>
-            )}
+          {canCancelApproval(record) && record.approvalStatus === 'PENDING' && (
+            <span onClick={() => cancelApproval(record)}>
+              {t('releaseManagement.cancelApprovalShort')}
+            </span>
+          )}
         </span>
       ),
     },
@@ -285,6 +288,27 @@ const ApprovalList: React.FC = () => {
         width={560}
         open={Boolean(detail)}
         title={t('releaseManagement.approvalDetail')}
+        extra={
+          detail?.approvalStatus === 'PENDING' && (
+            <span className={styles.actions}>
+              {canReviewApproval(detail) && (
+                <>
+                  <span onClick={() => openReviewModal(detail, 'approve')}>
+                    {t('releaseManagement.approve')}
+                  </span>
+                  <span onClick={() => openReviewModal(detail, 'reject')}>
+                    {t('releaseManagement.reject')}
+                  </span>
+                </>
+              )}
+              {canCancelApproval(detail) && (
+                <span onClick={() => cancelApproval(detail)}>
+                  {t('releaseManagement.cancelApprovalShort')}
+                </span>
+              )}
+            </span>
+          )
+        }
         onClose={() => setDetail(null)}
       >
         {detail && (

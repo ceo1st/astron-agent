@@ -45,6 +45,10 @@ public class PublishApprovalDto {
 
     private String executionResult;
 
+    private Boolean canReview;
+
+    private Boolean canCancel;
+
     private LocalDateTime createdTime;
 
     private LocalDateTime reviewedTime;

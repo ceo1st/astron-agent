@@ -28,6 +28,7 @@ export interface BotData {
   botStatus: number;
   blockReason: string;
   releaseType: Array<Record<string, unknown>>;
+  canOffline?: boolean;
   hotNum: string;
   isFavorite: number;
   af: string;

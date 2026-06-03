@@ -132,6 +132,27 @@ class PublishApprovalServiceImplTest {
         assertThat(response.getTotal()).isEqualTo(1L);
         assertThat(response.getRecords()).hasSize(1);
         assertThat(response.getRecords().get(0).getRequesterUid()).isEqualTo("member-uid");
+        assertThat(response.getRecords().get(0).getCanReview()).isFalse();
+        assertThat(response.getRecords().get(0).getCanCancel()).isTrue();
+    }
+
+    @Test
+    void adminShouldReceiveReviewCapabilityInApprovalList() {
+        PublishApproval approval = pendingApproval(123L, "member-uid");
+        Page<PublishApproval> resultPage = new Page<>(1, 10);
+        resultPage.setTotal(1L);
+        resultPage.setRecords(List.of(approval));
+        when(spaceUserService.getRole(100L, "admin-uid")).thenReturn(SpaceRoleEnum.ADMIN);
+        when(publishApprovalMapper.selectPage(any(Page.class), any())).thenReturn(resultPage);
+
+        PageResponse<PublishApprovalDto> response = publishApprovalService.page(
+                PublishApprovalQueryDto.builder().page(1).size(10).build(),
+                "admin-uid",
+                100L);
+
+        assertThat(response.getRecords()).hasSize(1);
+        assertThat(response.getRecords().get(0).getCanReview()).isTrue();
+        assertThat(response.getRecords().get(0).getCanCancel()).isFalse();
     }
 
     @Test

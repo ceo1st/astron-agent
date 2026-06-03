@@ -124,6 +124,8 @@ export interface PublishApproval {
   reviewComment?: string;
   publishSnapshot?: string;
   executionResult?: string;
+  canReview?: boolean;
+  canCancel?: boolean;
   createdTime?: string;
   reviewedTime?: string;
   executedTime?: string;

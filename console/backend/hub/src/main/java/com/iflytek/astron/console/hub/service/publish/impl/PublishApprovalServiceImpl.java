@@ -127,7 +127,8 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
         }
 
         SpaceRoleEnum currentRole = spaceUserService.getRole(spaceId, currentUid);
-        if (isOwnerOrAdmin(currentRole)) {
+        boolean canReview = isOwnerOrAdmin(currentRole);
+        if (canReview) {
             if (StringUtils.isNotBlank(query.getRequesterUid())) {
                 wrapper.eq(PublishApproval::getRequesterUid, query.getRequesterUid());
             }
@@ -138,7 +139,7 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
 
         Page<PublishApproval> resultPage = publishApprovalMapper.selectPage(new Page<>(page, size), wrapper);
         List<PublishApprovalDto> records = resultPage.getRecords().stream()
-                .map(this::toDto)
+                .map(approval -> toDto(approval, canReview, currentUid))
                 .toList();
         return PageResponse.of(page, size, resultPage.getTotal(), records);
     }
@@ -147,10 +148,11 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
     public PublishApprovalDto detail(Long approvalId, String currentUid, Long spaceId) {
         PublishApproval approval = requireApproval(approvalId, spaceId);
         SpaceRoleEnum currentRole = spaceUserService.getRole(spaceId, currentUid);
-        if (!isOwnerOrAdmin(currentRole) && !Objects.equals(approval.getRequesterUid(), currentUid)) {
+        boolean canReview = isOwnerOrAdmin(currentRole);
+        if (!canReview && !Objects.equals(approval.getRequesterUid(), currentUid)) {
             throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
         }
-        return toDto(approval);
+        return toDto(approval, canReview, currentUid);
     }
 
     @Override
@@ -495,7 +497,7 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
                 .build();
     }
 
-    private PublishApprovalDto toDto(PublishApproval approval) {
+    private PublishApprovalDto toDto(PublishApproval approval, boolean canReview, String currentUid) {
         return PublishApprovalDto.builder()
                 .id(approval.getId())
                 .spaceId(approval.getSpaceId())
@@ -513,10 +515,17 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
                 .reviewComment(approval.getReviewComment())
                 .publishSnapshot(approval.getPublishSnapshot())
                 .executionResult(approval.getExecutionResult())
+                .canReview(canReview)
+                .canCancel(canCancelApproval(approval, currentUid))
                 .createdTime(approval.getCreatedTime())
                 .reviewedTime(approval.getReviewedTime())
                 .executedTime(approval.getExecutedTime())
                 .updatedTime(approval.getUpdatedTime())
                 .build();
+    }
+
+    private boolean canCancelApproval(PublishApproval approval, String currentUid) {
+        return Objects.equals(approval.getRequesterUid(), currentUid)
+                && Objects.equals(approval.getApprovalStatus(), PublishApprovalStatusEnum.PENDING.name());
     }
 }
