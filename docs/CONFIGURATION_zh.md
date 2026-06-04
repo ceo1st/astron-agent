@@ -1,6 +1,6 @@
 # 环境变量配置说明
 
-本文档详细说明了系统所需的所有环境变量配置项，包括中间件、服务端口、认证、业务模块等配置。
+本文档详细说明了系统所需的环境变量配置项，包括中间件、服务端口、认证、访问地址等配置。讯飞开放平台、AI Ability Chat、虚拟人能力、知识库平台等业务能力账号已迁移到控制台 **平台账号管理** 页面配置，不再写入 `.env` 文件。
 
 ## 快速开始
 
@@ -10,19 +10,19 @@
 
 **关键配置项概览**：
 
-- **讯飞开放平台凭证**（需要申请）:
-  - `PLATFORM_APP_ID`、`PLATFORM_API_KEY`、`PLATFORM_API_SECRET`
-  - `SPARK_API_PASSWORD`、`SPARK_RTASR_API_KEY`
-
 - **Casdoor 认证配置**（需要部署 Casdoor 服务）:
   - `CONSOLE_CASDOOR_URL`、`CONSOLE_CASDOOR_ID`
   - `CONSOLE_CASDOOR_APP`、`CONSOLE_CASDOOR_ORG`
 
-- **RAGFlow 知识库配置**（如使用 RAGFlow 作为知识库）:
-  - `RAGFLOW_BASE_URL`、`RAGFLOW_API_TOKEN`、`RAGFLOW_DEFAULT_GROUP`
-
 - **主机地址配置**:
   - `HOST_BASE_ADDRESS` - 设置为您的服务器地址或域名
+
+**启动后在平台账号管理中配置的业务能力账号**（不写入 `.env`）：
+
+- **讯飞开放平台**：`PLATFORM_APP_ID`、`PLATFORM_API_KEY`、`PLATFORM_API_SECRET`、`SPARK_API_PASSWORD`、`SPARK_RTASR_API_KEY`
+- **AI Ability Chat**：`AI_ABILITY_CHAT_BASE_URL`、`AI_ABILITY_CHAT_MODEL`、`AI_ABILITY_CHAT_API_KEY`
+- **虚拟人能力**：`SPARK_VIRTUAL_MAN_APP_ID`、`SPARK_VIRTUAL_MAN_API_KEY`、`SPARK_VIRTUAL_MAN_API_SECRET`
+- **知识库平台**：RAGFlow 的 `RAGFLOW_BASE_URL`、`RAGFLOW_API_TOKEN`、`RAGFLOW_TIMEOUT`、`RAGFLOW_DEFAULT_GROUP`，以及星火知识库的 `XINGHUO_DATASET_ID`
 
 ### 配置项说明
 
@@ -202,19 +202,19 @@
 
 ## 10. Knowledge 模块配置
 
-> **知识库选择说明**: 系统支持两种知识库方式，根据实际需求选择其中一种进行配置：
-> - **RAGFlow**: 使用 RAGFlow 知识库服务（需要配置 RAGFLOW_* 相关变量）
-> - **星火知识库**: 使用讯飞星火知识库服务（需要配置 XINGHUO_DATASET_ID）
+> **知识库选择说明**: 系统支持两种知识库方式，创建知识库时根据实际需求选择其中一种：
+> - **RAGFlow**: 使用 RAGFlow 知识库服务
+> - **星火知识库**: 使用讯飞星火知识库服务
 >
-> 选择哪一种方式，对应的配置项就是必填的；未选择的方式可以留空。
+> 知识库平台账号不再通过 `.env` 配置。请在控制台 **平台账号管理 - 知识库平台** 中填写对应配置；保存后全局生效，不需要重启容器。选择哪一种方式，对应的配置项就是必填的；未选择的方式可以留空。
 
-| 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
-|--------|----------|------|----------|--------|
-| RAGFLOW_BASE_URL | 条件必填 | url | RAGFlow 服务基础地址（使用 RAGFlow 时必填） | http://localhost:10080 |
-| RAGFLOW_API_TOKEN | 条件必填 | string | RAGFlow API 访问令牌（使用 RAGFlow 时必填） | your-ragflow-token |
-| RAGFLOW_TIMEOUT | 条件必填 | int | RAGFlow 请求超时时间(秒)（使用 RAGFlow 时必填） | 60 |
-| RAGFLOW_DEFAULT_GROUP | 条件必填 | string | RAGFlow 默认分组名称（使用 RAGFlow 时必填） | Astron Knowledge Base |
-| XINGHUO_DATASET_ID | 条件必填 | string | 星火知识库数据集 ID（使用星火知识库时必填） | (留空) |
+| 配置项 | 所属平台 | 配置类型 | 用途说明 | 示例值 |
+|--------|----------|----------|----------|--------|
+| RAGFLOW_BASE_URL | RAGFlow | 条件必填 | RAGFlow 服务基础地址（使用 RAGFlow 时必填） | http://localhost:18080 |
+| RAGFLOW_API_TOKEN | RAGFlow | 条件必填 | RAGFlow API 访问令牌（使用 RAGFlow 时必填） | your-ragflow-token |
+| RAGFLOW_TIMEOUT | RAGFlow | 条件必填 | RAGFlow 请求超时时间(秒)（使用 RAGFlow 时必填） | 60 |
+| RAGFLOW_DEFAULT_GROUP | RAGFlow | 条件必填 | RAGFlow 默认分组名称（使用 RAGFlow 时必填） | Astron Knowledge Base |
+| XINGHUO_DATASET_ID | 星火知识库 | 条件必填 | 星火知识库数据集 ID（使用星火知识库时必填） | (留空) |
 
 ---
 
@@ -241,22 +241,6 @@
 | OAUTH2_ISSUER_URI | 必填 | url | OAuth2 颁发者 URI(默认从 CONSOLE_CASDOOR_URL 获取) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000} |
 | OAUTH2_JWK_SET_URI | 必填 | url | OAuth2 JWK 密钥集 URI(默认从 CONSOLE_CASDOOR_URL 获取) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000}/.well-known/jwks |
 | OAUTH2_AUDIENCE | 必填 | string | OAuth2 受众标识(默认从 CONSOLE_CASDOOR_ID 获取) | ${CONSOLE_CASDOOR_ID:-your-oauth2-client-id} |
-| PLATFORM_APP_ID | 用户必填 | string | 讯飞开放平台应用 ID | your-app-id |
-| PLATFORM_API_KEY | 用户必填 | string | 讯飞开放平台 API Key | your-api-key |
-| PLATFORM_API_SECRET | 用户必填 | string | 讯飞开放平台 API Secret | your-api-secret |
-| AI_ABILITY_CHAT_BASE_URL | 可选 | url | 文本模型服务地址(OpenAI 兼容接口)(默认从 PLATFORM_API_KEY 获取)           | ${PLATFORM_API_KEY} |
-| AI_ABILITY_CHAT_MODEL | 可选 | string | 文本模型名称                                             |${AI_ABILITY_CHAT_MODEL}|
-| AI_ABILITY_CHAT_API_KEY | 可选 | string |文本模型 API Key                                          | ${AI_ABILITY_CHAT_API_KEY} |
-| SPARK_RTASR_API_KEY | 用户必填 | string | 星火实时语音转写 API Key | your-rtasr-api-key |
-| SPARK_API_PASSWORD | 用户必填 | string | 星火大模型 API 密码 | your-api-password |
-| SPARK_APP_ID | 必填 | string | 星火服务应用 ID(默认从 PLATFORM_APP_ID 获取) | ${PLATFORM_APP_ID} |
-| SPARK_API_KEY | 必填 | string | 星火服务 API Key(默认从 PLATFORM_API_KEY 获取) | ${PLATFORM_API_KEY} |
-| SPARK_API_SECRET | 必填 | string | 星火服务 API Secret(默认从 PLATFORM_API_SECRET 获取) | ${PLATFORM_API_SECRET} |
-| SPARK_RTASR_APPID | 必填 | string | 星火实时语音转写应用 ID(默认从 PLATFORM_APP_ID 获取) | ${PLATFORM_APP_ID} |
-| SPARK_RTASR_KEY | 必填 | string | 星火实时语音转写 Key(默认从 SPARK_RTASR_API_KEY 获取) | ${SPARK_RTASR_API_KEY} |
-| SPARK_IMAGE_APP_ID | 必填 | string | 星火图像生成应用 ID(默认从 PLATFORM_APP_ID 获取) | ${PLATFORM_APP_ID} |
-| SPARK_IMAGE_API_KEY | 必填 | string | 星火图像生成 API Key(默认从 PLATFORM_API_KEY 获取) | ${PLATFORM_API_KEY} |
-| SPARK_IMAGE_API_SECRET | 必填 | string | 星火图像生成 API Secret(默认从 PLATFORM_API_SECRET 获取) | ${PLATFORM_API_SECRET} |
 | WECHAT_COMPONENT_APPID | 可选 | string | 微信第三方平台 AppID | your-wechat-component-appid |
 | WECHAT_COMPONENT_SECRET | 可选 | string | 微信第三方平台 Secret | your-wechat-secret |
 | WECHAT_TOKEN | 可选 | string | 微信消息校验 Token | your-wechat-token |
@@ -284,9 +268,9 @@
 
 | 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
 |--------|----------|------|----------|--------|
-| MAAS_APP_ID | 必填 | string | MaaS 平台应用 ID(默认从 PLATFORM_APP_ID 获取) | ${PLATFORM_APP_ID} |
-| MAAS_API_KEY | 必填 | string | MaaS 平台 API Key(默认从 PLATFORM_API_KEY 获取) | ${PLATFORM_API_KEY} |
-| MAAS_API_SECRET | 必填 | string | MaaS 平台 API Secret(默认从 PLATFORM_API_SECRET 获取) | ${PLATFORM_API_SECRET} |
+| MAAS_APP_ID | 必填 | string | MaaS 平台应用 ID(默认从 TENANT_ID 获取) | ${TENANT_ID} |
+| MAAS_API_KEY | 必填 | string | MaaS 平台 API Key(默认从 TENANT_KEY 获取) | ${TENANT_KEY} |
+| MAAS_API_SECRET | 必填 | string | MaaS 平台 API Secret(默认从 TENANT_SECRET 获取) | ${TENANT_SECRET} |
 | MAAS_CONSUMER_ID | 必填 | string | MaaS 消费者 ID(默认从 TENANT_ID 获取) | ${TENANT_ID} |
 | MAAS_CONSUMER_KEY | 必填 | string | MaaS 消费者 Key(默认从 TENANT_KEY 获取) | ${TENANT_KEY} |
 | MAAS_CONSUMER_SECRET | 必填 | string | MaaS 消费者 Secret(默认从 TENANT_SECRET 获取) | ${TENANT_SECRET} |

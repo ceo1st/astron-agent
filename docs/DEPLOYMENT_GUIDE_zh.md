@@ -72,9 +72,9 @@ docker compose up -d
 - 默认使用 Elasticsearch，如需使用 opensearch、infinity，请修改 .env 中的 DOC_ENGINE 配置
 - 支持GPU加速，使用 `docker-compose-gpu.yml` 启动
 
-### 第三步：集成配置 Casdoor、RagFlow 服务（根据需要配置相关信息）
+### 第三步：集成配置 Casdoor 和基础环境变量（根据需要配置相关信息）
 
-在启动 astronAgent 服务之前，配置相关的连接信息以集成 Casdoor 和 RagFlow。
+在启动 astronAgent 服务之前，配置 Casdoor、访问地址和其他基础设施连接信息。
 
 ```bash
 # 进入 astronAgent 目录
@@ -84,9 +84,9 @@ cd docker/astronAgent
 cp .env.example .env
 ```
 
-#### 3.1 配置知识库服务连接（可选）
+`.env` 文件只用于配置服务启动、访问地址、认证、数据库、Redis、对象存储等基础设施参数。RAGFlow、讯飞开放平台、AI Ability Chat、虚拟人能力、星火知识库等业务能力账号不再写入 `.env`，请在 astronAgent 启动后登录控制台，通过 **平台账号管理** 页面配置。
 
-编辑 docker/astronAgent/.env 文件，配置 RagFlow 连接信息：
+#### 3.1 配置服务主机地址
 
 ```bash
 # 进入 astronAgent 目录
@@ -96,21 +96,15 @@ cd docker/astronAgent
 vim .env
 ```
 
-**关键配置项：**
+配置 astronAgent 服务的主机地址：
 
 ```env
-# RAGFlow配置
-RAGFLOW_BASE_URL=http://localhost:18080
-RAGFLOW_API_TOKEN=ragflow-your-api-token-here
-RAGFLOW_TIMEOUT=60
-RAGFLOW_DEFAULT_GROUP=星辰知识库
+HOST_BASE_ADDRESS=http://localhost
 ```
 
-**获取 RagFlow API Token：**
-1. 访问 RagFlow Web界面：http://localhost:18080
-2. 登录并点击头像进入用户设置
-3. 点击API生成 API KEY
-4. 将生成的 API KEY 更新到.env文件中的RAGFLOW_API_TOKEN
+**说明：**
+- 如果您使用域名访问，请将 `localhost` 替换为您的域名
+- 确保 nginx 和 minio 的端口已正确开放
 
 #### 3.2 配置 Casdoor 认证集成（必须配置）
 
@@ -158,7 +152,23 @@ vim .env
 
 ### 第四步：启动 astronAgent 核心服务（必要部署步骤）
 
-#### 4.1 配置 讯飞开放平台 相关APP_ID API_KEY等信息
+#### 4.1 启动 astronAgent 服务
+
+启动 astronAgent 服务请运行我们的 [docker-compose.yaml](/docker/astronAgent/docker-compose.yaml) 文件。在运行安装命令之前，请确保您的机器上安装了 Docker 和 Docker Compose。
+
+```bash
+# 进入 astronAgent 目录
+cd docker/astronAgent
+
+# 启动所有服务
+docker compose up -d
+```
+
+#### 4.2 配置平台账号管理（可选，按需配置业务能力）
+
+astronAgent 启动后，访问控制台并登录，在左侧菜单进入 **平台账号管理**。平台账号管理与 **应用管理**、**资源管理** 等菜单同级，包含以下四个配置卡片。保存配置后会立即全局生效，系统会自动刷新缓存，不需要重启容器。如果某个功能依赖对应能力但尚未配置，系统会提示前往平台账号管理配置，不会阻塞系统启动。
+
+**讯飞开放平台**（内置星火模型、实时语音转写、图片生成等能力会使用）：
 
 获取文档详见：https://www.xfyun.cn/doc/platform/quickguide.html
 
@@ -174,26 +184,36 @@ vim .env
 - 虚拟人智能体：https://www.xfyun.cn/services/VirtualHumans
 - 使用虚拟人智能体时，非localhost（本地主机名）或127.0.0.1，确保是https环境；若为http环境，需配置绕过检查，例如谷歌浏览器上开启下chrome://flags/#unsafely-treat-insecure-origin-as-secure
 
+需要准备并在 **平台账号管理 - 讯飞开放平台** 中填写：
+- `PLATFORM_APP_ID`
+- `PLATFORM_API_KEY`
+- `PLATFORM_API_SECRET`
+- `SPARK_API_PASSWORD`
+- `SPARK_RTASR_API_KEY`
 
-编辑 docker/astronAgent/.env 文件，更新相关环境变量：
-```env
-PLATFORM_APP_ID=your-app-id
-PLATFORM_API_KEY=your-api-key
-PLATFORM_API_SECRET=your-api-secret
+**AI Ability Chat**（用于平台 AI 生成相关能力，兼容 OpenAI 协议，如提示词优化、一句话创建智能体等）：
+- `AI_ABILITY_CHAT_BASE_URL`
+- `AI_ABILITY_CHAT_MODEL`
+- `AI_ABILITY_CHAT_API_KEY`
 
-SPARK_API_PASSWORD=your-api-password
-SPARK_RTASR_API_KEY=your-rtasr-api-key
-SPARK_VIRTUAL_MAN_APP_ID=your-virtual-man-app-id
-SPARK_VIRTUAL_MAN_API_KEY=your-virtual-man-api-key
-SPARK_VIRTUAL_MAN_API_SECRET=your-virtual-man-api-secret
+**虚拟人能力**：
+- `SPARK_VIRTUAL_MAN_APP_ID`
+- `SPARK_VIRTUAL_MAN_API_KEY`
+- `SPARK_VIRTUAL_MAN_API_SECRET`
 
-# 用于配置平台 AI 生成相关能力(兼容openai协议), 如提示词优化、一句话创建智能体等。
-AI_ABILITY_CHAT_BASE_URL=your-model-url
-AI_ABILITY_CHAT_MODEL=your-model-id
-AI_ABILITY_CHAT_API_KEY=your-api-key
-```
+**知识库平台**：
+- RAGFlow：`RAGFLOW_BASE_URL`、`RAGFLOW_API_TOKEN`、`RAGFLOW_TIMEOUT`、`RAGFLOW_DEFAULT_GROUP`
+- 星火知识库：`XINGHUO_DATASET_ID`
 
-#### 4.2 如果您想使用星火RAG云服务，请按照如下配置（可选）
+创建知识库时会选择使用 **RAGFlow** 或 **星火知识库**，只需要配置实际使用的平台。
+
+**获取 RagFlow API Token：**
+1. 访问 RagFlow Web界面：http://localhost:18080
+2. 登录并点击头像进入用户设置
+3. 点击API生成 API KEY
+4. 在 **平台账号管理 - 知识库平台** 中填写到 `RAGFLOW_API_TOKEN`
+
+**获取星火知识库数据集ID：**
 
 星火RAG云服务提供两种使用方式：
 
@@ -220,36 +240,7 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 - 请将 `your_app_id` 替换为您的实际 APP ID
 - 请将 `your_api_secret` 替换为您的实际 API Secret
 
-获取到数据集ID后，请将数据集ID更新到 docker/astronAgent/.env 文件中：
-```env
-XINGHUO_DATASET_ID=
-```
-
-#### 4.3 启动 astronAgent 服务
-
-启动之前请配置一些必须的环境变量，并确保nginx和minio的端口开放
-
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
-
-# 根据需要修改配置
-vim .env
-```
-
-```env
-HOST_BASE_ADDRESS=http://localhost (astronAgent服务主机地址)
-```
-
-启动 astronAgent 服务请运行我们的 [docker-compose.yaml](/docker/astronAgent/docker-compose.yaml) 文件。在运行安装命令之前，请确保您的机器上安装了 Docker 和 Docker Compose。
-
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
-
-# 启动所有服务
-docker compose up -d
-```
+获取到数据集ID后，请在 **平台账号管理 - 知识库平台** 中填写到 `XINGHUO_DATASET_ID`。
 
 ## 📊 服务访问地址
 
