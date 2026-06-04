@@ -1,6 +1,8 @@
-[![Astron_Readme](./docs/imgs/Astron_Readme.png)](https://agent.xfyun.cn)
-
 <div align="center">
+
+[![Astron Agent Logo](./logo.svg)](https://iflytek.github.io/astron-agent/)
+
+[![Astron_Readme](./docs/imgs/Astron_Readme.png)](https://agent.xfyun.cn)
 
 [![License](https://img.shields.io/badge/license-apache2.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/iflytek/astron-agent?style=social)](https://github.com/iflytek/astron-agent/stargazers)
@@ -25,6 +27,24 @@ The platform supports **high-availability** deployment, enabling organizations t
 - **Intelligent RPA Integration:** Enables cross-system process automation, empowering Agents with controllable execution to achieve a complete loop “from decision to action.”  
 - **Ready-to-Use Tool Ecosystem:** Integrates massive AI capabilities and tools from the [iFLYTEK Open Platform](https://www.xfyun.cn), validated by millions of developers, supporting plug-and-play integration without extra development.  
 - **Flexible Large Model Support:** Offers diverse access methods, from rapid API-based model access and validation to one-click deployment of enterprise-level MaaS (Model as a Service) on-premises clusters, meeting needs of all scales.  
+
+## 🤝 [Adopters](https://iflytek.github.io/astron-agent/cases/)
+
+<div align="center">
+
+<img src="./docs/cases/imgs/donghua.png" alt="东华软件" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/chinatelecom.png" alt="中国电信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/yunsuan.jpg" alt="云算数字科技" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/xiaoqu.png" alt="小趣科技" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/shandongyungu.png" alt="山东云谷" height="56" />
+<br/><br/>
+<img src="./docs/cases/imgs/guangwu.jpg" alt="广物互联" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/yugou.jpg" alt="北京榆构" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/fiberhome.png" alt="烽火通信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/foxit.jpg" alt="厦门福昕中数" height="56" />&nbsp;&nbsp;
+<img src="./docs/cases/imgs/xiangyang-dongsheng.png" alt="襄阳东昇" height="28" />
+
+</div>
 
 ## 📰 News
 
@@ -128,6 +148,7 @@ We welcome contributions of all kinds! Please see our [Contributing Guide](CONTR
 
 - 💬 Community Discussion: [GitHub Discussions](https://github.com/iflytek/astron-agent/discussions)
 - 🐛 Bug Reports: [Issues](https://github.com/iflytek/astron-agent/issues)
+- [![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/YgG2v9NEMH)
 - 👥 WeChat Work Group:
 
 <div align="center">
