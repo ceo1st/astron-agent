@@ -51,9 +51,20 @@ import eventBus from '@/utils/event-bus';
 import { debounce } from 'lodash';
 import { useTranslation } from 'react-i18next';
 import { getLanguageCode } from '@/utils/http';
+import {
+  AppstoreOutlined,
+  BookOutlined,
+  DatabaseOutlined,
+  EditOutlined,
+  LeftOutlined,
+  MessageOutlined,
+  PlusSquareOutlined,
+  SearchOutlined,
+  SoundOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons';
 
-import spark from '@/assets/imgs/sparkImg/icon_spark.png';
-import deepseek from '@/assets/imgs/sparkImg/icon_deepseek.png';
+import errorIcon from '@/assets/imgs/sparkImg/errorIcon.svg';
 import starIcon from '@/assets/imgs/sparkImg/star.svg';
 import promptIcon from '@/assets/imgs/sparkImg/prompt.svg';
 import tipIcon from '@/assets/imgs/sparkImg/tip.svg';
@@ -72,8 +83,28 @@ import {
 } from './types';
 import { VcnItem } from '@/components/speaker-modal';
 import { getVcnList } from '@/services/chat';
+import type { MessageListType } from '@/types/chat';
+import {
+  AgentDebugSession,
+  buildDebugSessionTitle,
+  createAgentDebugSession,
+  getAgentDebugMessages,
+  getAgentDebugSessions,
+  saveAgentDebugMessages,
+} from '@/services/agent-debug';
 
 const { Option } = Select;
+
+type WorkbenchView =
+  | 'chat'
+  | 'search'
+  | 'basic'
+  | 'prompt'
+  | 'model'
+  | 'capability'
+  | 'knowledge'
+  | 'opening'
+  | 'appearance';
 
 const baseModelConfig: BaseModelConfig = {
   visible: false,
@@ -208,6 +239,15 @@ const BaseConfig: React.FC<ChatProps> = ({
   const [conversation, setConversation] = useState(false);
   const [presetQuestion, setPresetQuestion] = useState(['']);
   const [feedback, setFeedback] = useState(false);
+  const [activeWorkbenchView, setActiveWorkbenchView] =
+    useState<WorkbenchView>('chat');
+  const [debugSessions, setDebugSessions] = useState<AgentDebugSession[]>([]);
+  const [activeDebugSessionId, setActiveDebugSessionId] = useState('');
+  const [debugInitialMessages, setDebugInitialMessages] = useState<
+    MessageListType[]
+  >([]);
+  const [debugSessionKey, setDebugSessionKey] = useState(0);
+  const [debugHistoryLoading, setDebugHistoryLoading] = useState(false);
 
   // 人设相关状态
   const [personalityData, setPersonalityData] = useState({
@@ -387,10 +427,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         }
         navigate('/space/agent');
       } else {
-        // 保留原有的导航逻辑
-        navigate(`/space/config/overview?botId=${searchParams.get('botId')}`, {
-          replace: true,
-        });
+        setIsChanged(false);
         if (detailInfo.botStatus == 2) {
           obj.botName = obj.name;
           return setConfigPageData(obj);
@@ -994,6 +1031,99 @@ const BaseConfig: React.FC<ChatProps> = ({
     }
   }, [tree, knowledges]);
 
+  const currentBotId = useMemo(() => {
+    const rawBotId = searchParams.get('botId');
+    if (!rawBotId) return null;
+    const parsedBotId = Number(rawBotId);
+    return Number.isFinite(parsedBotId) ? parsedBotId : null;
+  }, [searchParams]);
+
+  const loadDebugSessions = useCallback(async () => {
+    if (!currentBotId) {
+      setDebugSessions([]);
+      return;
+    }
+
+    setDebugHistoryLoading(true);
+    try {
+      const sessions = await getAgentDebugSessions(currentBotId);
+      setDebugSessions(sessions || []);
+    } catch (err) {
+      setDebugSessions([]);
+    } finally {
+      setDebugHistoryLoading(false);
+    }
+  }, [currentBotId]);
+
+  useEffect(() => {
+    loadDebugSessions();
+  }, [loadDebugSessions]);
+
+  const handleStartDebugSession = useCallback(async () => {
+    setActiveWorkbenchView('chat');
+    setShowTipPk(false);
+    setShowModelPk(0);
+    setAskValue('');
+    setDebugInitialMessages([]);
+    setActiveDebugSessionId('');
+    setDebugSessionKey(key => key + 1);
+
+    if (!currentBotId) {
+      return;
+    }
+
+    try {
+      const session = await createAgentDebugSession({
+        botId: currentBotId,
+        title: t('chatPage.chatWindow.newChat'),
+      });
+      setActiveDebugSessionId(session.id);
+      setDebugSessions(prev => [session, ...prev]);
+    } catch (err) {
+      setActiveDebugSessionId('');
+    }
+  }, [currentBotId, t]);
+
+  const handleSelectDebugSession = useCallback(
+    async (session: AgentDebugSession) => {
+      setActiveWorkbenchView('chat');
+      setShowTipPk(false);
+      setShowModelPk(0);
+      setActiveDebugSessionId(session.id);
+      setDebugSessionKey(key => key + 1);
+
+      try {
+        const messages = await getAgentDebugMessages(session.id);
+        setDebugInitialMessages(messages || []);
+      } catch (err) {
+        setDebugInitialMessages([]);
+      }
+    },
+    []
+  );
+
+  const persistDebugMessages = useMemo(
+    () =>
+      debounce((sessionId: string, messages: MessageListType[]) => {
+        saveAgentDebugMessages({ sessionId, messages }).catch(() => {});
+      }, 800),
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      persistDebugMessages.cancel();
+    };
+  }, [persistDebugMessages]);
+
+  const handleDebugMessagesChange = useCallback(
+    (messages: MessageListType[]) => {
+      if (!activeDebugSessionId || messages.length === 0) return;
+      persistDebugMessages(activeDebugSessionId, messages);
+    },
+    [activeDebugSessionId, persistDebugMessages]
+  );
+
   useEffect(() => {
     return () => setIsChanged(false);
   }, []);
@@ -1191,6 +1321,683 @@ const BaseConfig: React.FC<ChatProps> = ({
     }
   };
 
+  const handleCreateAgent = (e: React.MouseEvent<HTMLElement>): void => {
+    if (!coverUrl) {
+      message.warning(t('configBase.defaultAvatar'));
+      return;
+    }
+    if (!baseinfo?.botName || !baseinfo?.botType || !baseinfo?.botDesc) {
+      message.warning(t('configBase.requiredInfoNotFilled'));
+      return;
+    }
+    if (!validatePersonality()) return;
+
+    const isRag = selectSource[0]?.tag === 'SparkDesk-RAG';
+    const obj = {
+      ...buildRequestObject(isRag, false),
+      botId: undefined,
+      isSentence: sentence,
+    };
+
+    e.stopPropagation();
+    insertBot(obj)
+      .then(() => {
+        navigate('/space/agent');
+      })
+      .catch(err => {
+        message.error(err?.msg || t('createAgent1.createAgentFailed'));
+      });
+  };
+
+  const handleSaveAction = (e: React.MouseEvent<HTMLElement>): void => {
+    e.stopPropagation();
+    if (createBotton) {
+      handleCreateAgent(e);
+      return;
+    }
+    savebot(e);
+  };
+
+  const handleCompletePromptComparison = (
+    e: React.MouseEvent<HTMLElement>
+  ): void => {
+    if (questionTipActive == -1) {
+      message.warning(t('configBase.notSelectPrompt'));
+      return;
+    }
+    e.stopPropagation();
+    setPrompt(promptList[questionTipActive].prompt);
+    setShowTipPk(false);
+    setInputExampleTip('');
+    setInputExampleModel('');
+  };
+
+  const configNavItems: Array<{
+    key: WorkbenchView;
+    label: string;
+    icon: React.ReactNode;
+  }> = [
+    {
+      key: 'basic',
+      label: t('configBase.agentBaseInfo') || '基础信息',
+      icon: <EditOutlined />,
+    },
+    {
+      key: 'prompt',
+      label: t('configBase.promptEdit'),
+      icon: <MessageOutlined />,
+    },
+    {
+      key: 'model',
+      label: t('configBase.modelSelection'),
+      icon: <AppstoreOutlined />,
+    },
+    {
+      key: 'capability',
+      label: t('configBase.CapabilityDevelopment.capability'),
+      icon: <ThunderboltOutlined />,
+    },
+    {
+      key: 'knowledge',
+      label: t('configBase.CapabilityDevelopment.knowledgeBase'),
+      icon: <DatabaseOutlined />,
+    },
+    {
+      key: 'opening',
+      label: t('configBase.CapabilityDevelopment.openingStatement'),
+      icon: <BookOutlined />,
+    },
+    {
+      key: 'appearance',
+      label: t('configBase.agentAppearanceVoice') || '外观声音',
+      icon: <SoundOutlined />,
+    },
+  ];
+
+  const workbenchTitleMap: Record<WorkbenchView, string> = {
+    chat: t('chatPage.chatWindow.newChat'),
+    search: t('configBase.search') || '搜索',
+    basic: t('configBase.agentBaseInfo') || '基础信息',
+    prompt: t('configBase.promptEdit'),
+    model: t('configBase.modelSelection'),
+    capability: t('configBase.CapabilityDevelopment.capability'),
+    knowledge: t('configBase.CapabilityDevelopment.knowledgeBase'),
+    opening: t('configBase.CapabilityDevelopment.openingStatement'),
+    appearance: t('configBase.agentAppearanceVoice') || '外观声音',
+  };
+
+  const renderWorkbenchActions = () => (
+    <div className={styles.workbenchActions}>
+      {!createBotton && !showTipPk && (
+        <Button
+          loading={loading}
+          className={styles.workbenchSecondaryButton}
+          onClick={handleSaveAction}
+        >
+          {t('configBase.save')}
+        </Button>
+      )}
+      {createBotton && (
+        <Button
+          type="primary"
+          loading={loading}
+          className={styles.workbenchPrimaryButton}
+          onClick={handleCreateAgent}
+        >
+          {t('configBase.create')}
+        </Button>
+      )}
+      {showTipPk ? (
+        <Button
+          type="primary"
+          loading={loading}
+          className={styles.workbenchPrimaryButton}
+          onClick={handleCompletePromptComparison}
+        >
+          {t('configBase.completeComparison')}
+        </Button>
+      ) : (
+        <Button
+          type="primary"
+          loading={loading}
+          className={styles.workbenchPrimaryButton}
+          onClick={e => {
+            e.stopPropagation();
+            if (!searchParams.get('botId')) {
+              message.warning(t('configBase.createAgentBeforePublish'));
+              return;
+            }
+            setOpenWxmol(true);
+          }}
+        >
+          {t('configBase.publish')}
+        </Button>
+      )}
+    </div>
+  );
+
+  const renderPromptTryContent = () => {
+    if (showModelPk > 0 && !showTipPk) {
+      return (
+        <div className={styles.workbenchCompareGrid}>
+          {modelList.map((item: ModelListData, index: number) => (
+            <div key={index} className={styles.workbenchCompareItem}>
+              <div className={styles.workbenchCompareToolbar}>
+                <span>
+                  {t('configBase.model')}
+                  {index + 1}
+                </span>
+                <Select
+                  value={item.model}
+                  onChange={e => handleModelChangeNew(e, index)}
+                  className={styles.workbenchCompareSelect}
+                  placeholder={t('configBase.pleaseSelectModel')}
+                >
+                  {modelOptions.map((option, optionIndex) => (
+                    <Option
+                      key={getModelUniqueKey(option, optionIndex)}
+                      value={getModelUniqueKey(option, optionIndex)}
+                    >
+                      <div className="flex items-center">
+                        <img
+                          className="w-[20px] h-[20px]"
+                          src={option.modelIcon}
+                          alt={option.modelName}
+                        />
+                        <span>{option.modelName}</span>
+                      </div>
+                    </Option>
+                  ))}
+                </Select>
+              </div>
+              <PromptTry
+                ref={ref => {
+                  if (modelPromptTryRefs.current) {
+                    modelPromptTryRefs.current[index] = ref;
+                  }
+                }}
+                baseinfo={baseinfo}
+                inputExample={inputExample}
+                coverUrl={coverUrl}
+                selectSource={selectSource}
+                prompt={prompt}
+                model={item.model}
+                promptText={promptNow}
+                supportContext={supportContextFlag ? 1 : 0}
+                choosedAlltool={choosedAlltool}
+                findModelOptionByUniqueKey={findModelOptionByUniqueKey}
+                personalityConfig={
+                  personalityData.enablePersonality
+                    ? personalityData.personalityConfig
+                    : null
+                }
+              />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (showTipPk) {
+      return (
+        <div className={styles.workbenchCompareGrid}>
+          {promptList.map((item: PageDataItem, index: number) => (
+            <div
+              key={index}
+              className={`${styles.workbenchCompareItem} ${
+                questionTipActive == index
+                  ? styles.workbenchCompareItemActive
+                  : ''
+              }`}
+              onClick={() => setQuestionTipActive(index)}
+            >
+              <div className={styles.workbenchCompareToolbar}>
+                <span>
+                  {index === 0
+                    ? t('configBase.defaultPrompt')
+                    : t('configBase.comparePrompt')}
+                </span>
+                <Button
+                  type={questionTipActive == index ? 'primary' : 'default'}
+                  size="small"
+                  onClick={() => setQuestionTipActive(index)}
+                >
+                  {questionTipActive == index
+                    ? t('configBase.selected')
+                    : t('configBase.select')}
+                </Button>
+              </div>
+              <PromptTry
+                ref={ref => {
+                  if (tipPromptTryRefs.current) {
+                    tipPromptTryRefs.current[index] = ref;
+                  }
+                }}
+                newPrompt={item.prompt}
+                baseinfo={baseinfo}
+                inputExample={inputExample}
+                coverUrl={coverUrl}
+                selectSource={selectSource}
+                prompt={prompt}
+                model={model}
+                promptText={promptNow}
+                supportContext={supportContextFlag ? 1 : 0}
+                choosedAlltool={choosedAlltool}
+                findModelOptionByUniqueKey={findModelOptionByUniqueKey}
+                personalityConfig={
+                  personalityData.enablePersonality
+                    ? personalityData.personalityConfig
+                    : null
+                }
+              />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <PromptTry
+        ref={defaultPromptTryRef}
+        key={activeDebugSessionId || `debug-session-${debugSessionKey}`}
+        debugSessionId={
+          activeDebugSessionId || `debug-session-${debugSessionKey}`
+        }
+        initialMessages={debugInitialMessages}
+        onMessagesChange={handleDebugMessagesChange}
+        baseinfo={baseinfo}
+        inputExample={inputExample}
+        coverUrl={coverUrl}
+        selectSource={selectSource}
+        prompt={prompt}
+        model={model}
+        promptText={promptNow}
+        supportContext={supportContextFlag ? 1 : 0}
+        choosedAlltool={choosedAlltool}
+        findModelOptionByUniqueKey={findModelOptionByUniqueKey}
+        personalityConfig={
+          personalityData.enablePersonality
+            ? personalityData.personalityConfig
+            : null
+        }
+      />
+    );
+  };
+
+  const renderChatWorkspace = () => (
+    <div className={styles.workbenchChatWorkspace}>
+      <div className={styles.workbenchChatPanel}>
+        {renderPromptTryContent()}
+      </div>
+      <InputBox
+        onSend={handleInputBoxSend}
+        onClear={handleInputBoxClear}
+        value={askValue}
+        onChange={setAskValue}
+        isLoading={globalLoading}
+      />
+    </div>
+  );
+
+  const renderBasicInfoWorkspace = () => (
+    <Form
+      form={form}
+      name="botEditWorkbench"
+      className={styles.workbenchForm}
+      onValuesChange={val => {
+        setBaseinfo({ ...baseinfo, ...val });
+      }}
+    >
+      <div className={styles.workbenchFormSection}>
+        <div className={styles.workbenchSectionTitle}>
+          <span>{t('configBase.agentBaseInfo') || '基础信息'}</span>
+        </div>
+        <div className={styles.workbenchBaseInfoGrid}>
+          <Form.Item label="" name="cover" required colon={false}>
+            <UploadCover
+              name={form.getFieldsValue().botName}
+              botDesc={form.getFieldsValue().botDesc}
+              setCoverUrl={setCoverUrl}
+              coverUrl={coverUrl}
+            />
+          </Form.Item>
+          <div className={styles.workbenchBaseInfoFields}>
+            <Form.Item
+              label={t('configBase.agentName')}
+              name="botName"
+              rules={[{ required: true, message: '' }]}
+              colon={false}
+            >
+              <Input
+                disabled={
+                  detailInfo.botStatus == 1 ||
+                  detailInfo.botStatus == 2 ||
+                  detailInfo.botStatus == 4
+                }
+                maxLength={20}
+              />
+            </Form.Item>
+            <Form.Item
+              name="botType"
+              rules={[{ required: true, message: '' }]}
+              colon={false}
+              label={t('configBase.agentCategory')}
+            >
+              <Select
+                disabled={
+                  detailInfo.botStatus == 1 ||
+                  detailInfo.botStatus == 2 ||
+                  detailInfo.botStatus == 4
+                }
+                options={bottypeList}
+              />
+            </Form.Item>
+            <Form.Item
+              label={t('configBase.agentIntroduction')}
+              name="botDesc"
+              rules={[{ required: true, message: '' }]}
+              colon={false}
+              className={styles.workbenchDescField}
+            >
+              <Input.TextArea
+                className="xingchen-textarea"
+                maxLength={100}
+                showCount
+                autoSize={{ minRows: 4, maxRows: 4 }}
+              />
+            </Form.Item>
+          </div>
+        </div>
+      </div>
+    </Form>
+  );
+
+  const renderPromptWorkspace = () => (
+    <div className={styles.workbenchFormSection}>
+      <div className={styles.workbenchSectionTitle}>
+        <span>{t('configBase.promptEdit')}</span>
+        <div className={styles.workbenchInlineActions}>
+          <Button onClick={() => handleShowTipPk('show')}>
+            {t('configBase.promptComparison')}
+          </Button>
+          <Button onClick={aiGen} loading={loadingPrompt}>
+            {t('configBase.AIoptimization')}
+          </Button>
+        </div>
+      </div>
+      <Spin spinning={loadingPrompt}>
+        <Input.TextArea
+          className={styles.workbenchPromptTextarea}
+          onChange={(e: any) => setPrompt(e.target.value)}
+          value={prompt}
+          autoSize={{ minRows: 18, maxRows: 18 }}
+        />
+      </Spin>
+    </div>
+  );
+
+  const renderModelWorkspace = () => (
+    <div className={styles.workbenchFormSection}>
+      <div className={styles.workbenchSectionTitle}>
+        <span>{t('configBase.modelSelection')}</span>
+        <Button onClick={() => setShowModelPk(2)}>
+          {t('configBase.modelComparison')}
+        </Button>
+      </div>
+      <Select
+        value={model}
+        onChange={handleModelChange}
+        className={styles.workbenchFullWidth}
+        placeholder={t('configBase.pleaseSelectModel')}
+      >
+        {modelOptions.map((option, index) => (
+          <Option
+            key={getModelUniqueKey(option, index)}
+            value={getModelUniqueKey(option, index)}
+          >
+            <div className="flex items-center">
+              <img
+                className="w-[20px] h-[20px]"
+                src={option.modelIcon}
+                alt={option.modelName}
+              />
+              <span>{option.modelName}</span>
+            </div>
+          </Option>
+        ))}
+      </Select>
+    </div>
+  );
+
+  const renderCapabilityWorkspace = () => (
+    <div className={styles.workbenchCapabilityShell}>
+      <CapabilityDevelopment
+        botCreateActiveV={botCreateActiveV}
+        setBotCreateActiveV={setBotCreateActiveV}
+        baseinfo={baseinfo}
+        detailInfo={detailInfo}
+        prompt={prompt}
+        prologue={prologue}
+        setPrologue={setPrologue}
+        inputExample={inputExample}
+        setInputExample={setInputExample}
+        choosedAlltool={choosedAlltool}
+        setChoosedAlltool={setChoosedAlltool}
+        supportContextFlag={supportContextFlag}
+        setSupportContextFlag={setSupportContextFlag}
+        selectSource={selectSource}
+        setSelectSource={setSelectSource}
+        files={files}
+        tree={tree}
+        setTree={setTree}
+        tools={tools}
+        setTools={setTools}
+        conversation={conversation}
+        setConversation={setConversation}
+        multiModelDebugging={multiModelDebugging}
+        growOrShrinkConfig={growOrShrinkConfig}
+        setGrowOrShrinkConfig={setGrowOrShrinkConfig}
+        personalityData={personalityData}
+        setPersonalityData={handlePersonalityChange}
+        model={model}
+        vcnList={vcnList}
+      />
+    </div>
+  );
+
+  const renderSearchWorkspace = () => (
+    <div className={styles.workbenchFormSection}>
+      <Input
+        prefix={<SearchOutlined />}
+        placeholder={t('configBase.searchDebugHistory') || '搜索调试历史'}
+      />
+      <div className={styles.workbenchEmptyState}>
+        {t('configBase.searchDebugHistoryTip') ||
+          '输入关键词搜索当前智能体的调试历史'}
+      </div>
+    </div>
+  );
+
+  const renderConfigWorkspace = () => {
+    if (activeWorkbenchView === 'search') return renderSearchWorkspace();
+    if (activeWorkbenchView === 'basic') return renderBasicInfoWorkspace();
+    if (activeWorkbenchView === 'prompt') return renderPromptWorkspace();
+    if (activeWorkbenchView === 'model') return renderModelWorkspace();
+    return renderCapabilityWorkspace();
+  };
+
+  if (searchParams.get('legacy') !== 'true') {
+    return (
+      <div className={styles.agentWorkbench}>
+        <aside className={styles.workbenchSidebar}>
+          <div className={styles.workbenchIdentity}>
+            <button
+              type="button"
+              className={styles.workbenchBackButton}
+              onClick={() => navigate(-1)}
+              aria-label="back"
+            >
+              <LeftOutlined />
+            </button>
+            <img
+              className={styles.workbenchAvatar}
+              src={coverUrl || detailInfo?.avatar || errorIcon}
+              alt=""
+            />
+            <div className={styles.workbenchAgentMeta}>
+              <div className={styles.workbenchAgentName}>
+                {baseinfo?.botName ||
+                  detailInfo?.botName ||
+                  t('configBase.agentName')}
+              </div>
+              <div className={styles.workbenchAgentStatus}>
+                {detailInfo?.botStatus === 2
+                  ? t('configBase.botStatus2')
+                  : t('configBase.botStatus0')}
+              </div>
+            </div>
+          </div>
+
+          <nav className={styles.workbenchPrimaryNav}>
+            <button
+              type="button"
+              className={`${styles.workbenchNavItem} ${
+                activeWorkbenchView === 'chat'
+                  ? styles.workbenchNavItemActive
+                  : ''
+              }`}
+              onClick={handleStartDebugSession}
+            >
+              <PlusSquareOutlined />
+              <span>{t('chatPage.chatWindow.newChat')}</span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.workbenchNavItem} ${
+                activeWorkbenchView === 'search'
+                  ? styles.workbenchNavItemActive
+                  : ''
+              }`}
+              onClick={() => setActiveWorkbenchView('search')}
+            >
+              <SearchOutlined />
+              <span>{t('configBase.search') || '搜索'}</span>
+            </button>
+          </nav>
+
+          <div className={styles.workbenchSidebarSection}>
+            <div className={styles.workbenchSidebarLabel}>
+              {t('configBase.config') || '配置'}
+            </div>
+            {configNavItems.map(item => (
+              <button
+                type="button"
+                key={item.key}
+                className={`${styles.workbenchNavItem} ${
+                  activeWorkbenchView === item.key
+                    ? styles.workbenchNavItemActive
+                    : ''
+                }`}
+                onClick={() => {
+                  setShowTipPk(false);
+                  setShowModelPk(0);
+                  setActiveWorkbenchView(item.key);
+                }}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.workbenchHistory}>
+            <div className={styles.workbenchSidebarLabel}>
+              {t('configBase.debugHistory') || '对话历史'}
+            </div>
+            <div className={styles.workbenchHistoryList}>
+              {debugHistoryLoading && (
+                <div className={styles.workbenchHistoryHint}>
+                  {t('configBase.loading') || '加载中...'}
+                </div>
+              )}
+              {!debugHistoryLoading && debugSessions.length === 0 && (
+                <div className={styles.workbenchHistoryHint}>
+                  {t('configBase.noDebugHistory') || '暂无调试历史'}
+                </div>
+              )}
+              {debugSessions.map(session => (
+                <button
+                  type="button"
+                  key={session.id}
+                  className={`${styles.workbenchHistoryItem} ${
+                    activeDebugSessionId === session.id
+                      ? styles.workbenchHistoryItemActive
+                      : ''
+                  }`}
+                  onClick={() => handleSelectDebugSession(session)}
+                >
+                  <span>{buildDebugSessionTitle(session)}</span>
+                  <small>{session.updatedAt || session.createdAt || ''}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <main className={styles.workbenchMain}>
+          <header className={styles.workbenchMainHeader}>
+            <div>
+              <div className={styles.workbenchTitleRow}>
+                <h1>{workbenchTitleMap[activeWorkbenchView]}</h1>
+                {activeWorkbenchView === 'chat' && (
+                  <span className={styles.workbenchStatusPill}>
+                    {t('configBase.currentConfigValid') || '当前配置有效'}
+                  </span>
+                )}
+              </div>
+              <p>
+                {activeWorkbenchView === 'chat'
+                  ? t('configBase.debugHistoryPersistTip') ||
+                    '使用当前智能体配置开始调试，会保存到当前智能体的服务端调试历史'
+                  : t('configBase.editAgentConfigTip') ||
+                    '编辑当前智能体配置，保存后即可用于新调试会话'}
+              </p>
+            </div>
+            {showModelPk !== 0 && !showTipPk && (
+              <div className={styles.workbenchCompareActions}>
+                <Button onClick={() => setShowModelPk(0)}>
+                  {t('configBase.restoreDefaultDisplay')}
+                </Button>
+                <Button onClick={addModelPk}>
+                  {t('configBase.addModel')} {`(${showModelPk} / 4)`}
+                </Button>
+              </div>
+            )}
+            {renderWorkbenchActions()}
+          </header>
+
+          <section className={styles.workbenchMainBody}>
+            {activeWorkbenchView === 'chat'
+              ? renderChatWorkspace()
+              : renderConfigWorkspace()}
+          </section>
+        </main>
+
+        <WxModal
+          promptbot={true}
+          setPageInfo={() => {}}
+          disjump={true}
+          setIsOpenapi={() => {}}
+          fabuFlag={fabuFlag}
+          show={openWxmol}
+          onCancel={() => {
+            setOpenWxmol(false);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 h-full flex flex-col relative overflow-hidden">
       <ConfigHeader
@@ -1218,16 +2025,16 @@ const BaseConfig: React.FC<ChatProps> = ({
                 }}
                 onClick={e => {
                   if (!coverUrl) {
-                    return message.warning(t('configBase.defaultAvatar'));
+                    message.warning(t('configBase.defaultAvatar'));
+                    return;
                   }
                   if (
                     baseinfo?.botName == '' ||
                     baseinfo?.botType == '' ||
                     baseinfo?.botDesc == ''
                   ) {
-                    return message.warning(
-                      t('configBase.requiredInfoNotFilled')
-                    );
+                    message.warning(t('configBase.requiredInfoNotFilled'));
+                    return;
                   }
 
                   if (selectSource[0]?.tag == 'SparkDesk-RAG') {
@@ -1331,6 +2138,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                         message.error(err.msg);
                       });
                   }
+                  return;
                 }}
               >
                 <span>{t('configBase.save')}</span>
@@ -1349,14 +2157,16 @@ const BaseConfig: React.FC<ChatProps> = ({
               }}
               onClick={e => {
                 if (!coverUrl) {
-                  return message.warning(t('configBase.defaultAvatar'));
+                  message.warning(t('configBase.defaultAvatar'));
+                  return;
                 }
                 if (
                   !baseinfo?.botName ||
                   !baseinfo?.botType ||
                   !baseinfo?.botDesc
                 ) {
-                  return message.warning(t('configBase.requiredInfoNotFilled'));
+                  message.warning(t('configBase.requiredInfoNotFilled'));
+                  return;
                 }
                 if (selectSource[0]?.tag == 'SparkDesk-RAG') {
                   const datasetList: string[] = [];
@@ -1457,6 +2267,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       //
                     });
                 }
+                return;
               }}
             >
               <span>{t('configBase.create')}</span>
@@ -1476,13 +2287,15 @@ const BaseConfig: React.FC<ChatProps> = ({
                 }}
                 onClick={e => {
                   if (questionTipActive == -1) {
-                    return message.warning(t('configBase.notSelectPrompt'));
+                    message.warning(t('configBase.notSelectPrompt'));
+                    return;
                   }
                   e.stopPropagation();
                   setPrompt(promptList[questionTipActive].prompt);
                   setShowTipPk(false);
                   setInputExampleTip('');
                   setInputExampleModel('');
+                  return;
                 }}
               >
                 <span>{t('configBase.completeComparison')}</span>
@@ -1499,9 +2312,11 @@ const BaseConfig: React.FC<ChatProps> = ({
                 }}
                 onClick={() => {
                   if (!searchParams.get('botId')) {
-                    return message.warning(t('先创建助手'));
+                    message.warning(t('configBase.createAgentBeforePublish'));
+                    return;
                   }
                   setOpenWxmol(true);
+                  return;
                 }}
               >
                 <span>{t('configBase.publish')}</span>

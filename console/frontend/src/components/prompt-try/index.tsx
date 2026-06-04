@@ -53,6 +53,9 @@ const PromptTry = forwardRef<
     model?: string;
     supportContext?: number;
     promptText?: string;
+    debugSessionId?: string;
+    initialMessages?: MessageListType[];
+    onMessagesChange?: (messages: MessageListType[]) => void;
     choosedAlltool?: {
       [key: string]: boolean;
     };
@@ -77,6 +80,9 @@ const PromptTry = forwardRef<
       model,
       supportContext,
       choosedAlltool,
+      debugSessionId,
+      initialMessages,
+      onMessagesChange,
       findModelOptionByUniqueKey,
       personalityConfig,
     },
@@ -113,6 +119,16 @@ const PromptTry = forwardRef<
         });
       };
     }, []);
+
+    useEffect(() => {
+      if (initialMessages) {
+        setMessageList(initialMessages);
+      }
+    }, [debugSessionId]);
+
+    useEffect(() => {
+      onMessagesChange?.(messageList);
+    }, [messageList, onMessagesChange]);
 
     // 监听loading状态变化，通知config-base
     useEffect(() => {
