@@ -104,6 +104,9 @@ tmp/
 # Serena MCP cache
 .serena/
 
+# Superpowers visual brainstorming/session artifacts
+.superpowers/
+
 # =============================================================================
 # Operating Systems
 # =============================================================================
