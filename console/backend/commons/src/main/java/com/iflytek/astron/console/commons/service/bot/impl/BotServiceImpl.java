@@ -27,6 +27,7 @@ import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import com.iflytek.astron.console.commons.service.data.DatasetDataService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainLogService;
+import com.iflytek.astron.console.commons.service.workflow.WorkflowVersionLookupService;
 import com.iflytek.astron.console.commons.util.BotFileParamUtil;
 import com.iflytek.astron.console.commons.util.I18nUtil;
 import com.iflytek.astron.console.commons.util.MaasUtil;
@@ -101,6 +102,9 @@ public class BotServiceImpl implements BotService {
 
     @Autowired
     private ChatBotPromptStructMapper chatBotPromptStructMapper;
+
+    @Autowired
+    private WorkflowVersionLookupService workflowVersionLookupService;
 
     @Value("${bot.default.avatar}")
     private String DEFAULT_AVATAR;
@@ -706,29 +710,42 @@ public class BotServiceImpl implements BotService {
             botInfo.setPcBackground(background);
         }
 
-        if (workflowVersion != null && uid.equals(chatBotBase.getUid())) {
-            updateWorkflowStatus(botInfo, botId, workflowVersion);
-        }
+        updateWorkflowStatus(botInfo, botId, normalizeWorkflowVersion(workflowVersion));
     }
 
     private void updateWorkflowStatus(BotInfoDto botInfo, Integer botId, String workflowVersion) {
         try {
             String flowId = userLangChainDataService.findFlowIdByBotId(botId);
-            JSONObject releaseStatusJson = getWorkflowApiResponse("http://127.0.0.1:8080/workflow/version/publish-result?flowId=" + flowId + "&name=" + workflowVersion);
-            JSONObject versionResult = getWorkflowApiResponse("http://127.0.0.1:8080/workflow/version/get-max-version?botId=" + botId);
-
-            if (!releaseStatusJson.getJSONArray("data").isEmpty()) {
-                String releaseStatus = releaseStatusJson.getJSONArray("data").getJSONObject(0).getString("publishResult");
-                log.info("botId:{} query release status: {}", botId, releaseStatus);
-                botInfo.setBotStatus(Objects.equals(releaseStatus, "success") ? ShelfStatusEnum.ON_SHELF.getCode() : ShelfStatusEnum.OFF_SHELF.getCode());
+            if (StringUtils.isBlank(flowId)) {
+                return;
             }
 
-            String versionMax = versionResult.getJSONObject("data").getString("workflowMaxVersion");
-            botInfo.setWorkflowVersion(versionMax);
+            if (StringUtils.isNotBlank(workflowVersion)) {
+                workflowVersionLookupService.isPublishedVersion(flowId, workflowVersion)
+                        .ifPresent(published -> botInfo.setBotStatus(
+                                published ? ShelfStatusEnum.ON_SHELF.getCode() : ShelfStatusEnum.OFF_SHELF.getCode()));
+            }
+
+            workflowVersionLookupService.findLatestSuccessfulVersionName(botId)
+                    .ifPresentOrElse(
+                            botInfo::setWorkflowVersion,
+                            () -> {
+                                if (StringUtils.isNotBlank(workflowVersion)) {
+                                    botInfo.setWorkflowVersion(workflowVersion);
+                                }
+                            });
         } catch (Exception e) {
             log.error("botId:{} query release status exception", botId, e);
-            botInfo.setBotStatus(ShelfStatusEnum.OFF_SHELF.getCode());
         }
+    }
+
+    private String normalizeWorkflowVersion(String workflowVersion) {
+        if (StringUtils.isBlank(workflowVersion)
+                || "undefined".equalsIgnoreCase(workflowVersion)
+                || "null".equalsIgnoreCase(workflowVersion)) {
+            return null;
+        }
+        return workflowVersion;
     }
 
     @Override
@@ -777,35 +794,6 @@ public class BotServiceImpl implements BotService {
             log.error("Failed to get assistant background image: {}: {}, botId: {}, response: {}", e.getClass().getName(), e.getMessage(), botId, response);
         }
         return null;
-    }
-
-    private JSONObject getWorkflowApiResponse(String url) {
-        Request request = new Request.Builder()
-                .url(url)
-                .get()
-                .build();
-
-        try (Response okResponse = httpClient.newCall(request).execute()) {
-            if (!okResponse.isSuccessful()) {
-                log.error("Workflow API request failed: {}, URL: {}", okResponse.code(), url);
-                return new JSONObject();
-            }
-
-            ResponseBody responseBody = okResponse.body();
-            if (responseBody == null) {
-                return new JSONObject();
-            }
-
-            String response = responseBody.string();
-            if (StringUtils.isBlank(response)) {
-                return new JSONObject();
-            }
-
-            return JSONObject.parseObject(response);
-        } catch (Exception e) {
-            log.error("Workflow API call exception, URL: {}, error: {}", url, e.getMessage(), e);
-            return new JSONObject();
-        }
     }
 
     public void processPromptStruct(Integer botId, BotCreateForm bot) {

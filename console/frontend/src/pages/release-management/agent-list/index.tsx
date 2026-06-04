@@ -59,8 +59,11 @@ const hasMarketRelease = (releaseType?: number[] | number): boolean => {
 const canTakeDownMarket = (bot: {
   botStatus?: number;
   releaseType?: number[] | number;
+  canOffline?: boolean;
 }): boolean =>
-  isPublishedBot(bot.botStatus) && hasMarketRelease(bot.releaseType);
+  isPublishedBot(bot.botStatus) &&
+  hasMarketRelease(bot.releaseType) &&
+  bot.canOffline === true;
 
 const formatUtcListTime = (value?: string): string => {
   if (!value) return '-';
@@ -85,7 +88,6 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const [loading, setLoading] = useState(false);
   const [botList, setBotList] = useState<(BotData & { action: BotData })[]>([]);
   const { t } = useTranslation();
-
   const [total, setTotal] = useState<number>();
   const reasonRef = useRef<string | undefined>(undefined);
   const [pageInfo, setPageInfo] = useState<{
@@ -237,7 +239,10 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   };
 
   /** ## 查看智能体 */
-  const checkAgent = (bot: { botId?: string; maasId?: string }): void => {
+  const checkAgent = (bot: {
+    botId?: string;
+    maasId?: string | number;
+  }): void => {
     if (AgentType === 'agent') {
       navigate(`/space/config/overview?botId=${bot.botId}&flag=true`);
     } else {
@@ -247,7 +252,10 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   };
 
   /** ## 编辑智能体 */
-  const updateAgent = (bot: { botId?: string; maasId?: string }): void => {
+  const updateAgent = (bot: {
+    botId?: string;
+    maasId?: string | number;
+  }): void => {
     if (AgentType === 'agent') {
       navigate(`/space/config/base?botId=${bot?.botId}`);
       // 记录选择状态

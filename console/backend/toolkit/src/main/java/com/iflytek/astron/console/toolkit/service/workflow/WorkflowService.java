@@ -27,11 +27,13 @@ import com.iflytek.astron.console.commons.entity.bot.UserLangChainInfo;
 import com.iflytek.astron.console.commons.entity.user.UserInfo;
 import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.enums.bot.BotTypeEnum;
+import com.iflytek.astron.console.commons.enums.space.SpaceRoleEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.mapper.UserLangChainInfoMapper;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotBaseMapper;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.service.bot.BotMarketDataService;
+import com.iflytek.astron.console.commons.service.space.SpaceUserService;
 import com.iflytek.astron.console.commons.util.RequestContextUtil;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
@@ -206,6 +208,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     ApiUrl apiUrl;
     @Autowired
     DataPermissionCheckTool dataPermissionCheckTool;
+    @Autowired
+    private SpaceUserService spaceUserService;
     @Autowired
     BizConfig bizConfig;
     @Autowired
@@ -3187,6 +3191,9 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     public Object canPublishSetNot(Long id) {
         Workflow workflow = getById(id);
+        Long effectiveSpaceId = resolveCurrentWorkflowSpaceId(workflow);
+        assertWorkflowBelongsToCurrentContext(workflow, effectiveSpaceId);
+        assertSpacePublishManager(effectiveSpaceId);
         WorkflowReq req = new WorkflowReq();
         // req.setStatus(WorkflowConst.Status.UNPUBLISHED);
         req.setAppId(workflow.getAppId());
@@ -3202,12 +3209,44 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     public Object canPublishSet(Long id) {
         Workflow workflow = getById(id);
-        dataPermissionCheckTool.checkWorkflowVisible(workflow, SpaceInfoUtil.getSpaceId());
+        Long effectiveSpaceId = resolveCurrentWorkflowSpaceId(workflow);
+        assertWorkflowBelongsToCurrentContext(workflow, effectiveSpaceId);
+        assertSpacePublishManager(effectiveSpaceId);
         WorkflowReq req = new WorkflowReq();
         req.setAppId(workflow.getAppId());
         return update(Wrappers.lambdaUpdate(Workflow.class)
                 .eq(Workflow::getId, id)
                 .set(Workflow::getCanPublish, true));
+    }
+
+    private Long resolveCurrentWorkflowSpaceId(Workflow workflow) {
+        Long requestSpaceId = SpaceInfoUtil.getSpaceId();
+        return requestSpaceId != null ? requestSpaceId : workflow == null ? null : workflow.getSpaceId();
+    }
+
+    private void assertWorkflowBelongsToCurrentContext(Workflow workflow, Long spaceId) {
+        if (workflow == null) {
+            throw new BusinessException(ResponseEnum.DATA_NOT_EXIST);
+        }
+        if (spaceId != null) {
+            if (!Objects.equals(workflow.getSpaceId(), spaceId)) {
+                throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+            }
+            return;
+        }
+        if (!Objects.equals(workflow.getUid(), UserInfoManagerHandler.getUserId())) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
+    }
+
+    private void assertSpacePublishManager(Long spaceId) {
+        if (spaceId == null) {
+            return;
+        }
+        SpaceRoleEnum role = spaceUserService.getRole(spaceId, UserInfoManagerHandler.getUserId());
+        if (SpaceRoleEnum.OWNER != role && SpaceRoleEnum.ADMIN != role) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
     }
 
     public boolean isSimpleIo(Long id) {

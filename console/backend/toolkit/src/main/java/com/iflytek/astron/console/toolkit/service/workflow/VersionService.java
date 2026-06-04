@@ -151,13 +151,29 @@ public class VersionService {
     // Exception database operation rollback
     @Transactional
     public ApiResult<JSONObject> create(WorkflowVersion createDto) {
-        log.info("Starting to add version, input data: {}", createDto);
-        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, createDto.getFlowId()));
-        if (workflow == null) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
-        }
-        dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
+        return createForSpace(createDto, SpaceInfoUtil.getSpaceId());
+    }
 
+    @Transactional
+    public ApiResult<JSONObject> createForSpace(WorkflowVersion createDto, Long spaceId) {
+        log.info("Starting to add version, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        dataPermissionCheckTool.checkWorkflowBelong(workflow, spaceId);
+        return createVersion(createDto, workflow);
+    }
+
+    /**
+     * Create a workflow version for a bot-bound publish flow after the caller has already verified
+     * bot publish permission and resolved the flowId from the bot binding.
+     */
+    @Transactional
+    public ApiResult<JSONObject> createForBoundBotPublish(WorkflowVersion createDto) {
+        log.info("Starting to add version for bound bot publish, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        return createVersion(createDto, workflow);
+    }
+
+    private ApiResult<JSONObject> createVersion(WorkflowVersion createDto, Workflow workflow) {
         try {
             // Create workflow version
             WorkflowVersion workflowVersion = new WorkflowVersion();
@@ -222,6 +238,14 @@ public class VersionService {
         //
     }
 
+    private Workflow requireWorkflow(String flowId) {
+        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, flowId));
+        if (workflow == null) {
+            throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
+        }
+        return workflow;
+    }
+
     /**
      * Update isVersion flag for all versions of a specific flowId. Sets all versions' isVersion to 2
      * (inactive) for the given flowId.
@@ -261,13 +285,27 @@ public class VersionService {
      * @return API result with suggested version name
      */
     public ApiResult<JSONObject> getVersionName(WorkflowVersion createDto) {
-        log.info("Starting to get workflow version name, input data: {}", createDto);
-        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, createDto.getFlowId()));
-        if (workflow == null) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
-        }
-        dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
+        return getVersionNameForSpace(createDto, SpaceInfoUtil.getSpaceId());
+    }
 
+    public ApiResult<JSONObject> getVersionNameForSpace(WorkflowVersion createDto, Long spaceId) {
+        log.info("Starting to get workflow version name, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        dataPermissionCheckTool.checkWorkflowBelong(workflow, spaceId);
+        return buildVersionName(createDto, workflow);
+    }
+
+    /**
+     * Get a workflow version name for a bot-bound publish flow after the caller has already verified
+     * bot publish permission and resolved the flowId from the bot binding.
+     */
+    public ApiResult<JSONObject> getVersionNameForBoundBotPublish(WorkflowVersion createDto) {
+        log.info("Starting to get workflow version name for bound bot publish, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        return buildVersionName(createDto, workflow);
+    }
+
+    private ApiResult<JSONObject> buildVersionName(WorkflowVersion createDto, Workflow workflow) {
         try {
             // Get the maximum version integer
             WorkflowVersion workflowVersion = workflowVersionMapper.selectOne(Wrappers.lambdaQuery(WorkflowVersion.class)
