@@ -56,6 +56,7 @@ const PromptTry = forwardRef<
     debugSessionId?: string;
     initialMessages?: MessageListType[];
     onMessagesChange?: (messages: MessageListType[]) => void;
+    showHeaderAndRecommend?: boolean;
     choosedAlltool?: {
       [key: string]: boolean;
     };
@@ -83,6 +84,7 @@ const PromptTry = forwardRef<
       debugSessionId,
       initialMessages,
       onMessagesChange,
+      showHeaderAndRecommend = true,
       findModelOptionByUniqueKey,
       personalityConfig,
     },
@@ -347,6 +349,7 @@ const PromptTry = forwardRef<
             isLoading={isLoading}
             isCompleted={isCompleted}
             stopAnswer={stopAnswer}
+            showHeaderAndRecommend={showHeaderAndRecommend}
           />
         </div>
       </div>

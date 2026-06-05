@@ -52,7 +52,6 @@ import { debounce } from 'lodash';
 import { useTranslation } from 'react-i18next';
 import { getLanguageCode } from '@/utils/http';
 import {
-  AppstoreOutlined,
   BookOutlined,
   DatabaseOutlined,
   EditOutlined,
@@ -1388,11 +1387,6 @@ const BaseConfig: React.FC<ChatProps> = ({
       icon: <MessageOutlined />,
     },
     {
-      key: 'model',
-      label: t('configBase.modelSelection'),
-      icon: <AppstoreOutlined />,
-    },
-    {
       key: 'capability',
       label: t('configBase.CapabilityDevelopment.capability'),
       icon: <ThunderboltOutlined />,
@@ -1531,6 +1525,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     ? personalityData.personalityConfig
                     : null
                 }
+                showHeaderAndRecommend={false}
               />
             </div>
           ))}
@@ -1589,6 +1584,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     ? personalityData.personalityConfig
                     : null
                 }
+                showHeaderAndRecommend={false}
               />
             </div>
           ))}
@@ -1620,9 +1616,43 @@ const BaseConfig: React.FC<ChatProps> = ({
             ? personalityData.personalityConfig
             : null
         }
+        showHeaderAndRecommend={false}
       />
     );
   };
+
+  const renderChatModelSelector = () => (
+    <Select
+      value={model}
+      onChange={handleModelChange}
+      className={styles.workbenchInputModelSelect}
+      popupMatchSelectWidth={280}
+      placeholder={t('configBase.pleaseSelectModel')}
+      optionLabelProp="label"
+      showSearch
+      filterOption={(input, option) => {
+        const label = String(option?.label || '');
+        return label.toLowerCase().includes(input.toLowerCase());
+      }}
+    >
+      {modelOptions.map((option, index) => (
+        <Option
+          key={getModelUniqueKey(option, index)}
+          value={getModelUniqueKey(option, index)}
+          label={option.modelName}
+        >
+          <div className="flex items-center">
+            <img
+              className="w-[20px] h-[20px]"
+              src={option.modelIcon}
+              alt={option.modelName}
+            />
+            <span>{option.modelName}</span>
+          </div>
+        </Option>
+      ))}
+    </Select>
+  );
 
   const renderChatWorkspace = () => (
     <div className={styles.workbenchChatWorkspace}>
@@ -1635,6 +1665,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         value={askValue}
         onChange={setAskValue}
         isLoading={globalLoading}
+        footerExtra={renderChatModelSelector()}
       />
     </div>
   );
@@ -1976,7 +2007,11 @@ const BaseConfig: React.FC<ChatProps> = ({
             {renderWorkbenchActions()}
           </header>
 
-          <section className={styles.workbenchMainBody}>
+          <section
+            className={`${styles.workbenchMainBody} ${
+              activeWorkbenchView === 'chat' ? styles.workbenchMainBodyChat : ''
+            }`}
+          >
             {activeWorkbenchView === 'chat'
               ? renderChatWorkspace()
               : renderConfigWorkspace()}
