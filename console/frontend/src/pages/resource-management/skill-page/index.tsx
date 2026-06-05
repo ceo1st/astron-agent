@@ -744,15 +744,20 @@ function SkillPage(): React.ReactElement {
             {currentFile?.skillName ? (
               <span>技能名: {currentFile.skillName}</span>
             ) : null}
-            {currentFile?.skillDescription ? (
-              <span>{currentFile.skillDescription}</span>
-            ) : null}
             <span className={styles.monoTag}>
               .{currentFile?.fileExt || 'txt'}
             </span>
           </div>
+          {currentFile?.skillDescription ? (
+            <div
+              className={styles.editorDescription}
+              title={currentFile.skillDescription}
+            >
+              {currentFile.skillDescription}
+            </div>
+          ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className={styles.editorActions}>
           <Segmented
             value={mode}
             onChange={value => setMode(value as 'edit' | 'preview')}
