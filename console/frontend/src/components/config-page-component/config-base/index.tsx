@@ -52,14 +52,11 @@ import { debounce } from 'lodash';
 import { useTranslation } from 'react-i18next';
 import { getLanguageCode } from '@/utils/http';
 import {
-  BookOutlined,
-  DatabaseOutlined,
   EditOutlined,
   LeftOutlined,
   MessageOutlined,
   PlusSquareOutlined,
   SearchOutlined,
-  SoundOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
 
@@ -94,16 +91,7 @@ import {
 
 const { Option } = Select;
 
-type WorkbenchView =
-  | 'chat'
-  | 'search'
-  | 'basic'
-  | 'prompt'
-  | 'model'
-  | 'capability'
-  | 'knowledge'
-  | 'opening'
-  | 'appearance';
+type WorkbenchView = 'chat' | 'search' | 'basic' | 'prompt' | 'capability';
 
 const baseModelConfig: BaseModelConfig = {
   visible: false,
@@ -214,6 +202,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   const [inputExample, setInputExample] = useState<string[]>([]);
   const [bottypeList, setBottypeList] = useState<any>([]);
   const [searchParams] = useSearchParams();
+  const isNewWorkbench = searchParams.get('legacy') !== 'true';
   const [selectSource, setSelectSource] = useState<any>([]);
   const [prompt, setPrompt] = useState(t('configBase.prompt'));
   const [promptList, setPromptList]: any = useState([
@@ -222,11 +211,11 @@ const BaseConfig: React.FC<ChatProps> = ({
   ]);
   const [choosedAlltool, setChoosedAlltool] = useState<any>({
     ifly_search: true,
-    text_to_image: true,
-    codeinterpreter: true,
+    text_to_image: false,
+    codeinterpreter: false,
   });
   const [supportSystemFlag, setSupportSystemFlag] = useState(false);
-  const [supportContextFlag, setSupportContextFlag] = useState(false);
+  const [supportContextFlag, setSupportContextFlag] = useState(true);
   const [promptNow, setPromptNow] = useState();
   const [coverUrl, setCoverUrl] = useState<string>(''); // 助手封面图
   const isMounted = useRef(false);
@@ -466,6 +455,14 @@ const BaseConfig: React.FC<ChatProps> = ({
       : baseinfo.botTemplate ||
         detailInfo.botTemplate ||
         botTemplateInfoValue.botTemplate;
+    const normalizedToolConfig = isNewWorkbench
+      ? {
+          ...choosedAlltool,
+          ifly_search: true,
+          text_to_image: false,
+          codeinterpreter: false,
+        }
+      : choosedAlltool;
 
     return {
       ...(backgroundImgApp && {
@@ -485,7 +482,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       botType: botType,
       botDesc: botDesc,
       botTemplate,
-      supportContext: supportContextFlag ? 1 : 0,
+      supportContext: isNewWorkbench ? 1 : supportContextFlag ? 1 : 0,
       supportSystem: supportSystemFlag ? 1 : 0,
       promptType: 0,
       inputExample: inputExample,
@@ -493,8 +490,8 @@ const BaseConfig: React.FC<ChatProps> = ({
       avatar: coverUrl,
       vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
       isSentence: 0,
-      openedTool: Object.keys(choosedAlltool)
-        .filter((key: any) => choosedAlltool[key])
+      openedTool: Object.keys(normalizedToolConfig)
+        .filter((key: any) => normalizedToolConfig[key])
         .join(','),
       prologue: prologue,
       ...getModelConfig(model),
@@ -657,6 +654,18 @@ const BaseConfig: React.FC<ChatProps> = ({
       setVcnList(res);
     });
   }, []);
+
+  useEffect(() => {
+    if (!isNewWorkbench) return;
+
+    setSupportContextFlag(true);
+    setChoosedAlltool((currentTools: any) => ({
+      ...currentTools,
+      ifly_search: true,
+      text_to_image: false,
+      codeinterpreter: false,
+    }));
+  }, [isNewWorkbench, detailInfo?.openedTool]);
 
   // 监听 modelOptions 加载完成，处理待回显的模型数据
   useEffect(() => {
@@ -1371,6 +1380,8 @@ const BaseConfig: React.FC<ChatProps> = ({
     setInputExampleModel('');
   };
 
+  const personalizationTitle = '个性化设置';
+
   const configNavItems: Array<{
     key: WorkbenchView;
     label: string;
@@ -1383,7 +1394,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     },
     {
       key: 'prompt',
-      label: t('configBase.promptEdit'),
+      label: personalizationTitle,
       icon: <MessageOutlined />,
     },
     {
@@ -1391,33 +1402,14 @@ const BaseConfig: React.FC<ChatProps> = ({
       label: t('configBase.CapabilityDevelopment.capability'),
       icon: <ThunderboltOutlined />,
     },
-    {
-      key: 'knowledge',
-      label: t('configBase.CapabilityDevelopment.knowledgeBase'),
-      icon: <DatabaseOutlined />,
-    },
-    {
-      key: 'opening',
-      label: t('configBase.CapabilityDevelopment.openingStatement'),
-      icon: <BookOutlined />,
-    },
-    {
-      key: 'appearance',
-      label: t('configBase.agentAppearanceVoice') || '外观声音',
-      icon: <SoundOutlined />,
-    },
   ];
 
   const workbenchTitleMap: Record<WorkbenchView, string> = {
     chat: t('chatPage.chatWindow.newChat'),
     search: t('configBase.search') || '搜索',
     basic: t('configBase.agentBaseInfo') || '基础信息',
-    prompt: t('configBase.promptEdit'),
-    model: t('configBase.modelSelection'),
+    prompt: personalizationTitle,
     capability: t('configBase.CapabilityDevelopment.capability'),
-    knowledge: t('configBase.CapabilityDevelopment.knowledgeBase'),
-    opening: t('configBase.CapabilityDevelopment.openingStatement'),
-    appearance: t('configBase.agentAppearanceVoice') || '外观声音',
   };
 
   const renderWorkbenchActions = () => (
@@ -1670,83 +1662,125 @@ const BaseConfig: React.FC<ChatProps> = ({
     </div>
   );
 
+  const renderCapabilityDevelopment = (
+    viewMode: 'full' | 'personalization' | 'knowledge' = 'full'
+  ) => (
+    <CapabilityDevelopment
+      viewMode={viewMode}
+      botCreateActiveV={botCreateActiveV}
+      setBotCreateActiveV={setBotCreateActiveV}
+      baseinfo={baseinfo}
+      detailInfo={detailInfo}
+      prompt={prompt}
+      prologue={prologue}
+      setPrologue={setPrologue}
+      inputExample={inputExample}
+      setInputExample={setInputExample}
+      choosedAlltool={choosedAlltool}
+      setChoosedAlltool={setChoosedAlltool}
+      supportContextFlag={supportContextFlag}
+      setSupportContextFlag={setSupportContextFlag}
+      selectSource={selectSource}
+      setSelectSource={setSelectSource}
+      files={files}
+      tree={tree}
+      setTree={setTree}
+      tools={tools}
+      setTools={setTools}
+      conversation={conversation}
+      setConversation={setConversation}
+      multiModelDebugging={multiModelDebugging}
+      growOrShrinkConfig={growOrShrinkConfig}
+      setGrowOrShrinkConfig={setGrowOrShrinkConfig}
+      personalityData={personalityData}
+      setPersonalityData={handlePersonalityChange}
+      model={model}
+      vcnList={vcnList}
+    />
+  );
+
   const renderBasicInfoWorkspace = () => (
-    <Form
-      form={form}
-      name="botEditWorkbench"
-      className={styles.workbenchForm}
-      onValuesChange={val => {
-        setBaseinfo({ ...baseinfo, ...val });
-      }}
-    >
-      <div className={styles.workbenchFormSection}>
-        <div className={styles.workbenchSectionTitle}>
-          <span>{t('configBase.agentBaseInfo') || '基础信息'}</span>
-        </div>
-        <div className={styles.workbenchBaseInfoGrid}>
-          <Form.Item label="" name="cover" required colon={false}>
-            <UploadCover
-              name={form.getFieldsValue().botName}
-              botDesc={form.getFieldsValue().botDesc}
-              setCoverUrl={setCoverUrl}
-              coverUrl={coverUrl}
-            />
-          </Form.Item>
-          <div className={styles.workbenchBaseInfoFields}>
-            <Form.Item
-              label={t('configBase.agentName')}
-              name="botName"
-              rules={[{ required: true, message: '' }]}
-              colon={false}
-            >
-              <Input
-                disabled={
-                  detailInfo.botStatus == 1 ||
-                  detailInfo.botStatus == 2 ||
-                  detailInfo.botStatus == 4
-                }
-                maxLength={20}
+    <div className={styles.workbenchBasicWorkspace}>
+      <Form
+        form={form}
+        name="botEditWorkbench"
+        className={styles.workbenchForm}
+        onValuesChange={val => {
+          setBaseinfo({ ...baseinfo, ...val });
+        }}
+      >
+        <div className={styles.workbenchFormSection}>
+          <div className={styles.workbenchSectionTitle}>
+            <span>{t('configBase.agentBaseInfo') || '基础信息'}</span>
+          </div>
+          <div className={styles.workbenchBaseInfoGrid}>
+            <Form.Item label="" name="cover" required colon={false}>
+              <UploadCover
+                name={form.getFieldsValue().botName}
+                botDesc={form.getFieldsValue().botDesc}
+                setCoverUrl={setCoverUrl}
+                coverUrl={coverUrl}
               />
             </Form.Item>
-            <Form.Item
-              name="botType"
-              rules={[{ required: true, message: '' }]}
-              colon={false}
-              label={t('configBase.agentCategory')}
-            >
-              <Select
-                disabled={
-                  detailInfo.botStatus == 1 ||
-                  detailInfo.botStatus == 2 ||
-                  detailInfo.botStatus == 4
-                }
-                options={bottypeList}
-              />
-            </Form.Item>
-            <Form.Item
-              label={t('configBase.agentIntroduction')}
-              name="botDesc"
-              rules={[{ required: true, message: '' }]}
-              colon={false}
-              className={styles.workbenchDescField}
-            >
-              <Input.TextArea
-                className="xingchen-textarea"
-                maxLength={100}
-                showCount
-                autoSize={{ minRows: 4, maxRows: 4 }}
-              />
-            </Form.Item>
+            <div className={styles.workbenchBaseInfoFields}>
+              <Form.Item
+                label={t('configBase.agentName')}
+                name="botName"
+                rules={[{ required: true, message: '' }]}
+                colon={false}
+              >
+                <Input
+                  disabled={
+                    detailInfo.botStatus == 1 ||
+                    detailInfo.botStatus == 2 ||
+                    detailInfo.botStatus == 4
+                  }
+                  maxLength={20}
+                />
+              </Form.Item>
+              <Form.Item
+                name="botType"
+                rules={[{ required: true, message: '' }]}
+                colon={false}
+                label={t('configBase.agentCategory')}
+              >
+                <Select
+                  disabled={
+                    detailInfo.botStatus == 1 ||
+                    detailInfo.botStatus == 2 ||
+                    detailInfo.botStatus == 4
+                  }
+                  options={bottypeList}
+                />
+              </Form.Item>
+              <Form.Item
+                label={t('configBase.agentIntroduction')}
+                name="botDesc"
+                rules={[{ required: true, message: '' }]}
+                colon={false}
+                className={styles.workbenchDescField}
+              >
+                <Input.TextArea
+                  className="xingchen-textarea"
+                  maxLength={100}
+                  showCount
+                  autoSize={{ minRows: 4, maxRows: 4 }}
+                />
+              </Form.Item>
+            </div>
           </div>
         </div>
+      </Form>
+      <div className={styles.workbenchFormSection}>
+        {renderCapabilityDevelopment('personalization')}
       </div>
-    </Form>
+    </div>
   );
 
   const renderPromptWorkspace = () => (
     <div className={styles.workbenchFormSection}>
       <div className={styles.workbenchSectionTitle}>
-        <span>{t('configBase.promptEdit')}</span>
+        <span>{personalizationTitle}</span>
         <div className={styles.workbenchInlineActions}>
           <Button onClick={() => handleShowTipPk('show')}>
             {t('configBase.promptComparison')}
@@ -1767,72 +1801,9 @@ const BaseConfig: React.FC<ChatProps> = ({
     </div>
   );
 
-  const renderModelWorkspace = () => (
-    <div className={styles.workbenchFormSection}>
-      <div className={styles.workbenchSectionTitle}>
-        <span>{t('configBase.modelSelection')}</span>
-        <Button onClick={() => setShowModelPk(2)}>
-          {t('configBase.modelComparison')}
-        </Button>
-      </div>
-      <Select
-        value={model}
-        onChange={handleModelChange}
-        className={styles.workbenchFullWidth}
-        placeholder={t('configBase.pleaseSelectModel')}
-      >
-        {modelOptions.map((option, index) => (
-          <Option
-            key={getModelUniqueKey(option, index)}
-            value={getModelUniqueKey(option, index)}
-          >
-            <div className="flex items-center">
-              <img
-                className="w-[20px] h-[20px]"
-                src={option.modelIcon}
-                alt={option.modelName}
-              />
-              <span>{option.modelName}</span>
-            </div>
-          </Option>
-        ))}
-      </Select>
-    </div>
-  );
-
   const renderCapabilityWorkspace = () => (
     <div className={styles.workbenchCapabilityShell}>
-      <CapabilityDevelopment
-        botCreateActiveV={botCreateActiveV}
-        setBotCreateActiveV={setBotCreateActiveV}
-        baseinfo={baseinfo}
-        detailInfo={detailInfo}
-        prompt={prompt}
-        prologue={prologue}
-        setPrologue={setPrologue}
-        inputExample={inputExample}
-        setInputExample={setInputExample}
-        choosedAlltool={choosedAlltool}
-        setChoosedAlltool={setChoosedAlltool}
-        supportContextFlag={supportContextFlag}
-        setSupportContextFlag={setSupportContextFlag}
-        selectSource={selectSource}
-        setSelectSource={setSelectSource}
-        files={files}
-        tree={tree}
-        setTree={setTree}
-        tools={tools}
-        setTools={setTools}
-        conversation={conversation}
-        setConversation={setConversation}
-        multiModelDebugging={multiModelDebugging}
-        growOrShrinkConfig={growOrShrinkConfig}
-        setGrowOrShrinkConfig={setGrowOrShrinkConfig}
-        personalityData={personalityData}
-        setPersonalityData={handlePersonalityChange}
-        model={model}
-        vcnList={vcnList}
-      />
+      {renderCapabilityDevelopment('knowledge')}
     </div>
   );
 
@@ -1853,7 +1824,6 @@ const BaseConfig: React.FC<ChatProps> = ({
     if (activeWorkbenchView === 'search') return renderSearchWorkspace();
     if (activeWorkbenchView === 'basic') return renderBasicInfoWorkspace();
     if (activeWorkbenchView === 'prompt') return renderPromptWorkspace();
-    if (activeWorkbenchView === 'model') return renderModelWorkspace();
     return renderCapabilityWorkspace();
   };
 
