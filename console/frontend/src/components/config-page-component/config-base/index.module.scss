@@ -669,9 +669,13 @@
 
 .workbenchMainBody {
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
   padding: 22px 28px;
   background: #fbfdff;
+}
+
+.workbenchMainBodyChat {
+  overflow: hidden;
 }
 
 .workbenchChatWorkspace {
@@ -690,6 +694,32 @@
   border: 1px solid #e0e7ff;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.workbenchInputModelSelect {
+  width: 180px;
+
+  :global(.ant-select-selector) {
+    height: 38px !important;
+    border-color: #d2dbe7 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  :global(.ant-select-selection-item) {
+    display: block;
+    overflow: hidden;
+    color: #475569;
+    font-size: 13px;
+    line-height: 36px !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.ant-select-arrow) {
+    color: #64748b;
+  }
 }
 
 .workbenchCompareGrid {
@@ -742,6 +772,7 @@
   border: 1px solid #e0e7ff;
   border-radius: 8px;
   background: #ffffff;
+  min-height: max-content;
 }
 
 .workbenchSectionTitle {
