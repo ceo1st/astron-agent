@@ -111,7 +111,7 @@ const OfficialModelContent: React.FC = () => {
       {
         provider: ModelProviderType.MINIMAX,
         title: 'MiniMax',
-        subtitle: 'MiniMax-Text-01',
+        subtitle: 'MiniMax-M3 / MiniMax-M2.7',
         description: t('model.providerCardMiniMaxDesc'),
         accentClass: 'from-[#FFF3E8] via-[#FFF8F2] to-white',
         endpoint: 'https://api.minimaxi.com/v1',
