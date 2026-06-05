@@ -1782,9 +1782,6 @@ const BaseConfig: React.FC<ChatProps> = ({
       <div className={styles.workbenchSectionTitle}>
         <span>{personalizationTitle}</span>
         <div className={styles.workbenchInlineActions}>
-          <Button onClick={() => handleShowTipPk('show')}>
-            {t('configBase.promptComparison')}
-          </Button>
           <Button onClick={aiGen} loading={loadingPrompt}>
             {t('configBase.AIoptimization')}
           </Button>
