@@ -84,6 +84,7 @@ import {
   AgentDebugSession,
   buildDebugSessionTitle,
   createAgentDebugSession,
+  deleteAgentDebugSession,
   getAgentDebugMessages,
   getAgentDebugSessions,
   saveAgentDebugMessages,
@@ -92,6 +93,15 @@ import {
 const { Option } = Select;
 
 type WorkbenchView = 'chat' | 'search' | 'basic' | 'prompt' | 'capability';
+
+const getDebugSessionTitleFromMessages = (
+  messages: MessageListType[]
+): string => {
+  const userMessage = messages.find(
+    item => item.reqType === 'USER' && item.message?.trim()
+  );
+  return userMessage?.message?.trim().slice(0, 30) || '';
+};
 
 const baseModelConfig: BaseModelConfig = {
   visible: false,
@@ -236,6 +246,13 @@ const BaseConfig: React.FC<ChatProps> = ({
   >([]);
   const [debugSessionKey, setDebugSessionKey] = useState(0);
   const [debugHistoryLoading, setDebugHistoryLoading] = useState(false);
+  const activeDebugSessionIdRef = useRef('');
+  const debugSessionScopeRef = useRef(0);
+  const debugMessageRevisionRef = useRef(0);
+  const creatingDebugSessionRef = useRef<{
+    scope: number;
+    promise: Promise<AgentDebugSession | null>;
+  } | null>(null);
 
   // 人设相关状态
   const [personalityData, setPersonalityData] = useState({
@@ -1067,44 +1084,116 @@ const BaseConfig: React.FC<ChatProps> = ({
     loadDebugSessions();
   }, [loadDebugSessions]);
 
-  const handleStartDebugSession = useCallback(async () => {
+  useEffect(() => {
+    activeDebugSessionIdRef.current = activeDebugSessionId;
+  }, [activeDebugSessionId]);
+
+  const updateDebugSessionSummary = useCallback(
+    (sessionId: string, messages: MessageListType[]) => {
+      const title = getDebugSessionTitleFromMessages(messages);
+      setDebugSessions(prev =>
+        prev.map(session =>
+          session.id === sessionId
+            ? {
+                ...session,
+                title: title || session.title,
+                messageCount: messages.length,
+                updatedAt: new Date().toISOString(),
+              }
+            : session
+        )
+      );
+    },
+    []
+  );
+
+  const ensureDebugSession = useCallback(
+    async (scope: number) => {
+      if (scope !== debugSessionScopeRef.current) return null;
+      if (activeDebugSessionIdRef.current) return null;
+      if (!currentBotId) return null;
+      if (creatingDebugSessionRef.current?.scope === scope) {
+        return creatingDebugSessionRef.current.promise;
+      }
+
+      const creation = createAgentDebugSession({
+        botId: currentBotId,
+        title: t('chatPage.chatWindow.newChat'),
+      })
+        .then(session => {
+          if (
+            scope !== debugSessionScopeRef.current ||
+            activeDebugSessionIdRef.current
+          ) {
+            deleteAgentDebugSession(session.id).catch(() => {});
+            return null;
+          }
+          activeDebugSessionIdRef.current = session.id;
+          setActiveDebugSessionId(session.id);
+          setDebugSessions(prev => [
+            session,
+            ...prev.filter(item => item.id !== session.id),
+          ]);
+          return session;
+        })
+        .catch(() => null)
+        .finally(() => {
+          if (creatingDebugSessionRef.current?.promise === creation) {
+            creatingDebugSessionRef.current = null;
+          }
+        });
+
+      creatingDebugSessionRef.current = {
+        scope,
+        promise: creation,
+      };
+      return creation;
+    },
+    [currentBotId, t]
+  );
+
+  const handleStartDebugSession = useCallback(() => {
+    debugSessionScopeRef.current += 1;
+    debugMessageRevisionRef.current += 1;
     setActiveWorkbenchView('chat');
     setShowTipPk(false);
     setShowModelPk(0);
     setAskValue('');
     setDebugInitialMessages([]);
+    activeDebugSessionIdRef.current = '';
     setActiveDebugSessionId('');
     setDebugSessionKey(key => key + 1);
-
-    if (!currentBotId) {
-      return;
-    }
-
-    try {
-      const session = await createAgentDebugSession({
-        botId: currentBotId,
-        title: t('chatPage.chatWindow.newChat'),
-      });
-      setActiveDebugSessionId(session.id);
-      setDebugSessions(prev => [session, ...prev]);
-    } catch (err) {
-      setActiveDebugSessionId('');
-    }
-  }, [currentBotId, t]);
+  }, []);
 
   const handleSelectDebugSession = useCallback(
     async (session: AgentDebugSession) => {
+      debugSessionScopeRef.current += 1;
+      const scope = debugSessionScopeRef.current;
+      const revision = debugMessageRevisionRef.current;
       setActiveWorkbenchView('chat');
       setShowTipPk(false);
       setShowModelPk(0);
+      activeDebugSessionIdRef.current = session.id;
       setActiveDebugSessionId(session.id);
+      setDebugInitialMessages([]);
       setDebugSessionKey(key => key + 1);
 
       try {
         const messages = await getAgentDebugMessages(session.id);
-        setDebugInitialMessages(messages || []);
+        if (
+          scope === debugSessionScopeRef.current &&
+          revision === debugMessageRevisionRef.current &&
+          activeDebugSessionIdRef.current === session.id
+        ) {
+          setDebugInitialMessages(messages || []);
+        }
       } catch (err) {
-        setDebugInitialMessages([]);
+        if (
+          scope === debugSessionScopeRef.current &&
+          activeDebugSessionIdRef.current === session.id
+        ) {
+          setDebugInitialMessages([]);
+        }
       }
     },
     []
@@ -1125,11 +1214,22 @@ const BaseConfig: React.FC<ChatProps> = ({
   }, [persistDebugMessages]);
 
   const handleDebugMessagesChange = useCallback(
-    (messages: MessageListType[]) => {
-      if (!activeDebugSessionId || messages.length === 0) return;
-      persistDebugMessages(activeDebugSessionId, messages);
+    async (messages: MessageListType[]) => {
+      const scope = debugSessionScopeRef.current;
+      const existingSession = activeDebugSessionIdRef.current;
+      if (messages.length === 0 && !existingSession) return;
+
+      debugMessageRevisionRef.current += 1;
+
+      const activeSession =
+        existingSession || (await ensureDebugSession(scope))?.id;
+      if (!activeSession) return;
+      if (scope !== debugSessionScopeRef.current) return;
+
+      updateDebugSessionSummary(activeSession, messages);
+      persistDebugMessages(activeSession, messages);
     },
-    [activeDebugSessionId, persistDebugMessages]
+    [ensureDebugSession, persistDebugMessages, updateDebugSessionSummary]
   );
 
   useEffect(() => {
@@ -1587,7 +1687,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     return (
       <PromptTry
         ref={defaultPromptTryRef}
-        key={activeDebugSessionId || `debug-session-${debugSessionKey}`}
+        key={`debug-session-${debugSessionKey}`}
         debugSessionId={
           activeDebugSessionId || `debug-session-${debugSessionKey}`
         }
