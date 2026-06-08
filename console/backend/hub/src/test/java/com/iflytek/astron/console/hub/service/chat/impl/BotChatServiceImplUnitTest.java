@@ -319,7 +319,7 @@ class BotChatServiceImplUnitTest {
         request.setPrompt("test prompt");
         request.setMessages(Arrays.asList("message1", "message2"));
         request.setUid("test-uid");
-        request.setOpenedTool("ifly_search");
+        request.setOpenedTool("web_search");
         request.setModel("x1");
         request.setModelId(null);
         request.setMaasDatasetList(Arrays.asList("dataset1"));
@@ -349,7 +349,7 @@ class BotChatServiceImplUnitTest {
         request.setPrompt("test prompt");
         request.setMessages(Arrays.asList("message1", "message2"));
         request.setUid("test-uid");
-        request.setOpenedTool("ifly_search");
+        request.setOpenedTool("web_search");
         request.setModel("test-model");
         request.setModelId(1L);
         request.setMaasDatasetList(Arrays.asList("dataset1"));
@@ -376,6 +376,8 @@ class BotChatServiceImplUnitTest {
             verify(modelService).getDetail(eq(0), eq(1L), isNull());
             verify(promptChatService).chatStream(argThat(json -> "openai".equals(json.getString("provider")) &&
                     json.getBooleanValue("managedWebSearch") &&
+                    "auto".equals(json.getString("tool_choice")) &&
+                    "web_search".equals(json.getJSONArray("tools").getJSONObject(0).getJSONObject("function").getString("name")) &&
                     "test message".equals(json.getString("managedSearchQuery")) &&
                     "test-uid".equals(json.getString("userId"))),
                     eq(sseEmitter),
@@ -505,6 +507,8 @@ class BotChatServiceImplUnitTest {
         verify(promptChatService).chatStream(
                 argThat(json -> "openai".equals(json.getString("provider")) &&
                         json.getBooleanValue("managedWebSearch") &&
+                        "auto".equals(json.getString("tool_choice")) &&
+                        "web_search".equals(json.getJSONArray("tools").getJSONObject(0).getJSONObject("function").getString("name")) &&
                         "test question".equals(json.getString("managedSearchQuery")) &&
                         "test-uid".equals(json.getString("userId"))),
                 eq(sseEmitter),

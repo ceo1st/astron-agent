@@ -30,7 +30,13 @@ import java.util.Objects;
 public class PromptChatService {
     private static final String PROVIDER_GOOGLE = "google";
     private static final String PROVIDER_ANTHROPIC = "anthropic";
-    private static final String OPENAI_SEARCH_TOOL_NAME = "ifly_search";
+    private static final String OPENAI_SEARCH_TOOL_NAME = "web_search";
+    private static final String LEGACY_OPENAI_SEARCH_TOOL_NAME = "ifly_search";
+    private static final String WEB_SEARCH_DECISION_INSTRUCTION = """
+            You have access to a web_search tool. Decide whether to call it.
+            Use web_search for questions that require current or recently changed information, including current date, weekday, time-sensitive facts, latest news, prices, policies, schedules, releases, rankings, or status.
+            For static knowledge that does not need real-time information, answer directly without using the tool.
+            """;
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
 
     private final OkHttpClient httpClient;
@@ -79,6 +85,9 @@ public class PromptChatService {
      */
     private void performChatRequest(JSONObject request, SseEmitter emitter, String streamId, ChatReqRecords chatReqRecords, boolean edit, boolean isDebug) throws IOException {
         String provider = normalizeProvider(request.getString("provider"));
+        if (hasWebSearchCapability(request)) {
+            applyWebSearchDecisionInstruction(request);
+        }
         // Handle managed web search directly (when managedWebSearch=true without tools array)
         if (request.getBooleanValue("managedWebSearch") && !hasOpenAiSearchTool(request.getJSONArray("tools"))) {
             applyManagedWebSearch(request, chatReqRecords);
@@ -242,11 +251,73 @@ public class PromptChatService {
         for (int i = 0; i < tools.size(); i++) {
             JSONObject tool = tools.getJSONObject(i);
             JSONObject function = tool == null ? null : tool.getJSONObject("function");
-            if (function != null && StringUtils.equals(function.getString("name"), OPENAI_SEARCH_TOOL_NAME)) {
+            if (function != null && isSearchToolName(function.getString("name"))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean hasWebSearchCapability(JSONObject request) {
+        if (request.getBooleanValue("managedWebSearch")) {
+            return true;
+        }
+        JSONArray tools = request.getJSONArray("tools");
+        if (tools == null || tools.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < tools.size(); i++) {
+            JSONObject tool = tools.getJSONObject(i);
+            if (tool == null) {
+                continue;
+            }
+            if (tool.containsKey("google_search")) {
+                return true;
+            }
+            String type = tool.getString("type");
+            String name = tool.getString("name");
+            if (StringUtils.containsIgnoreCase(type, "web_search") || isSearchToolName(name)) {
+                return true;
+            }
+            JSONObject function = tool.getJSONObject("function");
+            if (function != null && isSearchToolName(function.getString("name"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSearchToolName(String name) {
+        return StringUtils.equals(name, OPENAI_SEARCH_TOOL_NAME)
+                || StringUtils.equals(name, LEGACY_OPENAI_SEARCH_TOOL_NAME);
+    }
+
+    private void applyWebSearchDecisionInstruction(JSONObject request) {
+        JSONArray messages = request.getJSONArray("messages");
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+
+        JSONObject firstSystemMessage = null;
+        for (int i = 0; i < messages.size(); i++) {
+            JSONObject message = messages.getJSONObject(i);
+            if (message != null && "system".equals(normalizeMessageRole(message.getString("role")))) {
+                firstSystemMessage = message;
+                break;
+            }
+        }
+
+        if (firstSystemMessage == null) {
+            messages.add(0, new JSONObject()
+                    .fluentPut("role", "system")
+                    .fluentPut("content", WEB_SEARCH_DECISION_INSTRUCTION));
+        } else {
+            String content = StringUtils.defaultString(firstSystemMessage.getString("content"));
+            if (!StringUtils.contains(content, "web_search tool")) {
+                firstSystemMessage.put("content", WEB_SEARCH_DECISION_INSTRUCTION + "\n" + content);
+            }
+        }
+        request.put("messages", messages);
     }
 
     private boolean handleOpenAiFunctionToolCall(JSONObject request, SseEmitter emitter, String streamId,
@@ -261,6 +332,7 @@ public class PromptChatService {
             log.warn("OpenAI-compatible tool planning failed, fallback to normal request, streamId: {}, error: {}", streamId, e.getMessage());
             request.remove("tools");
             request.remove("toolChoice");
+            request.remove("tool_choice");
             return false;
         }
 
@@ -287,6 +359,7 @@ public class PromptChatService {
         appendToolMessages(request, extractAssistantMessage(planningResponse), toolCalls, toolResult.content());
         request.remove("tools");
         request.remove("toolChoice");
+        request.remove("tool_choice");
         request.put("stream", true);
         return false;
     }
@@ -424,7 +497,7 @@ public class PromptChatService {
         for (int i = 0; i < toolCalls.size(); i++) {
             JSONObject toolCall = toolCalls.getJSONObject(i);
             JSONObject function = toolCall == null ? null : toolCall.getJSONObject("function");
-            if (function == null || !StringUtils.equals(function.getString("name"), OPENAI_SEARCH_TOOL_NAME)) {
+            if (function == null || !isSearchToolName(function.getString("name"))) {
                 continue;
             }
             String arguments = function.getString("arguments");
@@ -457,7 +530,7 @@ public class PromptChatService {
         for (int i = 0; i < toolCalls.size(); i++) {
             JSONObject toolCall = toolCalls.getJSONObject(i);
             JSONObject function = toolCall == null ? null : toolCall.getJSONObject("function");
-            if (function == null || !StringUtils.equals(function.getString("name"), OPENAI_SEARCH_TOOL_NAME)) {
+            if (function == null || !isSearchToolName(function.getString("name"))) {
                 continue;
             }
             messages.add(new JSONObject()
