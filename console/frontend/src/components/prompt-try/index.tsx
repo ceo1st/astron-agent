@@ -96,7 +96,7 @@ const PromptTry = forwardRef<
     const [messageList, setMessageList] = useState<MessageListType[]>([]); // 消息列表
     const controllerRef = useRef<AbortController>(new AbortController()); //sse请求ref
     const currentSid = useRef<string>(''); // 当前sid
-    const syncingInitialMessagesRef = useRef(false);
+    const pendingInitialMessagesRef = useRef<MessageListType[] | null>(null);
 
     // 使用useImperativeHandle暴露组件方法
     useImperativeHandle(ref, () => ({
@@ -124,14 +124,22 @@ const PromptTry = forwardRef<
 
     useEffect(() => {
       if (initialMessages) {
-        syncingInitialMessagesRef.current = true;
-        setMessageList(initialMessages);
+        pendingInitialMessagesRef.current = initialMessages;
+        setMessageList(current => {
+          if (current === initialMessages) {
+            pendingInitialMessagesRef.current = null;
+            return current;
+          }
+          return initialMessages;
+        });
       }
     }, [initialMessages]);
 
     useEffect(() => {
-      if (syncingInitialMessagesRef.current) {
-        syncingInitialMessagesRef.current = false;
+      if (pendingInitialMessagesRef.current) {
+        if (pendingInitialMessagesRef.current === messageList) {
+          pendingInitialMessagesRef.current = null;
+        }
         return;
       }
       onMessagesChange?.(messageList);
