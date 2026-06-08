@@ -29,7 +29,11 @@ type ModelConfig =
   | 'flow';
 
 // 工具类型
-type ToolType = 'ifly_search' | 'text_to_image' | 'codeinterpreter';
+type ToolType =
+  | 'web_search'
+  | 'ifly_search'
+  | 'text_to_image'
+  | 'codeinterpreter';
 
 // 模型信息接口
 interface ModelInfo {
@@ -371,7 +375,7 @@ const ChatSide: React.FC<ChatSideProps> = ({ botInfo }) => {
             /* 兼容旧版工具配置 */
             toolList.map((tool: ToolType, index: number) => (
               <div key={`${tool}-${index}`}>
-                {tool === 'ifly_search' && (
+                {(tool === 'web_search' || tool === 'ifly_search') && (
                   <Tooltip
                     title={t('chatPage.chatSide.webSearch')}
                     placement="top"

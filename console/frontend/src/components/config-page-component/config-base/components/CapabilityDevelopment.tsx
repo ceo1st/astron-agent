@@ -38,6 +38,7 @@ import codeIcon from '@/assets/imgs/plugin/code.svg'; // 代码图标
 import netIcon from '@/assets/imgs/plugin/network.svg'; // 网络图标
 import genPicIcon from '@/assets/imgs/plugin/gen-pic.svg'; // 图片图标
 import { useTranslation } from 'react-i18next';
+import { hasWebSearchTool } from '../tool-config';
 
 import styles from './CapabilityDevelopment.module.scss';
 import cls from 'classnames';
@@ -382,12 +383,13 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
                 </div>
                 <Switch
                   className="list-switch config-switch"
-                  defaultChecked={
-                    detailInfo.openedTool?.indexOf('ifly_search') !== -1
-                  }
+                  defaultChecked={hasWebSearchTool(detailInfo.openedTool)}
                   onChange={checked => {
-                    choosedAlltool.ifly_search = checked;
-                    setChoosedAlltool(choosedAlltool);
+                    setChoosedAlltool({
+                      ...choosedAlltool,
+                      web_search: checked,
+                      ifly_search: false,
+                    });
                   }}
                 />
               </div>

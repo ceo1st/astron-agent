@@ -77,6 +77,11 @@ import {
   KnowledgeLeaf,
   Knowledge,
 } from './types';
+import {
+  getEffectiveToolConfig,
+  hasWebSearchTool,
+  serializeOpenedTool,
+} from './tool-config';
 import { VcnItem } from '@/components/speaker-modal';
 import { getVcnList } from '@/services/chat';
 import type { MessageListType } from '@/types/chat';
@@ -220,10 +225,19 @@ const BaseConfig: React.FC<ChatProps> = ({
     { prompt: prompt, promptAnswerCompleted: true },
   ]);
   const [choosedAlltool, setChoosedAlltool] = useState<any>({
-    ifly_search: true,
+    web_search: true,
+    ifly_search: false,
     text_to_image: false,
     codeinterpreter: false,
   });
+  const effectiveToolConfig = useMemo(
+    () => getEffectiveToolConfig(choosedAlltool, isNewWorkbench),
+    [choosedAlltool, isNewWorkbench]
+  );
+  const effectiveOpenedTool = useMemo(
+    () => serializeOpenedTool(effectiveToolConfig),
+    [effectiveToolConfig]
+  );
   const [supportSystemFlag, setSupportSystemFlag] = useState(false);
   const [supportContextFlag, setSupportContextFlag] = useState(true);
   const [promptNow, setPromptNow] = useState();
@@ -472,15 +486,6 @@ const BaseConfig: React.FC<ChatProps> = ({
       : baseinfo.botTemplate ||
         detailInfo.botTemplate ||
         botTemplateInfoValue.botTemplate;
-    const normalizedToolConfig = isNewWorkbench
-      ? {
-          ...choosedAlltool,
-          ifly_search: true,
-          text_to_image: false,
-          codeinterpreter: false,
-        }
-      : choosedAlltool;
-
     return {
       ...(backgroundImgApp && {
         appBackground:
@@ -507,9 +512,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       avatar: coverUrl,
       vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
       isSentence: 0,
-      openedTool: Object.keys(normalizedToolConfig)
-        .filter((key: any) => normalizedToolConfig[key])
-        .join(','),
+      openedTool: effectiveOpenedTool,
       prologue: prologue,
       ...getModelConfig(model),
       prompt: prompt,
@@ -678,7 +681,8 @@ const BaseConfig: React.FC<ChatProps> = ({
     setSupportContextFlag(true);
     setChoosedAlltool((currentTools: any) => ({
       ...currentTools,
-      ifly_search: true,
+      web_search: true,
+      ifly_search: false,
       text_to_image: false,
       codeinterpreter: false,
     }));
@@ -757,17 +761,15 @@ const BaseConfig: React.FC<ChatProps> = ({
             cn: save == 'true' ? configPageData?.vcnCn : res.vcnCn,
           });
           const obj: any = {};
-          if (
-            save == 'true'
-              ? typeof configPageData?.openedTool === 'string' &&
-                configPageData.openedTool.indexOf('ifly_search') !== -1
-              : typeof res.openedTool === 'string' &&
-                res.openedTool.indexOf('ifly_search') !== -1
-          ) {
-            obj.ifly_search = true;
-          } else {
-            obj.ifly_search = false;
-          }
+          const openedToolValue =
+            save == 'true' ? configPageData?.openedTool : res.openedTool;
+          obj.web_search = hasWebSearchTool(openedToolValue);
+          obj.ifly_search =
+            typeof openedToolValue === 'string' &&
+            openedToolValue
+              .split(',')
+              .map((tool: string) => tool.trim())
+              .includes('ifly_search');
           if (
             save == 'true'
               ? typeof configPageData?.openedTool === 'string' &&
@@ -1363,6 +1365,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     prompt,
     sentence,
     choosedAlltool,
+    effectiveOpenedTool,
   ]);
 
   /** 提示词对比 */
@@ -1610,7 +1613,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 model={item.model}
                 promptText={promptNow}
                 supportContext={supportContextFlag ? 1 : 0}
-                choosedAlltool={choosedAlltool}
+                choosedAlltool={effectiveToolConfig}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1669,7 +1672,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 model={model}
                 promptText={promptNow}
                 supportContext={supportContextFlag ? 1 : 0}
-                choosedAlltool={choosedAlltool}
+                choosedAlltool={effectiveToolConfig}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1701,7 +1704,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         model={model}
         promptText={promptNow}
         supportContext={supportContextFlag ? 1 : 0}
-        choosedAlltool={choosedAlltool}
+        choosedAlltool={effectiveToolConfig}
         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
         personalityConfig={
           personalityData.enablePersonality
@@ -2171,9 +2174,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       avatar: coverUrl,
                       vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
                       isSentence: 0,
-                      openedTool: Object.keys(choosedAlltool)
-                        .filter((key: any) => choosedAlltool[key])
-                        .join(','),
+                      openedTool: effectiveOpenedTool,
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2221,9 +2222,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       avatar: coverUrl,
                       vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
                       isSentence: 0,
-                      openedTool: Object.keys(choosedAlltool)
-                        .filter((key: any) => choosedAlltool[key])
-                        .join(','),
+                      openedTool: effectiveOpenedTool,
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2301,9 +2300,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     avatar: coverUrl,
                     vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
                     isSentence: sentence,
-                    openedTool: Object.keys(choosedAlltool)
-                      .filter((key: any) => choosedAlltool[key])
-                      .join(','),
+                    openedTool: effectiveOpenedTool,
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -2350,9 +2347,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     avatar: coverUrl,
                     vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
                     isSentence: sentence,
-                    openedTool: Object.keys(choosedAlltool)
-                      .filter((key: any) => choosedAlltool[key])
-                      .join(','),
+                    openedTool: effectiveOpenedTool,
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -2798,7 +2793,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       model={model}
                       promptText={promptNow}
                       supportContext={supportContextFlag ? 1 : 0}
-                      choosedAlltool={choosedAlltool}
+                      choosedAlltool={effectiveToolConfig}
                       findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                       personalityConfig={
                         personalityData.enablePersonality
@@ -2841,7 +2836,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           model={model}
                           promptText={promptNow}
                           supportContext={supportContextFlag ? 1 : 0}
-                          choosedAlltool={choosedAlltool}
+                          choosedAlltool={effectiveToolConfig}
                           findModelOptionByUniqueKey={
                             findModelOptionByUniqueKey
                           }
@@ -2914,7 +2909,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                         model={item.model}
                         promptText={promptNow}
                         supportContext={supportContextFlag ? 1 : 0}
-                        choosedAlltool={choosedAlltool}
+                        choosedAlltool={effectiveToolConfig}
                         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                         personalityConfig={
                           personalityData.enablePersonality

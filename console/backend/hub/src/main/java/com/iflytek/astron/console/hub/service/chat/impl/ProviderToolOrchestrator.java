@@ -17,12 +17,13 @@ import java.util.Set;
  * Current provider capability matrix for enabled web search: - spark: native support via
  * SparkChatRequest.enableWebSearch - google: native support via Gemini tools.google_search -
  * anthropic: native support via Anthropic web_search tool + beta header - other OpenAI-compatible
- * providers: model-driven function tool calling via ifly_search
+ * providers: model-driven function tool calling via web_search
  */
 final class ProviderToolOrchestrator {
 
-    static final String TOOL_IFLY_SEARCH = "ifly_search";
-    static final String OPENAI_SEARCH_TOOL_NAME = "ifly_search";
+    static final String TOOL_WEB_SEARCH = "web_search";
+    static final String TOOL_IFLY_SEARCH_LEGACY = "ifly_search";
+    static final String OPENAI_SEARCH_TOOL_NAME = "web_search";
     static final String PROVIDER_SPARK = "spark";
     static final String PROVIDER_GOOGLE = "google";
     static final String PROVIDER_ANTHROPIC = "anthropic";
@@ -31,7 +32,8 @@ final class ProviderToolOrchestrator {
 
     static ToolExecutionPlan resolve(String provider, String openedTool) {
         Set<String> enabledTools = parseEnabledTools(openedTool);
-        boolean webSearchEnabled = enabledTools.contains(TOOL_IFLY_SEARCH);
+        boolean webSearchEnabled = enabledTools.contains(TOOL_WEB_SEARCH)
+                || enabledTools.contains(TOOL_IFLY_SEARCH_LEGACY);
         String normalizedProvider = normalizeProvider(provider);
 
         if (!webSearchEnabled) {
@@ -63,6 +65,7 @@ final class ProviderToolOrchestrator {
             case OPENAI_FUNCTION -> {
                 request.put("managedWebSearch", true);
                 request.put("tools", buildOpenAiCompatibleSearchTools());
+                request.put("tool_choice", "auto");
             }
             case SPARK_NATIVE -> {
             }
@@ -108,7 +111,7 @@ final class ProviderToolOrchestrator {
         JSONArray tools = new JSONArray();
         JSONObject function = new JSONObject();
         function.put("name", OPENAI_SEARCH_TOOL_NAME);
-        function.put("description", "Search the live web for up-to-date information when the user asks about current events, recent facts, or anything that requires real-time information.");
+        function.put("description", "Search the live web for up-to-date information. Use this for current dates, weekdays, recent events, latest facts, prices, policies, schedules, or anything that may have changed recently.");
 
         JSONObject parameters = new JSONObject();
         parameters.put("type", "object");

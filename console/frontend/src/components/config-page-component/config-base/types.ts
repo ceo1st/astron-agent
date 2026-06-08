@@ -98,6 +98,7 @@ export interface PromptListItem {
 
 // 选择的工具配置接口
 export interface ChoosedAlltool {
+  web_search: boolean;
   ifly_search: boolean;
   text_to_image: boolean;
   codeinterpreter: boolean;
