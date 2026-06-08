@@ -81,7 +81,6 @@ const PromptTry = forwardRef<
       model,
       supportContext,
       choosedAlltool,
-      debugSessionId,
       initialMessages,
       onMessagesChange,
       showHeaderAndRecommend = true,
@@ -97,6 +96,7 @@ const PromptTry = forwardRef<
     const [messageList, setMessageList] = useState<MessageListType[]>([]); // 消息列表
     const controllerRef = useRef<AbortController>(new AbortController()); //sse请求ref
     const currentSid = useRef<string>(''); // 当前sid
+    const syncingInitialMessagesRef = useRef(false);
 
     // 使用useImperativeHandle暴露组件方法
     useImperativeHandle(ref, () => ({
@@ -124,11 +124,16 @@ const PromptTry = forwardRef<
 
     useEffect(() => {
       if (initialMessages) {
+        syncingInitialMessagesRef.current = true;
         setMessageList(initialMessages);
       }
-    }, [debugSessionId]);
+    }, [initialMessages]);
 
     useEffect(() => {
+      if (syncingInitialMessagesRef.current) {
+        syncingInitialMessagesRef.current = false;
+        return;
+      }
       onMessagesChange?.(messageList);
     }, [messageList, onMessagesChange]);
 
