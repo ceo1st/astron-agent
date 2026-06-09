@@ -136,8 +136,12 @@ public class SparkChatService {
             return SparkModel.SPARK_X1;
         }
 
-        return switch (model.toLowerCase()) {
-            case "spark" -> SparkModel.SPARK_4_0_ULTRA;
+        return switch (model.trim().toLowerCase()) {
+            case "spark", "4.0ultra", "bm4" -> SparkModel.SPARK_4_0_ULTRA;
+            case "generalv3.5", "bm3.5", "spark-max", "max" -> SparkModel.SPARK_MAX;
+            case "generalv3", "bm3", "spark-pro", "pro" -> SparkModel.SPARK_PRO;
+            case "general", "cbm", "spark-lite", "lite" -> SparkModel.SPARK_LITE;
+            case "spark-x1", "x1" -> SparkModel.SPARK_X1;
             default -> SparkModel.SPARK_X1;
         };
     }

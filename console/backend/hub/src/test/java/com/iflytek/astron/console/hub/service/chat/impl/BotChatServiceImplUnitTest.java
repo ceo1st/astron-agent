@@ -119,7 +119,7 @@ class BotChatServiceImplUnitTest {
     }
 
     @Test
-    void testChatMessageBot_SparkChat_Success() {
+    void testChatMessageBot_DefaultSparkUsesOriginalSparkChatService() {
         // Given
         ChatBotReqDto chatBotReqDto = createChatBotReqDto();
         SseEmitter sseEmitter = new SseEmitter();
@@ -144,14 +144,116 @@ class BotChatServiceImplUnitTest {
         lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(knowledgeList);
         when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
         lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
-        doNothing().when(sparkChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
 
         // When
         botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
 
         // Then
         verify(chatDataService).createRequest(any(ChatReqRecords.class));
-        verify(sparkChatService).chatStream(argThat(req -> req.getEnableWebSearch()),
+        verify(sparkChatService).chatStream(
+                argThat(request -> "x1".equals(request.getModel()) &&
+                        "1".equals(request.getChatId()) &&
+                        "test-uid".equals(request.getUserId()) &&
+                        Boolean.TRUE.equals(request.getEnableWebSearch()) &&
+                        "deep".equals(request.getSearchMode()) &&
+                        Boolean.TRUE.equals(request.getShowRefLabel()) &&
+                        request.getMessages() != null &&
+                        !request.getMessages().isEmpty() &&
+                        "test question".equals(request.getMessages().getLast().getContent())),
+                eq(sseEmitter), eq(sseId), any(ChatReqRecords.class), eq(false), eq(false));
+        verify(promptChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+    }
+
+    @Test
+    void testChatMessageBot_ModelIdWithSparkDomainUsesConfiguredPromptEndpoint() {
+        ChatBotReqDto chatBotReqDto = createChatBotReqDto();
+        SseEmitter sseEmitter = new SseEmitter();
+        String sseId = "test-sse-id";
+
+        ChatBotMarket chatBotMarket = createChatBotMarket();
+        chatBotMarket.setModelId(9L);
+        chatBotMarket.setVersion(1);
+        chatBotMarket.setSupportDocument(0);
+
+        ChatReqRecords createdRecord = createChatReqRecords();
+        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
+        SparkChatRequest.MessageDto currentAskMessage = new SparkChatRequest.MessageDto();
+        currentAskMessage.setRole("user");
+        currentAskMessage.setContent("test question");
+        historyMessages.add(currentAskMessage);
+
+        LLMInfoVo llmInfoVo = createLLMInfoVo();
+        llmInfoVo.setProvider(null);
+        llmInfoVo.setDomain("4.0Ultra");
+        llmInfoVo.setServiceId("bm4");
+        llmInfoVo.setUrl("https://old-spark.example.com/v1");
+        llmInfoVo.setApiKey("old-spark-api-key");
+
+        when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
+        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
+        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(new ArrayList<>());
+        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
+        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
+        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
+
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
+
+        verify(modelService).getDetail(eq(0), eq(9L), isNull());
+        verify(promptChatService).chatStream(
+                argThat(json -> "openai".equals(json.getString("provider")) &&
+                        "https://old-spark.example.com/v1".equals(json.getString("url")) &&
+                        "old-spark-api-key".equals(json.getString("apiKey")) &&
+                        "4.0Ultra".equals(json.getString("model")) &&
+                        json.getBooleanValue("managedWebSearch") &&
+                        "auto".equals(json.getString("tool_choice")) &&
+                        json.getJSONArray("tools") != null &&
+                        json.getJSONArray("tools").size() == 2 &&
+                        "web_search".equals(json.getJSONArray("tools").getJSONObject(0).getJSONObject("function").getString("name")) &&
+                        "current_time".equals(json.getJSONArray("tools").getJSONObject(1).getJSONObject("function").getString("name"))),
+                eq(sseEmitter), eq(sseId), any(), eq(false), eq(false));
+        verify(sparkChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+    }
+
+    @Test
+    void testChatMessageBot_NonSparkProviderWithSparkLikeDomainUsesConfiguredEndpoint() {
+        ChatBotReqDto chatBotReqDto = createChatBotReqDto();
+        SseEmitter sseEmitter = new SseEmitter();
+        String sseId = "test-sse-id";
+
+        ChatBotMarket chatBotMarket = createChatBotMarket();
+        chatBotMarket.setModelId(10L);
+        chatBotMarket.setVersion(1);
+        chatBotMarket.setSupportDocument(0);
+
+        ChatReqRecords createdRecord = createChatReqRecords();
+        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
+        SparkChatRequest.MessageDto currentAskMessage = new SparkChatRequest.MessageDto();
+        currentAskMessage.setRole("user");
+        currentAskMessage.setContent("test question");
+        historyMessages.add(currentAskMessage);
+
+        LLMInfoVo llmInfoVo = createLLMInfoVo();
+        llmInfoVo.setProvider("openai");
+        llmInfoVo.setDomain("4.0Ultra");
+        llmInfoVo.setUrl("https://custom-openai.example.com/v1/chat/completions");
+        llmInfoVo.setApiKey("custom-api-key");
+
+        when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
+        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
+        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(new ArrayList<>());
+        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
+        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
+        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
+
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
+
+        verify(promptChatService).chatStream(
+                argThat(json -> "openai".equals(json.getString("provider")) &&
+                        "https://custom-openai.example.com/v1/chat/completions".equals(json.getString("url")) &&
+                        "custom-api-key".equals(json.getString("apiKey")) &&
+                        "4.0Ultra".equals(json.getString("model"))),
                 eq(sseEmitter), eq(sseId), any(), eq(false), eq(false));
     }
 
@@ -245,7 +347,6 @@ class BotChatServiceImplUnitTest {
         lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(knowledgeList);
         lenient().when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
         lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
-        doNothing().when(sparkChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
 
         // When
         botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
@@ -254,6 +355,7 @@ class BotChatServiceImplUnitTest {
         verify(chatBotDataService).findMarketBotByBotId(eq(chatBotReqDto.getBotId()));
         verify(chatBotDataService).findById(eq(chatBotReqDto.getBotId()));
         verify(sparkChatService).chatStream(any(SparkChatRequest.class), eq(sseEmitter), eq(sseId), any(), eq(false), eq(false));
+        verify(promptChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
     }
 
     @Test
@@ -301,14 +403,22 @@ class BotChatServiceImplUnitTest {
         lenient().when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
         lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(Arrays.asList("knowledge"));
         lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
-        doNothing().when(sparkChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
 
         // When
         botChatService.reAnswerMessageBot(requestId, botId, sseEmitter, sseId);
 
         // Then
         verify(chatDataService).findRequestById(requestId);
-        verify(sparkChatService).chatStream(any(SparkChatRequest.class), eq(sseEmitter), eq(sseId), eq(chatReqRecords), eq(true), eq(false));
+        verify(sparkChatService).chatStream(
+                argThat(request -> "x1".equals(request.getModel()) &&
+                        "1".equals(request.getChatId()) &&
+                        "test-uid".equals(request.getUserId()) &&
+                        Boolean.TRUE.equals(request.getEnableWebSearch()) &&
+                        request.getMessages() != null &&
+                        !request.getMessages().isEmpty() &&
+                        "test question".equals(request.getMessages().getLast().getContent())),
+                eq(sseEmitter), eq(sseId), eq(chatReqRecords), eq(true), eq(false));
+        verify(promptChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
     }
 
     @Test
@@ -330,13 +440,19 @@ class BotChatServiceImplUnitTest {
 
         when(personalityConfigService.getChatPrompt(isNull(), eq("test prompt"))).thenReturn("test prompt");
         when(knowledgeService.getChuncks(any(), anyString(), anyInt(), anyBoolean())).thenReturn(Arrays.asList("knowledge"));
-        doNothing().when(sparkChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
 
         // When
         botChatService.debugChatMessageBot(request, sseEmitter, sseId);
 
         // Then
-        verify(sparkChatService).chatStream(argThat(req -> req.getEnableWebSearch()),
+        verify(sparkChatService).chatStream(
+                argThat(sparkRequest -> "x1".equals(sparkRequest.getModel()) &&
+                        sparkRequest.getChatId() == null &&
+                        "test-uid".equals(sparkRequest.getUserId()) &&
+                        Boolean.TRUE.equals(sparkRequest.getEnableWebSearch()) &&
+                        sparkRequest.getMessages() != null &&
+                        !sparkRequest.getMessages().isEmpty() &&
+                        sparkRequest.getMessages().getLast().getContent().contains("test message")),
                 eq(sseEmitter), eq(sseId), isNull(), eq(false), eq(true));
         verify(promptChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
     }
@@ -378,6 +494,7 @@ class BotChatServiceImplUnitTest {
                     json.getBooleanValue("managedWebSearch") &&
                     "auto".equals(json.getString("tool_choice")) &&
                     "web_search".equals(json.getJSONArray("tools").getJSONObject(0).getJSONObject("function").getString("name")) &&
+                    "current_time".equals(json.getJSONArray("tools").getJSONObject(1).getJSONObject("function").getString("name")) &&
                     "test message".equals(json.getString("managedSearchQuery")) &&
                     "test-uid".equals(json.getString("userId"))),
                     eq(sseEmitter),
@@ -509,6 +626,54 @@ class BotChatServiceImplUnitTest {
                         json.getBooleanValue("managedWebSearch") &&
                         "auto".equals(json.getString("tool_choice")) &&
                         "web_search".equals(json.getJSONArray("tools").getJSONObject(0).getJSONObject("function").getString("name")) &&
+                        "current_time".equals(json.getJSONArray("tools").getJSONObject(1).getJSONObject("function").getString("name")) &&
+                        "test question".equals(json.getString("managedSearchQuery")) &&
+                        "test-uid".equals(json.getString("userId"))),
+                eq(sseEmitter),
+                eq(sseId),
+                any(),
+                eq(false),
+                eq(false));
+    }
+
+    @Test
+    void testChatMessageBot_PromptChat_OpenAiDefaultsBuiltInTools() {
+        ChatBotReqDto chatBotReqDto = createChatBotReqDto();
+        SseEmitter sseEmitter = new SseEmitter();
+        String sseId = "test-sse-id";
+
+        ChatBotMarket chatBotMarket = createChatBotMarket();
+        chatBotMarket.setModelId(3L);
+        chatBotMarket.setVersion(1);
+        chatBotMarket.setOpenedTool("");
+
+        ChatReqRecords createdRecord = createChatReqRecords();
+        LLMInfoVo llmInfoVo = createLLMInfoVo();
+        llmInfoVo.setProvider("openai");
+
+        when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
+        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
+        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(new ArrayList<>());
+        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
+        SparkChatRequest.MessageDto msg = new SparkChatRequest.MessageDto();
+        msg.setRole("user");
+        msg.setContent("test question");
+        historyMessages.add(msg);
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
+        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
+        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
+        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
+
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
+
+        verify(promptChatService).chatStream(
+                argThat(json -> "openai".equals(json.getString("provider")) &&
+                        json.getBooleanValue("managedWebSearch") &&
+                        "auto".equals(json.getString("tool_choice")) &&
+                        json.getJSONArray("tools") != null &&
+                        json.getJSONArray("tools").size() == 2 &&
+                        "web_search".equals(json.getJSONArray("tools").getJSONObject(0).getJSONObject("function").getString("name")) &&
+                        "current_time".equals(json.getJSONArray("tools").getJSONObject(1).getJSONObject("function").getString("name")) &&
                         "test question".equals(json.getString("managedSearchQuery")) &&
                         "test-uid".equals(json.getString("userId"))),
                 eq(sseEmitter),

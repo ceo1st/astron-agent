@@ -14,16 +14,17 @@ import java.util.Set;
 /**
  * Shared tool orchestration for bot debug and formal chat.
  *
- * Current provider capability matrix for enabled web search: - spark: native support via
- * SparkChatRequest.enableWebSearch - google: native support via Gemini tools.google_search -
- * anthropic: native support via Anthropic web_search tool + beta header - other OpenAI-compatible
- * providers: model-driven function tool calling via web_search
+ * Current provider capability matrix for enabled tools: spark uses native Spark web search;
+ * OpenAI-compatible providers use model-driven function tool calling via web_search and
+ * current_time; google and anthropic use their native web search tools.
  */
 final class ProviderToolOrchestrator {
 
     static final String TOOL_WEB_SEARCH = "web_search";
     static final String TOOL_IFLY_SEARCH_LEGACY = "ifly_search";
+    static final String TOOL_CURRENT_TIME = "current_time";
     static final String OPENAI_SEARCH_TOOL_NAME = "web_search";
+    static final String OPENAI_CURRENT_TIME_TOOL_NAME = "current_time";
     static final String PROVIDER_SPARK = "spark";
     static final String PROVIDER_GOOGLE = "google";
     static final String PROVIDER_ANTHROPIC = "anthropic";
@@ -31,21 +32,31 @@ final class ProviderToolOrchestrator {
     private ProviderToolOrchestrator() {}
 
     static ToolExecutionPlan resolve(String provider, String openedTool) {
-        Set<String> enabledTools = parseEnabledTools(openedTool);
-        boolean webSearchEnabled = enabledTools.contains(TOOL_WEB_SEARCH)
-                || enabledTools.contains(TOOL_IFLY_SEARCH_LEGACY);
+        Set<String> configuredTools = parseEnabledTools(openedTool);
         String normalizedProvider = normalizeProvider(provider);
 
-        if (!webSearchEnabled) {
-            return new ToolExecutionPlan(normalizedProvider, enabledTools, WebSearchMode.DISABLED);
-        }
-
         return switch (normalizedProvider) {
-            case PROVIDER_SPARK -> new ToolExecutionPlan(normalizedProvider, enabledTools, WebSearchMode.SPARK_NATIVE);
-            case PROVIDER_GOOGLE -> new ToolExecutionPlan(normalizedProvider, enabledTools, WebSearchMode.GOOGLE_NATIVE);
-            case PROVIDER_ANTHROPIC -> new ToolExecutionPlan(normalizedProvider, enabledTools, WebSearchMode.ANTHROPIC_NATIVE);
-            default -> new ToolExecutionPlan(normalizedProvider, enabledTools, WebSearchMode.OPENAI_FUNCTION);
+            case PROVIDER_SPARK -> new ToolExecutionPlan(
+                    normalizedProvider,
+                    configuredTools,
+                    hasSearchTool(configuredTools) ? WebSearchMode.SPARK_NATIVE : WebSearchMode.DISABLED);
+            case PROVIDER_GOOGLE -> new ToolExecutionPlan(
+                    normalizedProvider,
+                    configuredTools,
+                    hasSearchTool(configuredTools) ? WebSearchMode.GOOGLE_NATIVE : WebSearchMode.DISABLED);
+            case PROVIDER_ANTHROPIC -> new ToolExecutionPlan(
+                    normalizedProvider,
+                    configuredTools,
+                    hasSearchTool(configuredTools) ? WebSearchMode.ANTHROPIC_NATIVE : WebSearchMode.DISABLED);
+            default -> new ToolExecutionPlan(
+                    normalizedProvider,
+                    withDefaultBuiltInTools(configuredTools),
+                    WebSearchMode.OPENAI_FUNCTION);
         };
+    }
+
+    static ToolExecutionPlan resolvePromptProvider(String provider, String openedTool) {
+        return resolve(provider, openedTool);
     }
 
     static void applyToSparkRequest(SparkChatRequest request, ToolExecutionPlan plan) {
@@ -63,8 +74,13 @@ final class ProviderToolOrchestrator {
                 request.put("anthropicBeta", "web-search-2025-03-05");
             }
             case OPENAI_FUNCTION -> {
-                request.put("managedWebSearch", true);
-                request.put("tools", buildOpenAiCompatibleSearchTools());
+                boolean webSearchEnabled = plan.enabledTools().contains(TOOL_WEB_SEARCH)
+                        || plan.enabledTools().contains(TOOL_IFLY_SEARCH_LEGACY);
+                boolean currentTimeEnabled = plan.enabledTools().contains(TOOL_CURRENT_TIME);
+                if (webSearchEnabled) {
+                    request.put("managedWebSearch", true);
+                }
+                request.put("tools", buildOpenAiCompatibleTools(webSearchEnabled, currentTimeEnabled));
                 request.put("tool_choice", "auto");
             }
             case SPARK_NATIVE -> {
@@ -92,6 +108,18 @@ final class ProviderToolOrchestrator {
         return new LinkedHashSet<>(tools);
     }
 
+    private static Set<String> withDefaultBuiltInTools(Set<String> openedTools) {
+        LinkedHashSet<String> enabledTools = new LinkedHashSet<>(openedTools);
+        enabledTools.remove(TOOL_IFLY_SEARCH_LEGACY);
+        enabledTools.add(TOOL_WEB_SEARCH);
+        enabledTools.add(TOOL_CURRENT_TIME);
+        return enabledTools;
+    }
+
+    private static boolean hasSearchTool(Set<String> enabledTools) {
+        return enabledTools.contains(TOOL_WEB_SEARCH) || enabledTools.contains(TOOL_IFLY_SEARCH_LEGACY);
+    }
+
     private static JSONArray buildGoogleTools() {
         JSONArray tools = new JSONArray();
         tools.add(new JSONObject().fluentPut("google_search", new JSONObject()));
@@ -107,30 +135,48 @@ final class ProviderToolOrchestrator {
         return tools;
     }
 
-    private static JSONArray buildOpenAiCompatibleSearchTools() {
+    private static JSONArray buildOpenAiCompatibleTools(boolean includeWebSearch, boolean includeCurrentTime) {
         JSONArray tools = new JSONArray();
+        if (includeWebSearch) {
+            tools.add(buildOpenAiFunctionTool(
+                    OPENAI_SEARCH_TOOL_NAME,
+                    "Search the live web for up-to-date external information. Use this for recent events, latest facts, prices, policies, schedules, releases, rankings, or status.",
+                    new JSONObject()
+                            .fluentPut("query", new JSONObject()
+                                    .fluentPut("type", "string")
+                                    .fluentPut("description", "A precise web search query based on the user's request.")),
+                    List.of("query")));
+        }
+        if (includeCurrentTime) {
+            tools.add(buildOpenAiFunctionTool(
+                    OPENAI_CURRENT_TIME_TOOL_NAME,
+                    "Get the current date, time, weekday, timezone, and ISO timestamp. Use this for questions about today, now, the current date, or the current weekday.",
+                    new JSONObject()
+                            .fluentPut("timezone", new JSONObject()
+                                    .fluentPut("type", "string")
+                                    .fluentPut("description", "IANA timezone name. Defaults to Asia/Shanghai.")),
+                    List.of()));
+        }
+        return tools;
+    }
+
+    private static JSONObject buildOpenAiFunctionTool(String name, String description, JSONObject properties, List<String> requiredFields) {
         JSONObject function = new JSONObject();
-        function.put("name", OPENAI_SEARCH_TOOL_NAME);
-        function.put("description", "Search the live web for up-to-date information. Use this for current dates, weekdays, recent events, latest facts, prices, policies, schedules, or anything that may have changed recently.");
+        function.put("name", name);
+        function.put("description", description);
 
         JSONObject parameters = new JSONObject();
         parameters.put("type", "object");
-        JSONObject properties = new JSONObject();
-        properties.put("query", new JSONObject()
-                .fluentPut("type", "string")
-                .fluentPut("description", "A precise web search query based on the user's request."));
         parameters.put("properties", properties);
         JSONArray required = new JSONArray();
-        required.add("query");
+        required.addAll(requiredFields);
         parameters.put("required", required);
         parameters.put("additionalProperties", false);
 
         function.put("parameters", parameters);
-
-        tools.add(new JSONObject()
+        return new JSONObject()
                 .fluentPut("type", "function")
-                .fluentPut("function", function));
-        return tools;
+                .fluentPut("function", function);
     }
 
     record ToolExecutionPlan(String provider, Set<String> enabledTools, WebSearchMode webSearchMode) {}

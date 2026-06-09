@@ -35,10 +35,8 @@ import fileImg from '@/assets/imgs/bot-center/file.svg';
 import closeImg from '@/assets/imgs/bot-center/close.svg';
 import autoInputExamplesLoadingIcon from '@/assets/imgs/bot-center/autoInputExamplesLoadingIcon.svg';
 import codeIcon from '@/assets/imgs/plugin/code.svg'; // 代码图标
-import netIcon from '@/assets/imgs/plugin/network.svg'; // 网络图标
 import genPicIcon from '@/assets/imgs/plugin/gen-pic.svg'; // 图片图标
 import { useTranslation } from 'react-i18next';
-import { hasWebSearchTool } from '../tool-config';
 
 import styles from './CapabilityDevelopment.module.scss';
 import cls from 'classnames';
@@ -368,30 +366,6 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
                 <span className="ml-2 text-[#D84516] font-medium">
                   {t('configBase.CapabilityDevelopment.capability')}
                 </span>
-              </div>
-              <div
-                className="flex justify-between items-center border-b border-[#E9EFF6]"
-                style={{
-                  padding: '8px 20px 12px 20px',
-                }}
-              >
-                <div className="flex gap-2 items-center">
-                  <img src={netIcon} alt="" className="w-[16px] h-[16px]" />
-                  <span className="text-sm font-medium">
-                    {t('configBase.CapabilityDevelopment.internetSearch')}
-                  </span>
-                </div>
-                <Switch
-                  className="list-switch config-switch"
-                  defaultChecked={hasWebSearchTool(detailInfo.openedTool)}
-                  onChange={checked => {
-                    setChoosedAlltool({
-                      ...choosedAlltool,
-                      web_search: checked,
-                      ifly_search: false,
-                    });
-                  }}
-                />
               </div>
               <div
                 className="flex justify-between items-center border-b border-[#E9EFF6]"

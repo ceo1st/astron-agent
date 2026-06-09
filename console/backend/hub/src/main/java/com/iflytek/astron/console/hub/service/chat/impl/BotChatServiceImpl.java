@@ -142,7 +142,7 @@ public class BotChatServiceImpl implements BotChatService {
                 } else {
                     List<SparkChatRequest.MessageDto> messages = buildMessageList(chatBotReqDto, botConfig.supportContext, botConfig.supportDocument, botConfig.prompt, modelConfig.maxInputTokens(), chatReqRecords.getId());
                     ProviderToolOrchestrator.ToolExecutionPlan toolPlan =
-                            ProviderToolOrchestrator.resolve(modelConfig.llmInfoVo().getProvider(), botConfig.openedTool);
+                            ProviderToolOrchestrator.resolvePromptProvider(modelConfig.llmInfoVo().getProvider(), botConfig.openedTool);
                     JSONObject jsonObject = buildPromptChatRequest(
                             modelConfig.llmInfoVo(),
                             messages,
@@ -190,7 +190,7 @@ public class BotChatServiceImpl implements BotChatService {
             } else {
                 List<SparkChatRequest.MessageDto> messages = buildMessageList(chatBotReqDto, botConfig.supportContext, botConfig.supportDocument, botConfig.prompt, modelConfig.maxInputTokens(), chatReqRecords.getId());
                 ProviderToolOrchestrator.ToolExecutionPlan toolPlan =
-                        ProviderToolOrchestrator.resolve(modelConfig.llmInfoVo().getProvider(), botConfig.openedTool);
+                        ProviderToolOrchestrator.resolvePromptProvider(modelConfig.llmInfoVo().getProvider(), botConfig.openedTool);
                 JSONObject jsonObject = buildPromptChatRequest(
                         modelConfig.llmInfoVo(),
                         messages,
@@ -241,7 +241,7 @@ public class BotChatServiceImpl implements BotChatService {
                     throw new BusinessException(ResponseEnum.MODEL_CHECK_FAILED);
                 }
                 ProviderToolOrchestrator.ToolExecutionPlan toolPlan =
-                        ProviderToolOrchestrator.resolve(modelConfig.llmInfoVo().getProvider(), request.getOpenedTool());
+                        ProviderToolOrchestrator.resolvePromptProvider(modelConfig.llmInfoVo().getProvider(), request.getOpenedTool());
                 JSONObject jsonObject = buildPromptChatRequest(
                         modelConfig.llmInfoVo(),
                         messageList,
@@ -370,8 +370,16 @@ public class BotChatServiceImpl implements BotChatService {
             return true;
         }
         return "spark".equalsIgnoreCase(model)
+                || "spark-x1".equalsIgnoreCase(model)
                 || "x1".equalsIgnoreCase(model)
-                || "generalv3.5".equalsIgnoreCase(model);
+                || "general".equalsIgnoreCase(model)
+                || "generalv3".equalsIgnoreCase(model)
+                || "generalv3.5".equalsIgnoreCase(model)
+                || "4.0Ultra".equalsIgnoreCase(model)
+                || "cbm".equalsIgnoreCase(model)
+                || "bm3".equalsIgnoreCase(model)
+                || "bm3.5".equalsIgnoreCase(model)
+                || "bm4".equalsIgnoreCase(model);
     }
 
     private ModelConfigResult buildModelConfigResult(LLMInfoVo llmInfoVo) {
@@ -708,7 +716,7 @@ public class BotChatServiceImpl implements BotChatService {
      * Utility method to build SparkChatRequest object
      *
      * @param chatBotReqDto Chat bot request data transfer object
-     * @param botConfig Bot configuration
+     * @param model Spark model name
      * @param messages List of message data transfer objects
      * @return Built SparkChatRequest object
      */
