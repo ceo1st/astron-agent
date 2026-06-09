@@ -77,11 +77,7 @@ import {
   KnowledgeLeaf,
   Knowledge,
 } from './types';
-import {
-  getEffectiveToolConfig,
-  hasWebSearchTool,
-  serializeOpenedTool,
-} from './tool-config';
+import { getEffectiveToolConfig, serializeOpenedTool } from './tool-config';
 import { VcnItem } from '@/components/speaker-modal';
 import { getVcnList } from '@/services/chat';
 import type { MessageListType } from '@/types/chat';
@@ -225,8 +221,6 @@ const BaseConfig: React.FC<ChatProps> = ({
     { prompt: prompt, promptAnswerCompleted: true },
   ]);
   const [choosedAlltool, setChoosedAlltool] = useState<any>({
-    web_search: true,
-    ifly_search: false,
     text_to_image: false,
     codeinterpreter: false,
   });
@@ -681,8 +675,6 @@ const BaseConfig: React.FC<ChatProps> = ({
     setSupportContextFlag(true);
     setChoosedAlltool((currentTools: any) => ({
       ...currentTools,
-      web_search: true,
-      ifly_search: false,
       text_to_image: false,
       codeinterpreter: false,
     }));
@@ -761,15 +753,6 @@ const BaseConfig: React.FC<ChatProps> = ({
             cn: save == 'true' ? configPageData?.vcnCn : res.vcnCn,
           });
           const obj: any = {};
-          const openedToolValue =
-            save == 'true' ? configPageData?.openedTool : res.openedTool;
-          obj.web_search = hasWebSearchTool(openedToolValue);
-          obj.ifly_search =
-            typeof openedToolValue === 'string' &&
-            openedToolValue
-              .split(',')
-              .map((tool: string) => tool.trim())
-              .includes('ifly_search');
           if (
             save == 'true'
               ? typeof configPageData?.openedTool === 'string' &&

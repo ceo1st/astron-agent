@@ -1,12 +1,15 @@
 package com.iflytek.astron.console.hub.service;
 
 import cn.xfyun.api.SparkChatClient;
+import cn.xfyun.config.SparkModel;
 import cn.xfyun.model.sparkmodel.SparkChatParam;
 import com.iflytek.astron.console.commons.dto.llm.SparkChatRequest;
 import com.iflytek.astron.console.commons.entity.chat.ChatReqRecords;
 import com.iflytek.astron.console.commons.service.ChatRecordModelService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import okhttp3.*;
 import okio.Buffer;
 import okio.BufferedSource;
@@ -36,6 +39,9 @@ class SparkChatServiceTest {
     private ChatRecordModelService chatRecordModelService;
 
     @Mock
+    private PlatformAccountService platformAccountService;
+
+    @Mock
     private SseEmitter emitter;
 
     @Mock
@@ -56,9 +62,13 @@ class SparkChatServiceTest {
     @BeforeEach
     void setUp() {
         sparkChatService = new SparkChatService();
-        ReflectionTestUtils.setField(sparkChatService, "apiPassword", "test-api-password");
         ReflectionTestUtils.setField(sparkChatService, "chatDataService", chatDataService);
         ReflectionTestUtils.setField(sparkChatService, "chatRecordModelService", chatRecordModelService);
+        ReflectionTestUtils.setField(sparkChatService, "platformAccountService", platformAccountService);
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                new PlatformAccountConfigDto.IflytekOpenPlatformConfig();
+        config.setSparkApiPassword("test-api-password");
+        lenient().when(platformAccountService.requireIflytekOpenPlatform()).thenReturn(config);
 
         streamId = "test-stream-id";
 
@@ -172,6 +182,22 @@ class SparkChatServiceTest {
     }
 
     @Test
+    void testChatStream_DoesNotInjectCurrentTimeContextIntoSparkMessages() {
+        try (MockedConstruction<SparkChatClient> clientMock = mockConstruction(SparkChatClient.class,
+                (mock, context) -> doNothing().when(mock).send(any(SparkChatParam.class), any(Callback.class)))) {
+
+            sparkChatService.chatStream(sparkChatRequest, emitter, streamId, chatReqRecords, false, true);
+
+            ArgumentCaptor<SparkChatParam> paramCaptor = ArgumentCaptor.forClass(SparkChatParam.class);
+            verify(clientMock.constructed().get(0)).send(paramCaptor.capture(), any(Callback.class));
+            SparkChatParam capturedParam = paramCaptor.getValue();
+            assertEquals(1, capturedParam.getMessages().size());
+            assertEquals("user", capturedParam.getMessages().get(0).getRole());
+            assertEquals("Hello", capturedParam.getMessages().get(0).getContent());
+        }
+    }
+
+    @Test
     void testChatStream_Exception_HandledGracefully() {
         try (MockedStatic<SseEmitterUtil> sseUtilMock = mockStatic(SseEmitterUtil.class);
                 MockedConstruction<SparkChatClient> clientMock = mockConstruction(SparkChatClient.class,
@@ -208,6 +234,20 @@ class SparkChatServiceTest {
 
             assertEquals(1, clientMock.constructed().size());
         }
+    }
+
+    @Test
+    void testGetSparkModel_KnownSparkAliases_ReturnMatchingSdkModels() {
+        assertEquals(SparkModel.SPARK_X1, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "x1"));
+        assertEquals(SparkModel.SPARK_X1, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "spark-x1"));
+        assertEquals(SparkModel.SPARK_4_0_ULTRA, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "4.0Ultra"));
+        assertEquals(SparkModel.SPARK_4_0_ULTRA, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "bm4"));
+        assertEquals(SparkModel.SPARK_MAX, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "generalv3.5"));
+        assertEquals(SparkModel.SPARK_MAX, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "bm3.5"));
+        assertEquals(SparkModel.SPARK_PRO, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "generalv3"));
+        assertEquals(SparkModel.SPARK_PRO, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "bm3"));
+        assertEquals(SparkModel.SPARK_LITE, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "general"));
+        assertEquals(SparkModel.SPARK_LITE, ReflectionTestUtils.invokeMethod(sparkChatService, "getSparkModel", "cbm"));
     }
 
     @Test
