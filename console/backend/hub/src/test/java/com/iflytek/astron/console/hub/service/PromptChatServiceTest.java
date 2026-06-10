@@ -1,6 +1,7 @@
 package com.iflytek.astron.console.hub.service;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.entity.chat.ChatReqRecords;
 import com.iflytek.astron.console.commons.service.ChatRecordModelService;
@@ -18,6 +19,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -168,7 +170,76 @@ class PromptChatServiceTest {
     }
 
     @Test
-    void testChatStream_OpenAiManagedSearch_InjectsSearchSummaryIntoMessages() {
+    void testChatStream_GoogleNativeSearch_KeepsWebSearchDecisionInstruction() {
+        request.put("provider", "google");
+        request.put("model", "gemini-3.1-pro");
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天热点新闻"}
+                ]
+                """));
+        request.put("tools", JSON.parseArray("""
+                [{"google_search": {}}]
+                """));
+        request.put("url", "https://example.com/v1beta/models/gemini-3.1-pro:generateContent");
+
+        when(httpClient.newCall(any(Request.class))).thenReturn(call);
+        doNothing().when(call).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, chatReqRecords, false, false);
+
+        verify(httpClient).newCall(argThat(req -> {
+            try {
+                JSONObject body = parseRequestBody(req);
+                String systemInstruction = body.getJSONObject("systemInstruction")
+                        .getJSONArray("parts")
+                        .getJSONObject(0)
+                        .getString("text");
+                assertTrue(systemInstruction.contains("You have access to a web_search tool"));
+                assertFalse(systemInstruction.contains("current_time and web_search tools"));
+            } catch (IOException e) {
+                fail(e);
+            }
+            return true;
+        }));
+    }
+
+    @Test
+    void testChatStream_AnthropicNativeSearch_KeepsWebSearchDecisionInstruction() {
+        request.put("provider", "anthropic");
+        request.put("model", "claude-sonnet");
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天热点新闻"}
+                ]
+                """));
+        request.put("tools", JSON.parseArray("""
+                [{"type":"web_search_20250305","name":"web_search"}]
+                """));
+        request.put("url", "https://example.com/v1/messages");
+
+        when(httpClient.newCall(any(Request.class))).thenReturn(call);
+        doNothing().when(call).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, chatReqRecords, false, false);
+
+        verify(httpClient).newCall(argThat(req -> {
+            try {
+                JSONObject body = parseRequestBody(req);
+                String system = body.getString("system");
+                assertTrue(system.contains("You have access to a web_search tool"));
+                assertFalse(system.contains("current_time and web_search tools"));
+            } catch (IOException e) {
+                fail(e);
+            }
+            return true;
+        }));
+    }
+
+    @Test
+    void testChatStream_OpenAiManagedSearchWithoutTools_AddsDefaultToolsAndDoesNotPreSearch() throws Exception {
         request.put("provider", "openai");
         request.put("model", "deepseek-chat");
         request.put("managedWebSearch", true);
@@ -180,39 +251,122 @@ class PromptChatServiceTest {
                   {"role":"user","content":"<wrapped prompt with knowledge> Help me search today's news"}
                 ]
                 """));
-        when(managedWebSearchService.search(eq("today's news"), eq("test-uid")))
-                .thenReturn(new ManagedWebSearchService.SearchAugmentation(
-                        "Search summary with [1]",
-                        "[{\"type\":\"web_search\",\"deskToolName\":\"Web Search\",\"web_search\":{\"outputs\":[{\"index\":1,\"url\":\"https://example.com\",\"title\":\"Example\"}]}}]",
-                        false,
-                        null));
-        when(httpClient.newCall(any(Request.class))).thenReturn(call);
-        doNothing().when(call).enqueue(any(Callback.class));
+        Call planningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                "{\"id\":\"plan-id\",\"choices\":[{\"message\":{\"content\":\"no tool call\"}}]}",
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
 
         promptChatService.chatStream(request, emitter, streamId, chatReqRecords, false, false);
 
-        verify(httpClient).newCall(argThat(req -> {
-            try {
-                JSONObject body = parseRequestBody(req);
-                assertFalse(body.containsKey("managedSearchQuery"));
-                assertFalse(body.containsKey("userId"));
-                assertTrue(body.getJSONArray("messages")
-                        .getJSONObject(0)
-                        .getString("content")
-                        .contains("managed real-time web search"));
-                assertTrue(body.getJSONArray("messages")
-                        .getJSONObject(0)
-                        .getString("content")
-                        .contains("Search summary with [1]"));
-            } catch (IOException e) {
-                fail(e);
-            }
-            return true;
-        }));
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(2)).newCall(requestCaptor.capture());
+        JSONObject planningBody = parseRequestBody(requestCaptor.getAllValues().get(0));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+
+        assertFalse(planningBody.containsKey("managedSearchQuery"));
+        assertFalse(planningBody.containsKey("userId"));
+        assertEquals("auto", planningBody.getString("tool_choice"));
+        assertEquals("web_search", planningBody.getJSONArray("tools")
+                .getJSONObject(0)
+                .getJSONObject("function")
+                .getString("name"));
+        assertEquals("current_time", planningBody.getJSONArray("tools")
+                .getJSONObject(1)
+                .getJSONObject("function")
+                .getString("name"));
+        assertFalse(planningBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("managed real-time web search"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        assertFalse(finalBody.containsKey("managedSearchQuery"));
+        assertFalse(finalBody.containsKey("userId"));
+        assertFalse(finalBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("current_time and web_search tools"));
+        verify(planningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
+        verify(managedWebSearchService, never()).search(anyString(), anyString());
     }
 
     @Test
-    void testChatStream_DebugManagedSearch_UsesRequestUserIdWhenRecordsMissing() {
+    void testChatStream_OpenAiFinalAnswerAfterToolCall_UsesStreamingRequest() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "web_search",
+                      "description": "Search the live web.",
+                      "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天热点新闻"}
+                ]
+                """));
+
+        Call planningCall = mock(Call.class);
+        Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        Response finalPlanningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(finalPlanningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-id","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_search","type":"function","function":{"name":"web_search","arguments":"{\\"query\\":\\"今天热点新闻\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"final-plan-id","choices":[{"message":{"role":"assistant","content":"新闻摘要"}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+        when(managedWebSearchService.search(eq("今天热点新闻"), eq("debug-user")))
+                .thenReturn(new ManagedWebSearchService.SearchAugmentation("新闻摘要", "[]", false, null));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        assertEquals("assistant", finalBody.getJSONArray("messages").getJSONObject(2).getString("role"));
+        assertEquals("tool", finalBody.getJSONArray("messages").getJSONObject(3).getString("role"));
+        assertEquals("call_search", finalBody.getJSONArray("messages").getJSONObject(3).getString("tool_call_id"));
+        assertTrue(finalBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("新闻摘要"));
+        verify(planningCall).execute();
+        verify(finalPlanningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
+        verify(managedWebSearchService).search("今天热点新闻", "debug-user");
+    }
+
+    @Test
+    void testChatStream_DebugManagedSearch_UsesRequestUserIdWhenToolIsCalled() throws Exception {
         request.put("provider", "openai");
         request.put("model", "deepseek-chat");
         request.put("managedWebSearch", true);
@@ -224,14 +378,722 @@ class PromptChatServiceTest {
                   {"role":"user","content":"wrapped prompt"}
                 ]
                 """));
+        Call planningCall = mock(Call.class);
+        Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        Response finalPlanningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(finalPlanningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-id","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_search","type":"function","function":{"name":"web_search","arguments":"{\\"query\\":\\"latest headlines\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"final-id","choices":[{"message":{"role":"assistant","content":"summary"}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
         when(managedWebSearchService.search(eq("latest headlines"), eq("debug-user")))
                 .thenReturn(new ManagedWebSearchService.SearchAugmentation("summary", "[]", false, null));
-        when(httpClient.newCall(any(Request.class))).thenReturn(call);
-        doNothing().when(call).enqueue(any(Callback.class));
 
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
+        verify(httpClient, times(3)).newCall(any(Request.class));
+        verify(finalPlanningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
         verify(managedWebSearchService).search("latest headlines", "debug-user");
+    }
+
+    @Test
+    void testChatStream_OpenAiSearchTool_AddsDecisionInstructionToPlanningRequest() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("managedWebSearch", true);
+        request.put("managedSearchQuery", "今天是周几");
+        request.put("userId", "debug-user");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "web_search",
+                      "description": "Search the live web.",
+                      "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}
+                    }
+                  },
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "current_time",
+                      "description": "Get current time.",
+                      "parameters": {"type": "object", "properties": {}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天是周几"}
+                ]
+                """));
+
+        Call planningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                "{\"id\":\"plan-id\",\"choices\":[{\"message\":{\"content\":\"no tool call\"}}]}",
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(2)).newCall(requestCaptor.capture());
+        JSONObject planningBody = parseRequestBody(requestCaptor.getAllValues().get(0));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        assertEquals("web_search", planningBody.getJSONArray("tools")
+                .getJSONObject(0)
+                .getJSONObject("function")
+                .getString("name"));
+        assertTrue(planningBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("Use current_time for questions about the current date"));
+        assertFalse(planningBody.containsKey("managedWebSearch"));
+        assertFalse(planningBody.containsKey("managedSearchQuery"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        verify(planningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
+        verify(managedWebSearchService, never()).search(anyString(), anyString());
+    }
+
+    @Test
+    void testChatStream_OpenAiToolPlanningFailure_FallbackDoesNotKeepToolInstruction() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "current_time",
+                      "description": "Get current time.",
+                      "parameters": {"type": "object", "properties": {}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天是周几"}
+                ]
+                """));
+
+        Call planningCall = mock(Call.class);
+        Call fallbackCall = mock(Call.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, fallbackCall);
+        when(planningCall.execute()).thenThrow(new IOException("planning failed"));
+        doNothing().when(fallbackCall).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(2)).newCall(requestCaptor.capture());
+        JSONObject fallbackBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        assertFalse(fallbackBody.containsKey("tools"));
+        assertFalse(fallbackBody.containsKey("tool_choice"));
+        assertFalse(fallbackBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("current_time and web_search tools"));
+        assertFalse(fallbackBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("current_time tool"));
+        assertFalse(fallbackBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("Use current_time for questions"));
+    }
+
+    @Test
+    void testChatStream_OpenAiSearchToolCall_ExecutesSearchAndAppendsToolMessages() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "web_search",
+                      "description": "Search the live web.",
+                      "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天是周几"}
+                ]
+                """));
+
+        Call planningCall = mock(Call.class);
+        Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        Response finalPlanningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(finalPlanningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {
+                  "id": "plan-id",
+                  "choices": [
+                    {
+                      "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                          {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                              "name": "web_search",
+                              "arguments": "{\\"query\\":\\"今天是周几\\"}"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {
+                  "id": "final-id",
+                  "choices": [
+                    {
+                      "message": {
+                        "role": "assistant",
+                        "content": "今天是星期一。"
+                      }
+                    }
+                  ]
+                }
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+        when(managedWebSearchService.search(eq("今天是周几"), eq("debug-user")))
+                .thenReturn(new ManagedWebSearchService.SearchAugmentation(
+                        "今天是星期一。",
+                        "[{\"type\":\"web_search\",\"deskToolName\":\"Web Search\"}]",
+                        false,
+                        null));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
+        JSONObject planningBody = parseRequestBody(requestCaptor.getAllValues().get(0));
+        JSONObject secondRoundBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
+
+        assertEquals("web_search", planningBody.getJSONArray("tools")
+                .getJSONObject(0)
+                .getJSONObject("function")
+                .getString("name"));
+        assertFalse(planningBody.containsKey("managedWebSearch"));
+        assertFalse(planningBody.containsKey("managedSearchQuery"));
+        assertEquals("web_search", secondRoundBody.getJSONArray("tools")
+                .getJSONObject(0)
+                .getJSONObject("function")
+                .getString("name"));
+        assertEquals("auto", secondRoundBody.getString("tool_choice"));
+        assertFalse(secondRoundBody.containsKey("managedWebSearch"));
+        assertFalse(secondRoundBody.containsKey("managedSearchQuery"));
+        assertEquals("assistant", secondRoundBody.getJSONArray("messages").getJSONObject(2).getString("role"));
+        assertEquals("tool", secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("role"));
+        assertEquals("call_1", secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("tool_call_id"));
+        assertTrue(secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("星期一"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        verify(managedWebSearchService).search("今天是周几", "debug-user");
+        verify(finalPlanningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
+    }
+
+    @Test
+    void testChatStream_OpenAiToolLoop_ExecutesMultipleToolRoundsBeforeFinalAnswer() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("managedWebSearch", true);
+        request.put("managedSearchQuery", "今天热点新闻");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "current_time",
+                      "description": "Get current time.",
+                      "parameters": {"type": "object", "properties": {"timezone": {"type": "string"}}}
+                    }
+                  },
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "web_search",
+                      "description": "Search the live web.",
+                      "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天热点新闻"}
+                ]
+                """));
+
+        Call timeCall = mock(Call.class);
+        Call searchCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response timeResponse = mock(Response.class);
+        Response searchResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(timeCall, searchCall, finalStreamCall);
+        when(timeCall.execute()).thenReturn(timeResponse);
+        when(searchCall.execute()).thenReturn(searchResponse);
+        when(timeResponse.isSuccessful()).thenReturn(true);
+        when(searchResponse.isSuccessful()).thenReturn(true);
+        when(timeResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {
+                  "id": "plan-time",
+                  "choices": [
+                    {
+                      "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                          {
+                            "id": "call_time",
+                            "type": "function",
+                            "function": {
+                              "name": "current_time",
+                              "arguments": "{\\"timezone\\":\\"Asia/Shanghai\\"}"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(searchResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {
+                  "id": "plan-final",
+                  "choices": [
+                    {
+                      "message": {
+                        "role": "assistant",
+                        "content": "今天是2026年6月9日，热点新闻如下。"
+                      }
+                    }
+                  ]
+                }
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
+        JSONObject secondRoundBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
+        assertEquals("assistant", secondRoundBody.getJSONArray("messages").getJSONObject(2).getString("role"));
+        assertEquals("tool", secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("role"));
+        assertEquals("call_time", secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("tool_call_id"));
+        assertTrue(secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("Asia/Shanghai"));
+        assertTrue(secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("weekday"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        verify(managedWebSearchService, never()).search(anyString(), anyString());
+        verify(timeCall).execute();
+        verify(searchCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
+    }
+
+    @Test
+    void testChatStream_OpenAiToolLoop_DoesNotExecuteUnadvertisedSearchTool() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "current_time",
+                      "description": "Get current time.",
+                      "parameters": {"type": "object", "properties": {"timezone": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天是周几"}
+                ]
+                """));
+
+        Call planningCall = mock(Call.class);
+        Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        Response finalPlanningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(finalPlanningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-search","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_search","type":"function","function":{"name":"web_search","arguments":"{\\"query\\":\\"今天热点新闻\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"final-id","choices":[{"message":{"role":"assistant","content":"当前请求没有启用联网搜索。"}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
+        JSONObject secondRoundBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
+        JSONObject toolMessage = secondRoundBody.getJSONArray("messages").getJSONObject(3);
+        assertEquals("tool", toolMessage.getString("role"));
+        assertEquals("call_search", toolMessage.getString("tool_call_id"));
+        assertTrue(toolMessage.getString("content").contains("TOOL_NOT_AVAILABLE"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        verify(managedWebSearchService, never()).search(anyString(), anyString());
+        verify(finalStreamCall).enqueue(any(Callback.class));
+    }
+
+    @Test
+    void testChatStream_OpenAiToolLoop_SearchesAfterCurrentTimeTool() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("managedWebSearch", true);
+        request.put("managedSearchQuery", "今天热点新闻");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "current_time",
+                      "description": "Get current time.",
+                      "parameters": {"type": "object", "properties": {"timezone": {"type": "string"}}}
+                    }
+                  },
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "web_search",
+                      "description": "Search the live web.",
+                      "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天热点新闻"}
+                ]
+                """));
+
+        Call timeCall = mock(Call.class);
+        Call searchPlanningCall = mock(Call.class);
+        Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response timeResponse = mock(Response.class);
+        Response searchPlanningResponse = mock(Response.class);
+        Response finalPlanningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(timeCall, searchPlanningCall, finalPlanningCall, finalStreamCall);
+        when(timeCall.execute()).thenReturn(timeResponse);
+        when(searchPlanningCall.execute()).thenReturn(searchPlanningResponse);
+        when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
+        when(timeResponse.isSuccessful()).thenReturn(true);
+        when(searchPlanningResponse.isSuccessful()).thenReturn(true);
+        when(finalPlanningResponse.isSuccessful()).thenReturn(true);
+        when(timeResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-time","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_time","type":"function","function":{"name":"current_time","arguments":"{\\"timezone\\":\\"Asia/Shanghai\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(searchPlanningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-search","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_search","type":"function","function":{"name":"web_search","arguments":"{\\"query\\":\\"2026年6月9日 今日热点新闻\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-final","choices":[{"message":{"role":"assistant","content":"今天热点新闻总结。"}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(managedWebSearchService.search(eq("2026年6月9日 今日热点新闻"), eq("debug-user")))
+                .thenReturn(new ManagedWebSearchService.SearchAugmentation(
+                        "搜索结果摘要",
+                        "[{\"type\":\"web_search\",\"deskToolName\":\"Web Search\"}]",
+                        false,
+                        null));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        verify(httpClient, times(4)).newCall(any(Request.class));
+        verify(finalStreamCall).enqueue(any(Callback.class));
+        verify(managedWebSearchService).search("2026年6月9日 今日热点新闻", "debug-user");
+    }
+
+    @Test
+    void testChatStream_OpenAiToolLoop_StopsOnDuplicateToolCall() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "current_time",
+                      "description": "Get current time.",
+                      "parameters": {"type": "object", "properties": {"timezone": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天是周几"}
+                ]
+                """));
+
+        Call firstCall = mock(Call.class);
+        Call duplicateCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response firstResponse = mock(Response.class);
+        Response duplicateResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(firstCall, duplicateCall, finalStreamCall);
+        when(firstCall.execute()).thenReturn(firstResponse);
+        when(duplicateCall.execute()).thenReturn(duplicateResponse);
+        when(firstResponse.isSuccessful()).thenReturn(true);
+        when(duplicateResponse.isSuccessful()).thenReturn(true);
+        when(firstResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-1","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_time_1","type":"function","function":{"name":"current_time","arguments":"{\\"timezone\\":\\"Asia/Shanghai\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(duplicateResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-2","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_time_2","type":"function","function":{"name":"current_time","arguments":"{\\"timezone\\":\\"Asia/Shanghai\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        assertTrue(finalBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("DUPLICATE_TOOL_CALL"));
+        assertTrue(finalBody.getJSONArray("messages")
+                .getJSONObject(5)
+                .getString("content")
+                .contains("Duplicate tool call skipped"));
+        verify(finalStreamCall).enqueue(any(Callback.class));
+    }
+
+    @Test
+    void testChatStream_OpenAiToolLoop_StopsWhenToolCallLimitExceeded() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "current_time",
+                      "description": "Get current time.",
+                      "parameters": {"type": "object", "properties": {"timezone": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"请连续检查很多城市的当前时间"}
+                ]
+                """));
+
+        JSONArray toolCalls = new JSONArray();
+        for (int i = 0; i < 16; i++) {
+            toolCalls.add(new JSONObject()
+                    .fluentPut("id", "call_time_" + i)
+                    .fluentPut("type", "function")
+                    .fluentPut("function", new JSONObject()
+                            .fluentPut("name", "current_time")
+                            .fluentPut("arguments", "{\"timezone\":\"Asia/Shanghai\",\"round\":" + i + "}")));
+        }
+        JSONObject planningBody = new JSONObject()
+                .fluentPut("id", "plan-limit")
+                .fluentPut("choices", new JSONArray().fluentAdd(new JSONObject()
+                        .fluentPut("message", new JSONObject()
+                                .fluentPut("role", "assistant")
+                                .fluentPut("content", "")
+                                .fluentPut("tool_calls", toolCalls))));
+
+        Call planningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                planningBody.toJSONString(),
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(2)).newCall(requestCaptor.capture());
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        assertTrue(finalBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("TOOL_CALL_LIMIT_EXCEEDED"));
+        assertTrue(finalBody.getJSONArray("messages")
+                .toJSONString()
+                .contains("Tool call budget exhausted"));
+        verify(finalStreamCall).enqueue(any(Callback.class));
+    }
+
+    @Test
+    void testChatStream_OpenAiToolLoop_StopsWhenToolRoundLimitExceeded() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "current_time",
+                      "description": "Get current time.",
+                      "parameters": {"type": "object", "properties": {"timezone": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天是周几"}
+                ]
+                """));
+
+        Call[] calls = new Call[15];
+        Response[] responses = new Response[15];
+        for (int i = 0; i < calls.length; i++) {
+            calls[i] = mock(Call.class);
+            responses[i] = mock(Response.class);
+            when(calls[i].execute()).thenReturn(responses[i]);
+            when(responses[i].isSuccessful()).thenReturn(true);
+        }
+        for (int i = 0; i < 15; i++) {
+            String responseBody = """
+                    {"id":"plan-%d","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_time_%d","type":"function","function":{"name":"current_time","arguments":"{\\"timezone\\":\\"Asia/Shanghai\\",\\"round\\":%d}"}}]}}]}
+                    """.formatted(i, i, i);
+            when(responses[i].body()).thenReturn(ResponseBody.create(
+                    responseBody,
+                    MediaType.get("application/json; charset=utf-8")));
+        }
+        Call finalStreamCall = mock(Call.class);
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+
+        AtomicInteger callIndex = new AtomicInteger();
+        when(httpClient.newCall(any(Request.class))).thenAnswer(invocation -> {
+            int index = callIndex.getAndIncrement();
+            return index < calls.length ? calls[index] : finalStreamCall;
+        });
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(16)).newCall(requestCaptor.capture());
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(15));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        assertTrue(finalBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("TOOL_ROUND_LIMIT_EXCEEDED"));
+        assertEquals(32, finalBody.getJSONArray("messages").size());
+        verify(finalStreamCall).enqueue(any(Callback.class));
     }
 
     @Test

@@ -53,6 +53,10 @@ const PromptTry = forwardRef<
     model?: string;
     supportContext?: number;
     promptText?: string;
+    debugSessionId?: string;
+    initialMessages?: MessageListType[];
+    onMessagesChange?: (messages: MessageListType[]) => void;
+    showHeaderAndRecommend?: boolean;
     choosedAlltool?: {
       [key: string]: boolean;
     };
@@ -77,6 +81,9 @@ const PromptTry = forwardRef<
       model,
       supportContext,
       choosedAlltool,
+      initialMessages,
+      onMessagesChange,
+      showHeaderAndRecommend = true,
       findModelOptionByUniqueKey,
       personalityConfig,
     },
@@ -89,6 +96,7 @@ const PromptTry = forwardRef<
     const [messageList, setMessageList] = useState<MessageListType[]>([]); // 消息列表
     const controllerRef = useRef<AbortController>(new AbortController()); //sse请求ref
     const currentSid = useRef<string>(''); // 当前sid
+    const pendingInitialMessagesRef = useRef<MessageListType[] | null>(null);
 
     // 使用useImperativeHandle暴露组件方法
     useImperativeHandle(ref, () => ({
@@ -113,6 +121,29 @@ const PromptTry = forwardRef<
         });
       };
     }, []);
+
+    useEffect(() => {
+      if (initialMessages) {
+        pendingInitialMessagesRef.current = initialMessages;
+        setMessageList(current => {
+          if (current === initialMessages) {
+            pendingInitialMessagesRef.current = null;
+            return current;
+          }
+          return initialMessages;
+        });
+      }
+    }, [initialMessages]);
+
+    useEffect(() => {
+      if (pendingInitialMessagesRef.current) {
+        if (pendingInitialMessagesRef.current === messageList) {
+          pendingInitialMessagesRef.current = null;
+        }
+        return;
+      }
+      onMessagesChange?.(messageList);
+    }, [messageList, onMessagesChange]);
 
     // 监听loading状态变化，通知config-base
     useEffect(() => {
@@ -331,6 +362,7 @@ const PromptTry = forwardRef<
             isLoading={isLoading}
             isCompleted={isCompleted}
             stopAnswer={stopAnswer}
+            showHeaderAndRecommend={showHeaderAndRecommend}
           />
         </div>
       </div>

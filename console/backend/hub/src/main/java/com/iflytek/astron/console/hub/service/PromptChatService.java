@@ -18,8 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * @author mingsuiyongheng
@@ -30,7 +34,27 @@ import java.util.Objects;
 public class PromptChatService {
     private static final String PROVIDER_GOOGLE = "google";
     private static final String PROVIDER_ANTHROPIC = "anthropic";
-    private static final String OPENAI_SEARCH_TOOL_NAME = "ifly_search";
+    private static final String OPENAI_SEARCH_TOOL_NAME = "web_search";
+    private static final String LEGACY_OPENAI_SEARCH_TOOL_NAME = "ifly_search";
+    private static final String CURRENT_TIME_TOOL_NAME = CurrentTimeTool.TOOL_NAME;
+    private static final int MAX_OPENAI_TOOL_ROUNDS = 15;
+    private static final int MAX_OPENAI_TOOL_CALLS = 15;
+    private static final String WEB_SEARCH_DECISION_INSTRUCTION = """
+            You have access to a web_search tool. Decide whether to call it.
+            Use web_search for questions that require current or recently changed external information, including latest news, prices, policies, schedules, releases, rankings, or status.
+            For static knowledge that does not need real-time information, answer directly without using the tool.
+            """;
+    private static final String CURRENT_TIME_DECISION_INSTRUCTION = """
+            You have access to a current_time tool. Decide whether to call it.
+            Use current_time for questions about the current date, weekday, time, or timezone.
+            For static knowledge that does not need the current time, answer directly without using a tool.
+            """;
+    private static final String OPENAI_TOOL_DECISION_INSTRUCTION = """
+            You have access to current_time and web_search tools. Decide whether to call them.
+            Use current_time for questions about the current date, weekday, time, or timezone.
+            Use web_search for questions that require current or recently changed external information, including latest news, prices, policies, schedules, releases, rankings, or status.
+            For static knowledge that does not need tools, answer directly without using a tool.
+            """;
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
 
     private final OkHttpClient httpClient;
@@ -79,12 +103,17 @@ public class PromptChatService {
      */
     private void performChatRequest(JSONObject request, SseEmitter emitter, String streamId, ChatReqRecords chatReqRecords, boolean edit, boolean isDebug) throws IOException {
         String provider = normalizeProvider(request.getString("provider"));
-        // Handle managed web search directly (when managedWebSearch=true without tools array)
-        if (request.getBooleanValue("managedWebSearch") && !hasOpenAiSearchTool(request.getJSONArray("tools"))) {
-            applyManagedWebSearch(request, chatReqRecords);
+        ensureManagedToolsForOpenAiCompatibleProvider(provider, request);
+        boolean shouldHandleOpenAiFunctionTools = shouldHandleOpenAiFunctionToolCall(provider, request);
+        JSONObject fallbackRequest = null;
+        if (shouldHandleOpenAiFunctionTools) {
+            fallbackRequest = JSON.parseObject(request.toJSONString());
+            applyToolDecisionInstruction(request);
+        } else if (hasWebSearchCapability(request)) {
+            applyWebSearchDecisionInstruction(request);
         }
-        if (shouldHandleOpenAiFunctionToolCall(provider, request)
-                && handleOpenAiFunctionToolCall(request, emitter, streamId, chatReqRecords, edit, isDebug, provider)) {
+        if (shouldHandleOpenAiFunctionTools
+                && handleOpenAiFunctionToolCall(request, fallbackRequest, emitter, streamId, chatReqRecords, edit, isDebug, provider)) {
             return;
         }
         PreparedRequest preparedRequest = buildPreparedRequest(request, provider);
@@ -232,7 +261,21 @@ public class PromptChatService {
         if (PROVIDER_GOOGLE.equals(provider) || PROVIDER_ANTHROPIC.equals(provider)) {
             return false;
         }
-        return hasOpenAiSearchTool(request.getJSONArray("tools"));
+        return hasOpenAiManagedTool(request.getJSONArray("tools"));
+    }
+
+    private boolean hasOpenAiManagedTool(JSONArray tools) {
+        if (tools == null || tools.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < tools.size(); i++) {
+            JSONObject tool = tools.getJSONObject(i);
+            JSONObject function = tool == null ? null : tool.getJSONObject("function");
+            if (function != null && isManagedToolName(function.getString("name"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasOpenAiSearchTool(JSONArray tools) {
@@ -242,53 +285,275 @@ public class PromptChatService {
         for (int i = 0; i < tools.size(); i++) {
             JSONObject tool = tools.getJSONObject(i);
             JSONObject function = tool == null ? null : tool.getJSONObject("function");
-            if (function != null && StringUtils.equals(function.getString("name"), OPENAI_SEARCH_TOOL_NAME)) {
+            if (function != null && isSearchToolName(function.getString("name"))) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean handleOpenAiFunctionToolCall(JSONObject request, SseEmitter emitter, String streamId,
-            ChatReqRecords chatReqRecords, boolean edit, boolean isDebug, String provider) throws IOException {
-        JSONObject planningRequest = JSON.parseObject(request.toJSONString());
-        planningRequest.put("stream", false);
-
-        JSONObject planningResponse;
-        try {
-            planningResponse = executeJsonRequest(planningRequest, provider);
-        } catch (Exception e) {
-            log.warn("OpenAI-compatible tool planning failed, fallback to normal request, streamId: {}, error: {}", streamId, e.getMessage());
-            request.remove("tools");
-            request.remove("toolChoice");
+    private boolean hasOpenAiCurrentTimeTool(JSONArray tools) {
+        if (tools == null || tools.isEmpty()) {
             return false;
         }
-
-        JSONArray toolCalls = extractAssistantToolCalls(planningResponse);
-        if (toolCalls == null || toolCalls.isEmpty()) {
-            JSONObject normalizedData = normalizeSynchronousOpenAiResponse(planningResponse);
-            StringBuffer finalResult = new StringBuffer(extractAssistantContent(planningResponse));
-            StringBuffer thinkingResult = new StringBuffer();
-            StringBuffer sid = new StringBuffer(StringUtils.defaultString(planningResponse.getString("id")));
-            StringBuffer traceResult = new StringBuffer();
-            if (normalizedData != null) {
-                tryServeSSEData(emitter, normalizedData, streamId);
+        for (int i = 0; i < tools.size(); i++) {
+            JSONObject tool = tools.getJSONObject(i);
+            JSONObject function = tool == null ? null : tool.getJSONObject("function");
+            if (function != null && isCurrentTimeToolName(function.getString("name"))) {
+                return true;
             }
-            handleStreamComplete(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug, false);
+        }
+        return false;
+    }
+
+    private void ensureManagedToolsForOpenAiCompatibleProvider(String provider, JSONObject request) {
+        if (!request.getBooleanValue("managedWebSearch")
+                || PROVIDER_GOOGLE.equals(provider)
+                || PROVIDER_ANTHROPIC.equals(provider)) {
+            return;
+        }
+        JSONArray tools = request.getJSONArray("tools");
+        if (tools == null) {
+            tools = new JSONArray();
+            request.put("tools", tools);
+        }
+        if (!hasOpenAiSearchTool(tools)) {
+            tools.add(buildOpenAiSearchFunctionTool());
+        }
+        if (!hasOpenAiCurrentTimeTool(tools)) {
+            tools.add(buildOpenAiCurrentTimeFunctionTool());
+        }
+        if (StringUtils.isBlank(request.getString("tool_choice"))
+                && StringUtils.isBlank(request.getString("toolChoice"))) {
+            request.put("tool_choice", "auto");
+        }
+    }
+
+    private JSONObject buildOpenAiSearchFunctionTool() {
+        JSONObject properties = new JSONObject()
+                .fluentPut("query", new JSONObject()
+                        .fluentPut("type", "string")
+                        .fluentPut("description", "A precise web search query based on the user's request."));
+        JSONArray required = new JSONArray();
+        required.add("query");
+        return buildOpenAiFunctionTool(
+                OPENAI_SEARCH_TOOL_NAME,
+                "Search the live web for up-to-date external information. Use this for recent events, latest facts, prices, policies, schedules, releases, rankings, or status.",
+                properties,
+                required);
+    }
+
+    private JSONObject buildOpenAiCurrentTimeFunctionTool() {
+        JSONObject properties = new JSONObject()
+                .fluentPut("timezone", new JSONObject()
+                        .fluentPut("type", "string")
+                        .fluentPut("description", "IANA timezone name. Defaults to Asia/Shanghai."));
+        return buildOpenAiFunctionTool(
+                CURRENT_TIME_TOOL_NAME,
+                "Get the current date, time, weekday, timezone, and ISO timestamp. Use this for questions about today, now, the current date, or the current weekday.",
+                properties,
+                new JSONArray());
+    }
+
+    private JSONObject buildOpenAiFunctionTool(String name, String description, JSONObject properties, JSONArray requiredFields) {
+        JSONObject parameters = new JSONObject()
+                .fluentPut("type", "object")
+                .fluentPut("properties", properties)
+                .fluentPut("required", requiredFields)
+                .fluentPut("additionalProperties", false);
+        return new JSONObject()
+                .fluentPut("type", "function")
+                .fluentPut("function", new JSONObject()
+                        .fluentPut("name", name)
+                        .fluentPut("description", description)
+                        .fluentPut("parameters", parameters));
+    }
+
+    private boolean hasWebSearchCapability(JSONObject request) {
+        if (request.getBooleanValue("managedWebSearch")) {
             return true;
         }
-
-        ManagedToolResult toolResult = executeSearchTool(toolCalls, request, chatReqRecords);
-        if (StringUtils.isNotBlank(toolResult.traceJson())) {
-            request.put("managedSearchTrace", toolResult.traceJson());
-        } else {
-            request.remove("managedSearchTrace");
+        JSONArray tools = request.getJSONArray("tools");
+        if (tools == null || tools.isEmpty()) {
+            return false;
         }
-        appendToolMessages(request, extractAssistantMessage(planningResponse), toolCalls, toolResult.content());
-        request.remove("tools");
-        request.remove("toolChoice");
-        request.put("stream", true);
+        for (int i = 0; i < tools.size(); i++) {
+            JSONObject tool = tools.getJSONObject(i);
+            if (tool == null) {
+                continue;
+            }
+            if (tool.containsKey("google_search")) {
+                return true;
+            }
+            String type = tool.getString("type");
+            String name = tool.getString("name");
+            if (StringUtils.containsIgnoreCase(type, "web_search") || isSearchToolName(name)) {
+                return true;
+            }
+            JSONObject function = tool.getJSONObject("function");
+            if (function != null && isSearchToolName(function.getString("name"))) {
+                return true;
+            }
+        }
         return false;
+    }
+
+    private boolean isSearchToolName(String name) {
+        return StringUtils.equals(name, OPENAI_SEARCH_TOOL_NAME)
+                || StringUtils.equals(name, LEGACY_OPENAI_SEARCH_TOOL_NAME);
+    }
+
+    private boolean isCurrentTimeToolName(String name) {
+        return StringUtils.equals(name, CURRENT_TIME_TOOL_NAME);
+    }
+
+    private boolean isManagedToolName(String name) {
+        return isSearchToolName(name) || isCurrentTimeToolName(name);
+    }
+
+    private void applyToolDecisionInstruction(JSONObject request) {
+        JSONArray tools = request.getJSONArray("tools");
+        boolean hasSearchTool = hasOpenAiSearchTool(tools);
+        boolean hasCurrentTimeTool = hasOpenAiCurrentTimeTool(tools);
+        if (hasSearchTool && hasCurrentTimeTool) {
+            applyDecisionInstruction(request, OPENAI_TOOL_DECISION_INSTRUCTION, "current_time and web_search tools");
+        } else if (hasCurrentTimeTool) {
+            applyDecisionInstruction(request, CURRENT_TIME_DECISION_INSTRUCTION, "current_time tool");
+        } else if (hasSearchTool) {
+            applyDecisionInstruction(request, WEB_SEARCH_DECISION_INSTRUCTION, "web_search tool");
+        }
+    }
+
+    private void applyWebSearchDecisionInstruction(JSONObject request) {
+        applyDecisionInstruction(request, WEB_SEARCH_DECISION_INSTRUCTION, "web_search tool");
+    }
+
+    private void applyDecisionInstruction(JSONObject request, String instruction, String marker) {
+        JSONArray messages = request.getJSONArray("messages");
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+
+        JSONObject firstSystemMessage = null;
+        for (int i = 0; i < messages.size(); i++) {
+            JSONObject message = messages.getJSONObject(i);
+            if (message != null && "system".equals(normalizeMessageRole(message.getString("role")))) {
+                firstSystemMessage = message;
+                break;
+            }
+        }
+
+        if (firstSystemMessage == null) {
+            messages.add(0, new JSONObject()
+                    .fluentPut("role", "system")
+                    .fluentPut("content", instruction));
+        } else {
+            String content = StringUtils.defaultString(firstSystemMessage.getString("content"));
+            if (!StringUtils.contains(content, marker)) {
+                firstSystemMessage.put("content", instruction + "\n" + content);
+            }
+        }
+        request.put("messages", messages);
+    }
+
+    private boolean handleOpenAiFunctionToolCall(JSONObject request, JSONObject fallbackRequest, SseEmitter emitter, String streamId,
+            ChatReqRecords chatReqRecords, boolean edit, boolean isDebug, String provider) throws IOException {
+        JSONObject loopRequest = JSON.parseObject(request.toJSONString());
+        JSONArray managedSearchTrace = new JSONArray();
+        Set<String> seenToolCalls = new HashSet<>();
+        int executedToolCalls = 0;
+        boolean toolExecuted = false;
+
+        for (int round = 0; round < MAX_OPENAI_TOOL_ROUNDS; round++) {
+            loopRequest.put("stream", false);
+
+            JSONObject planningResponse;
+            try {
+                planningResponse = executeJsonRequest(loopRequest, provider);
+            } catch (Exception e) {
+                if (!toolExecuted) {
+                    log.warn("OpenAI-compatible tool planning failed, fallback to normal request, streamId: {}, error: {}", streamId, e.getMessage());
+                    if (fallbackRequest != null) {
+                        request.clear();
+                        request.putAll(fallbackRequest);
+                    }
+                    stripToolFields(request);
+                    return false;
+                }
+                log.warn("OpenAI-compatible tool loop failed after tool execution, streamId: {}, error: {}", streamId, e.getMessage());
+                SseEmitterUtil.completeWithError(emitter, "Tool call failed: " + e.getMessage());
+                return true;
+            }
+
+            JSONArray toolCalls = extractAssistantToolCalls(planningResponse);
+            if (toolCalls == null || toolCalls.isEmpty()) {
+                JSONObject finalRequest = buildOpenAiFinalStreamingRequest(
+                        loopRequest,
+                        fallbackRequest,
+                        toolExecuted);
+                streamOpenAiFinalResponse(
+                        finalRequest,
+                        emitter,
+                        streamId,
+                        chatReqRecords,
+                        edit,
+                        isDebug,
+                        provider,
+                        managedSearchTrace);
+                return true;
+            }
+
+            ManagedToolBatchResult batchResult = executeManagedTools(
+                    toolCalls,
+                    loopRequest,
+                    chatReqRecords,
+                    seenToolCalls,
+                    MAX_OPENAI_TOOL_CALLS - executedToolCalls,
+                    resolveAllowedManagedToolNames(loopRequest.getJSONArray("tools")));
+            appendTraceEntries(managedSearchTrace, batchResult.traceEntries());
+            appendToolMessages(loopRequest, extractAssistantMessage(planningResponse), toolCalls, batchResult.outputs());
+            executedToolCalls += batchResult.executedToolCalls();
+            toolExecuted = toolExecuted || batchResult.executedToolCalls() > 0;
+
+            if (batchResult.limitExceeded()) {
+                return completeToolLoopStopped(
+                        loopRequest,
+                        emitter,
+                        streamId,
+                        chatReqRecords,
+                        edit,
+                        isDebug,
+                        provider,
+                        managedSearchTrace,
+                        "TOOL_CALL_LIMIT_EXCEEDED",
+                        "The tool call budget for this user message has been exhausted after " + MAX_OPENAI_TOOL_CALLS + " tool calls.");
+            }
+            if (batchResult.duplicateDetected()) {
+                return completeToolLoopStopped(
+                        loopRequest,
+                        emitter,
+                        streamId,
+                        chatReqRecords,
+                        edit,
+                        isDebug,
+                        provider,
+                        managedSearchTrace,
+                        "DUPLICATE_TOOL_CALL",
+                        "A duplicate tool call was detected and skipped to prevent a loop.");
+            }
+        }
+
+        return completeToolLoopStopped(
+                loopRequest,
+                emitter,
+                streamId,
+                chatReqRecords,
+                edit,
+                isDebug,
+                provider,
+                managedSearchTrace,
+                "TOOL_ROUND_LIMIT_EXCEEDED",
+                "The tool round budget for this user message has been exhausted after " + MAX_OPENAI_TOOL_ROUNDS + " rounds.");
     }
 
     private JSONObject executeJsonRequest(JSONObject request, String provider) throws IOException {
@@ -304,6 +569,68 @@ public class PromptChatService {
             }
             return JSON.parseObject(body.string());
         }
+    }
+
+    private JSONObject buildOpenAiFinalStreamingRequest(JSONObject loopRequest, JSONObject fallbackRequest, boolean toolExecuted) {
+        JSONObject finalRequest = !toolExecuted && fallbackRequest != null
+                ? JSON.parseObject(fallbackRequest.toJSONString())
+                : JSON.parseObject(loopRequest.toJSONString());
+        stripToolFields(finalRequest);
+        finalRequest.put("stream", true);
+        if (toolExecuted) {
+            appendToolFinalAnswerInstruction(finalRequest);
+        }
+        return finalRequest;
+    }
+
+    private void appendToolFinalAnswerInstruction(JSONObject request) {
+        JSONArray messages = request.getJSONArray("messages");
+        if (messages == null) {
+            messages = new JSONArray();
+            request.put("messages", messages);
+        }
+        String instruction = "Tool results have been provided in the conversation. Produce the final answer from the available information.";
+        for (int i = 0; i < messages.size(); i++) {
+            JSONObject messageObj = messages.getJSONObject(i);
+            if (messageObj != null && "system".equals(normalizeMessageRole(messageObj.getString("role")))) {
+                messageObj.put("content", appendPrompt(messageObj.getString("content"), instruction));
+                return;
+            }
+        }
+        messages.add(0, new JSONObject()
+                .fluentPut("role", "system")
+                .fluentPut("content", instruction));
+    }
+
+    private void streamOpenAiFinalResponse(JSONObject request, SseEmitter emitter, String streamId,
+            ChatReqRecords chatReqRecords, boolean edit, boolean isDebug, String provider, JSONArray managedSearchTrace) {
+        String traceJson = managedSearchTrace == null || managedSearchTrace.isEmpty() ? "" : managedSearchTrace.toJSONString();
+        PreparedRequest preparedRequest = buildPreparedRequest(request, provider);
+        Request httpRequest = buildHttpRequest(request, preparedRequest, provider);
+        httpClient.newCall(httpRequest).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                log.error("OpenAI-compatible final stream failed, streamId: {}, error: {}", streamId, e.getMessage());
+                SseEmitterUtil.completeWithError(emitter, "Connection failed: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) {
+                if (!response.isSuccessful()) {
+                    log.error("OpenAI-compatible final stream request failed, streamId: {}, status code: {}, reason: {}",
+                            streamId, response.code(), response.message());
+                    SseEmitterUtil.completeWithError(emitter, "Request failed: " + response.message());
+                    return;
+                }
+
+                ResponseBody body = response.body();
+                if (body != null) {
+                    processSSEStream(body, emitter, streamId, chatReqRecords, edit, isDebug, provider, traceJson);
+                } else {
+                    SseEmitterUtil.completeWithError(emitter, "Response body is empty");
+                }
+            }
+        });
     }
 
     private Request buildHttpRequest(JSONObject request, PreparedRequest preparedRequest, String provider) {
@@ -371,80 +698,203 @@ public class PromptChatService {
         return normalized;
     }
 
-    private ManagedToolResult executeSearchTool(JSONArray toolCalls, JSONObject request, ChatReqRecords chatReqRecords) {
-        String query = resolveSearchQueryFromToolCalls(toolCalls, request);
+    private void emitSynchronousOpenAiResponse(JSONObject response, SseEmitter emitter, String streamId,
+            ChatReqRecords chatReqRecords, boolean edit, boolean isDebug, JSONArray managedSearchTrace) {
+        String traceJson = managedSearchTrace == null || managedSearchTrace.isEmpty() ? "" : managedSearchTrace.toJSONString();
+        if (StringUtils.isNotBlank(traceJson)) {
+            emitManagedSearchToolCalls(emitter, streamId, traceJson);
+        }
+        JSONObject normalizedData = normalizeSynchronousOpenAiResponse(response);
+        StringBuffer finalResult = new StringBuffer(extractAssistantContent(response));
+        StringBuffer thinkingResult = new StringBuffer();
+        StringBuffer sid = new StringBuffer(StringUtils.defaultString(response == null ? null : response.getString("id")));
+        StringBuffer traceResult = new StringBuffer(traceJson);
+        if (normalizedData != null) {
+            tryServeSSEData(emitter, normalizedData, streamId);
+        }
+        handleStreamComplete(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug,
+                StringUtils.isNotBlank(traceJson));
+    }
+
+    private boolean completeToolLoopStopped(JSONObject loopRequest, SseEmitter emitter, String streamId,
+            ChatReqRecords chatReqRecords, boolean edit, boolean isDebug, String provider, JSONArray managedSearchTrace,
+            String code, String message) throws IOException {
+        appendToolLoopStopInstruction(loopRequest, code, message);
+        stripToolFields(loopRequest);
+        loopRequest.put("stream", true);
+        try {
+            streamOpenAiFinalResponse(loopRequest, emitter, streamId, chatReqRecords, edit, isDebug, provider, managedSearchTrace);
+        } catch (Exception e) {
+            log.warn("OpenAI-compatible final answer after tool loop stop failed, streamId: {}, code: {}, error: {}",
+                    streamId, code, e.getMessage());
+            SseEmitterUtil.completeWithError(emitter, code + ": " + e.getMessage());
+        }
+        return true;
+    }
+
+    private void appendToolLoopStopInstruction(JSONObject request, String code, String message) {
+        JSONArray messages = request.getJSONArray("messages");
+        if (messages == null) {
+            messages = new JSONArray();
+            request.put("messages", messages);
+        }
+        String instruction = """
+                Tool execution stopped with code %s.
+                %s
+                Use only the available tool results already present in the conversation. If the available results are insufficient, say that the answer is incomplete.
+                """.formatted(code, message);
+        for (int i = 0; i < messages.size(); i++) {
+            JSONObject messageObj = messages.getJSONObject(i);
+            if (messageObj != null && "system".equals(normalizeMessageRole(messageObj.getString("role")))) {
+                messageObj.put("content", appendPrompt(messageObj.getString("content"), instruction));
+                return;
+            }
+        }
+        messages.add(0, new JSONObject()
+                .fluentPut("role", "system")
+                .fluentPut("content", instruction));
+    }
+
+    private void stripToolFields(JSONObject request) {
+        request.remove("tools");
+        request.remove("toolChoice");
+        request.remove("tool_choice");
+    }
+
+    private ManagedToolBatchResult executeManagedTools(JSONArray toolCalls, JSONObject request, ChatReqRecords chatReqRecords,
+            Set<String> seenToolCalls, int remainingToolCallBudget, Set<String> allowedToolNames) {
+        List<ManagedToolOutput> outputs = new ArrayList<>();
+        JSONArray traceEntries = new JSONArray();
+        boolean limitExceeded = false;
+        boolean duplicateDetected = false;
+        int executedToolCalls = 0;
+
+        for (int i = 0; i < toolCalls.size(); i++) {
+            JSONObject toolCall = toolCalls.getJSONObject(i);
+            JSONObject function = toolCall == null ? null : toolCall.getJSONObject("function");
+            if (function == null) {
+                continue;
+            }
+            String toolCallId = toolCall.getString("id");
+            String toolName = function.getString("name");
+            JSONObject arguments = parseToolArguments(function.getString("arguments"));
+
+            if (allowedToolNames == null || !allowedToolNames.contains(toolName)) {
+                outputs.add(new ManagedToolOutput(toolCallId, buildToolErrorContent("TOOL_NOT_AVAILABLE", "Tool was not provided for this request: " + toolName)));
+                continue;
+            }
+
+            if (!isManagedToolName(toolName)) {
+                outputs.add(new ManagedToolOutput(toolCallId, buildToolErrorContent("UNSUPPORTED_TOOL", "Unsupported tool: " + toolName)));
+                continue;
+            }
+
+            String signature = toolName + ":" + arguments.toJSONString();
+            if (seenToolCalls.contains(signature)) {
+                duplicateDetected = true;
+                outputs.add(new ManagedToolOutput(toolCallId, buildToolErrorContent("DUPLICATE_TOOL_CALL", "Duplicate tool call skipped: " + toolName)));
+                continue;
+            }
+
+            if (remainingToolCallBudget <= 0) {
+                limitExceeded = true;
+                outputs.add(new ManagedToolOutput(toolCallId, buildToolErrorContent(
+                        "TOOL_CALL_LIMIT_EXCEEDED",
+                        "Tool call budget exhausted for this user message.")));
+                continue;
+            }
+
+            seenToolCalls.add(signature);
+            remainingToolCallBudget--;
+            executedToolCalls++;
+
+            if (isSearchToolName(toolName)) {
+                ManagedToolOutput output = executeSearchTool(toolCallId, arguments, request, chatReqRecords, traceEntries);
+                outputs.add(output);
+            } else if (isCurrentTimeToolName(toolName)) {
+                outputs.add(new ManagedToolOutput(toolCallId, CurrentTimeTool.execute(arguments.getString("timezone"))));
+            }
+        }
+
+        return new ManagedToolBatchResult(outputs, traceEntries, executedToolCalls, limitExceeded, duplicateDetected);
+    }
+
+    private Set<String> resolveAllowedManagedToolNames(JSONArray tools) {
+        Set<String> allowedToolNames = new HashSet<>();
+        if (tools == null || tools.isEmpty()) {
+            return allowedToolNames;
+        }
+        for (int i = 0; i < tools.size(); i++) {
+            JSONObject tool = tools.getJSONObject(i);
+            JSONObject function = tool == null ? null : tool.getJSONObject("function");
+            if (function == null) {
+                continue;
+            }
+            String name = function.getString("name");
+            if (isManagedToolName(name)) {
+                allowedToolNames.add(name);
+            }
+        }
+        return allowedToolNames;
+    }
+
+    private ManagedToolOutput executeSearchTool(String toolCallId, JSONObject arguments, JSONObject request,
+            ChatReqRecords chatReqRecords, JSONArray traceEntries) {
+        String query = StringUtils.defaultIfBlank(arguments.getString("query"), resolveLatestUserQuery(request.getJSONArray("messages")));
         String userId = StringUtils.defaultIfBlank(
                 chatReqRecords == null ? request.getString("userId") : chatReqRecords.getUid(),
                 "managed-web-search");
         ManagedWebSearchService.SearchAugmentation augmentation = managedWebSearchService.search(query, userId);
         if (augmentation.failed()) {
             String errorMessage = StringUtils.defaultIfBlank(augmentation.errorMessage(), "real-time web search unavailable");
-            return new ManagedToolResult("实时联网搜索失败：" + errorMessage, "");
+            return new ManagedToolOutput(toolCallId, "实时联网搜索失败：" + errorMessage);
         }
-        return new ManagedToolResult(augmentation.summary(), augmentation.traceJson());
+        appendTraceEntries(traceEntries, augmentation.traceJson());
+        return new ManagedToolOutput(toolCallId, augmentation.summary());
     }
 
-    /**
-     * Apply managed web search directly when managedWebSearch=true without tools array. Executes search
-     * and injects results into system message, then removes the flag.
-     */
-    private void applyManagedWebSearch(JSONObject request, ChatReqRecords chatReqRecords) {
-        String query = request.getString("managedSearchQuery");
-        if (StringUtils.isBlank(query)) {
-            request.remove("managedWebSearch");
+    private JSONObject parseToolArguments(String arguments) {
+        if (StringUtils.isBlank(arguments)) {
+            return new JSONObject();
+        }
+        try {
+            JSONObject parsedArguments = JSON.parseObject(arguments);
+            return parsedArguments == null ? new JSONObject() : parsedArguments;
+        } catch (Exception e) {
+            log.warn("Failed to parse tool arguments: {}", arguments, e);
+            return new JSONObject();
+        }
+    }
+
+    private String buildToolErrorContent(String code, String message) {
+        return new JSONObject()
+                .fluentPut("error", code)
+                .fluentPut("message", message)
+                .toJSONString();
+    }
+
+    private void appendTraceEntries(JSONArray target, JSONArray traceEntries) {
+        if (target == null || traceEntries == null || traceEntries.isEmpty()) {
             return;
         }
-        String userId = StringUtils.defaultIfBlank(
-                chatReqRecords == null ? request.getString("userId") : chatReqRecords.getUid(),
-                "managed-web-search");
-        ManagedWebSearchService.SearchAugmentation augmentation = managedWebSearchService.search(query, userId);
-        if (augmentation.failed()) {
-            request.remove("managedWebSearch");
+        target.addAll(traceEntries);
+    }
+
+    private void appendTraceEntries(JSONArray target, String traceJson) {
+        if (target == null || StringUtils.isBlank(traceJson)) {
             return;
         }
-        // Inject search summary into first message's content
-        JSONArray messages = request.getJSONArray("messages");
-        if (messages != null && !messages.isEmpty()) {
-            JSONObject firstMessage = messages.getJSONObject(0);
-            if (firstMessage != null) {
-                String existingContent = firstMessage.getString("content");
-                String augmentedContent = "[managed real-time web search results: " + augmentation.summary() + "]\n" + StringUtils.defaultString(existingContent);
-                firstMessage.put("content", augmentedContent);
+        try {
+            JSONArray parsedTrace = JSON.parseArray(traceJson);
+            if (parsedTrace != null && !parsedTrace.isEmpty()) {
+                target.addAll(parsedTrace);
             }
-        }
-        // Remove managed web search fields so they don't trigger function tool call flow
-        request.remove("managedWebSearch");
-        request.remove("managedSearchQuery");
-        if (StringUtils.isNotBlank(augmentation.traceJson())) {
-            request.put("managedSearchTrace", augmentation.traceJson());
+        } catch (Exception e) {
+            log.warn("Failed to parse managed search trace: {}", traceJson, e);
         }
     }
 
-    private String resolveSearchQueryFromToolCalls(JSONArray toolCalls, JSONObject request) {
-        for (int i = 0; i < toolCalls.size(); i++) {
-            JSONObject toolCall = toolCalls.getJSONObject(i);
-            JSONObject function = toolCall == null ? null : toolCall.getJSONObject("function");
-            if (function == null || !StringUtils.equals(function.getString("name"), OPENAI_SEARCH_TOOL_NAME)) {
-                continue;
-            }
-            String arguments = function.getString("arguments");
-            if (StringUtils.isBlank(arguments)) {
-                continue;
-            }
-            try {
-                JSONObject argumentJson = JSON.parseObject(arguments);
-                String query = argumentJson == null ? null : argumentJson.getString("query");
-                if (StringUtils.isNotBlank(query)) {
-                    return query;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse tool arguments: {}", arguments, e);
-            }
-        }
-        return resolveLatestUserQuery(request.getJSONArray("messages"));
-    }
-
-    private void appendToolMessages(JSONObject request, JSONObject assistantMessage, JSONArray toolCalls, String toolContent) {
+    private void appendToolMessages(JSONObject request, JSONObject assistantMessage, JSONArray toolCalls, List<ManagedToolOutput> outputs) {
         JSONArray messages = request.getJSONArray("messages");
         if (messages == null) {
             messages = new JSONArray();
@@ -454,16 +904,14 @@ public class PromptChatService {
                 .fluentPut("role", "assistant")
                 .fluentPut("content", assistantMessage == null ? "" : StringUtils.defaultString(assistantMessage.getString("content")))
                 .fluentPut("tool_calls", toolCalls));
-        for (int i = 0; i < toolCalls.size(); i++) {
-            JSONObject toolCall = toolCalls.getJSONObject(i);
-            JSONObject function = toolCall == null ? null : toolCall.getJSONObject("function");
-            if (function == null || !StringUtils.equals(function.getString("name"), OPENAI_SEARCH_TOOL_NAME)) {
+        for (ManagedToolOutput output : outputs) {
+            if (output == null || StringUtils.isBlank(output.toolCallId())) {
                 continue;
             }
             messages.add(new JSONObject()
                     .fluentPut("role", "tool")
-                    .fluentPut("tool_call_id", toolCall.getString("id"))
-                    .fluentPut("content", toolContent));
+                    .fluentPut("tool_call_id", output.toolCallId())
+                    .fluentPut("content", output.content()));
         }
     }
 
@@ -1003,7 +1451,10 @@ public class PromptChatService {
         return value;
     }
 
-    private record ManagedToolResult(String content, String traceJson) {}
+    private record ManagedToolOutput(String toolCallId, String content) {}
+
+    private record ManagedToolBatchResult(List<ManagedToolOutput> outputs, JSONArray traceEntries, int executedToolCalls,
+            boolean limitExceeded, boolean duplicateDetected) {}
 
     private record PreparedRequest(String url, String body, String accept) {}
 
