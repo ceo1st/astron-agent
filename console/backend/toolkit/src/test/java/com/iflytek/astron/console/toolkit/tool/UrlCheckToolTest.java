@@ -74,6 +74,14 @@ class UrlCheckToolTest {
         assertThrows(BusinessException.class, () -> tool.checkUrl("http://example.com/start"));
     }
 
+    @Test
+    void checkUrlRejectsLoopbackAddressDirectly() {
+        ConfigInfoMapper mapper = mockConfigMapper("", "");
+        UrlCheckTool tool = new UrlCheckTool(mapper);
+
+        assertThrows(BusinessException.class, () -> tool.checkUrl("http://127.0.0.1/internal"));
+    }
+
     private static ConfigInfoMapper mockConfigMapper(String ipBlackList, String segmentBlackList) {
         ConfigInfoMapper mapper = mock(ConfigInfoMapper.class);
         when(mapper.getListByCategory("IP_BLACK_LIST")).thenReturn(List.of(config(ipBlackList)));

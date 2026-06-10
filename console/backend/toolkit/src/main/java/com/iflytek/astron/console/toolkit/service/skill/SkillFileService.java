@@ -41,8 +41,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -68,8 +66,6 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     private static final String ENTRY_TYPE_FOLDER = "folder";
     private static final String ENTRY_TYPE_FILE = "file";
     private static final String SKILL_FILE_NAME = "SKILL.md";
-    private static final Pattern FRONTMATTER_PATTERN =
-            Pattern.compile("(?s)^---\\s*(.*?)\\s*---\\s*(.*)$");
 
     @Resource
     private S3Util s3Util;
@@ -780,12 +776,10 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     private SkillMetadata extractSkillMetadata(String content, String fallbackName) {
         String name = null;
         String description = null;
-        Matcher matcher = FRONTMATTER_PATTERN.matcher(StringUtils.defaultString(content));
-        String body = content;
-        if (matcher.find()) {
-            String frontmatter = matcher.group(1);
-            body = matcher.group(2);
-            for (String line : frontmatter.split("\\r?\\n")) {
+        ParsedSkillContent parsedContent = parseSkillContent(StringUtils.defaultString(content));
+        String body = parsedContent.getBody();
+        if (StringUtils.isNotBlank(parsedContent.getFrontmatter())) {
+            for (String line : parsedContent.getFrontmatterLines()) {
                 String trimmed = StringUtils.trimToEmpty(line);
                 if (trimmed.startsWith("name:")) {
                     name = cleanupYamlValue(StringUtils.substringAfter(trimmed, "name:"));
@@ -827,6 +821,57 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
             cleaned = cleaned.substring(1, cleaned.length() - 1);
         }
         return cleaned;
+    }
+
+    private ParsedSkillContent parseSkillContent(String content) {
+        if (!startsWithFrontmatter(content)) {
+            return new ParsedSkillContent("", content);
+        }
+        int frontmatterStart = skipLineBreak(content, findLineBreakIndex(content, 0));
+        int lineStart = frontmatterStart;
+        while (lineStart >= 0 && lineStart < content.length()) {
+            int lineEnd = findLineBreakIndex(content, lineStart);
+            String currentLine = trimLineEnding(content.substring(lineStart, lineEnd));
+            if ("---".equals(currentLine)) {
+                int bodyStart = skipLineBreak(content, lineEnd);
+                return new ParsedSkillContent(content.substring(frontmatterStart, lineStart), content.substring(bodyStart));
+            }
+            int nextLineStart = skipLineBreak(content, lineEnd);
+            lineStart = nextLineStart > lineEnd ? nextLineStart : -1;
+        }
+        return new ParsedSkillContent("", content);
+    }
+
+    private boolean startsWithFrontmatter(String content) {
+        return "---\n".equals(content)
+                || content.startsWith("---\n")
+                || content.startsWith("---\r\n");
+    }
+
+    private int findLineBreakIndex(String content, int lineStart) {
+        int index = lineStart;
+        while (index < content.length()) {
+            char current = content.charAt(index);
+            if (current == '\n' || current == '\r') {
+                break;
+            }
+            index++;
+        }
+        return index;
+    }
+
+    private int skipLineBreak(String content, int index) {
+        if (index < content.length() && content.charAt(index) == '\r') {
+            index++;
+        }
+        if (index < content.length() && content.charAt(index) == '\n') {
+            index++;
+        }
+        return index;
+    }
+
+    private String trimLineEnding(String line) {
+        return StringUtils.removeEnd(line, "\r");
     }
 
     private boolean matchesSkillKeyword(SkillFile file, String keyword) {
@@ -888,5 +933,19 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     private static class SkillMetadata {
         private String name;
         private String description;
+    }
+
+    @Data
+    @AllArgsConstructor
+    private static class ParsedSkillContent {
+        private String frontmatter;
+        private String body;
+
+        private List<String> getFrontmatterLines() {
+            if (StringUtils.isBlank(frontmatter)) {
+                return Collections.emptyList();
+            }
+            return frontmatter.lines().toList();
+        }
     }
 }

@@ -95,7 +95,8 @@ public class UrlCheckTool {
     private RedirectLookupResult lookupRedirect(String url) throws IOException {
         HttpURLConnection conn = null;
         try {
-            URL u = new URL(url);
+            URL u = toSafeHttpUrl(url);
+            ensurePublicAddresses(u.getHost());
             URLConnection urlConnection = u.openConnection();
             if (!(urlConnection instanceof HttpURLConnection httpURLConnection)) {
                 throw new BusinessException(ResponseEnum.TOOLBOX_URL_HTTP_HTTPS_ONLY);
@@ -235,19 +236,27 @@ public class UrlCheckTool {
             }
         }
 
-        InetAddress inet = InetAddress.getByName(asciiHost);
-        String ip = inet.getHostAddress();
-
-        // IPv4 blacklist
-        if (ipBlackList.stream().map(String::trim).anyMatch(ip::equals)) {
-            throw new BusinessException(ResponseEnum.TOOLBOX_IP_IN_BLACKLIST);
+        InetAddress[] addresses = InetAddress.getAllByName(asciiHost);
+        if (addresses.length == 0) {
+            throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
         }
+        for (InetAddress inet : addresses) {
+            if (isRestrictedAddress(inet)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+            String ip = inet.getHostAddress();
 
-        // Network segment blacklist (only effective for IPv4; IPv6 can be extended)
-        if (inet instanceof Inet4Address) {
-            for (String segment : segmentBlackList) {
-                if (isIpInRange(ip, segment)) {
-                    throw new BusinessException(ResponseEnum.TOOLBOX_IP_IN_BLACKLIST);
+            // IPv4 blacklist
+            if (ipBlackList.stream().map(String::trim).anyMatch(ip::equals)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_IP_IN_BLACKLIST);
+            }
+
+            // Network segment blacklist (only effective for IPv4; IPv6 can be extended)
+            if (inet instanceof Inet4Address) {
+                for (String segment : segmentBlackList) {
+                    if (isIpInRange(ip, segment)) {
+                        throw new BusinessException(ResponseEnum.TOOLBOX_IP_IN_BLACKLIST);
+                    }
                 }
             }
         }
@@ -460,5 +469,55 @@ public class UrlCheckTool {
     }
 
     private record RedirectLookupResult(int statusCode, String location) {
+    }
+
+    private URL toSafeHttpUrl(String url) throws IOException {
+        try {
+            URI uri = new URI(url);
+            String scheme = StringUtils.lowerCase(uri.getScheme(), Locale.ROOT);
+            if (!"http".equals(scheme) && !"https".equals(scheme)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_HTTP_HTTPS_ONLY);
+            }
+            if (StringUtils.isNotBlank(uri.getUserInfo())) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+            String host = uri.getHost();
+            if (StringUtils.isBlank(host)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+            String asciiHost = IDN.toASCII(host);
+            String path = StringUtils.defaultIfBlank(uri.getRawPath(), "/");
+            return new URI(
+                    scheme,
+                    null,
+                    asciiHost,
+                    uri.getPort(),
+                    path,
+                    uri.getRawQuery(),
+                    null).toURL();
+        } catch (URISyntaxException e) {
+            throw new IOException("Illegal URL", e);
+        }
+    }
+
+    private void ensurePublicAddresses(String host) throws UnknownHostException {
+        for (InetAddress address : InetAddress.getAllByName(host)) {
+            if (isRestrictedAddress(address)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+        }
+    }
+
+    private boolean isRestrictedAddress(InetAddress address) {
+        return address.isAnyLocalAddress()
+                || address.isLoopbackAddress()
+                || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress()
+                || address.isMulticastAddress()
+                || address.isMCGlobal()
+                || address.isMCLinkLocal()
+                || address.isMCNodeLocal()
+                || address.isMCOrgLocal()
+                || address.isMCSiteLocal();
     }
 }
