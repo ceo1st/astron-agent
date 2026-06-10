@@ -487,7 +487,19 @@ public class PromptChatService {
 
             JSONArray toolCalls = extractAssistantToolCalls(planningResponse);
             if (toolCalls == null || toolCalls.isEmpty()) {
-                emitSynchronousOpenAiResponse(planningResponse, emitter, streamId, chatReqRecords, edit, isDebug, managedSearchTrace);
+                JSONObject finalRequest = buildOpenAiFinalStreamingRequest(
+                        loopRequest,
+                        fallbackRequest,
+                        toolExecuted);
+                streamOpenAiFinalResponse(
+                        finalRequest,
+                        emitter,
+                        streamId,
+                        chatReqRecords,
+                        edit,
+                        isDebug,
+                        provider,
+                        managedSearchTrace);
                 return true;
             }
 
@@ -557,6 +569,68 @@ public class PromptChatService {
             }
             return JSON.parseObject(body.string());
         }
+    }
+
+    private JSONObject buildOpenAiFinalStreamingRequest(JSONObject loopRequest, JSONObject fallbackRequest, boolean toolExecuted) {
+        JSONObject finalRequest = !toolExecuted && fallbackRequest != null
+                ? JSON.parseObject(fallbackRequest.toJSONString())
+                : JSON.parseObject(loopRequest.toJSONString());
+        stripToolFields(finalRequest);
+        finalRequest.put("stream", true);
+        if (toolExecuted) {
+            appendToolFinalAnswerInstruction(finalRequest);
+        }
+        return finalRequest;
+    }
+
+    private void appendToolFinalAnswerInstruction(JSONObject request) {
+        JSONArray messages = request.getJSONArray("messages");
+        if (messages == null) {
+            messages = new JSONArray();
+            request.put("messages", messages);
+        }
+        String instruction = "Tool results have been provided in the conversation. Produce the final answer from the available information.";
+        for (int i = 0; i < messages.size(); i++) {
+            JSONObject messageObj = messages.getJSONObject(i);
+            if (messageObj != null && "system".equals(normalizeMessageRole(messageObj.getString("role")))) {
+                messageObj.put("content", appendPrompt(messageObj.getString("content"), instruction));
+                return;
+            }
+        }
+        messages.add(0, new JSONObject()
+                .fluentPut("role", "system")
+                .fluentPut("content", instruction));
+    }
+
+    private void streamOpenAiFinalResponse(JSONObject request, SseEmitter emitter, String streamId,
+            ChatReqRecords chatReqRecords, boolean edit, boolean isDebug, String provider, JSONArray managedSearchTrace) {
+        String traceJson = managedSearchTrace == null || managedSearchTrace.isEmpty() ? "" : managedSearchTrace.toJSONString();
+        PreparedRequest preparedRequest = buildPreparedRequest(request, provider);
+        Request httpRequest = buildHttpRequest(request, preparedRequest, provider);
+        httpClient.newCall(httpRequest).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                log.error("OpenAI-compatible final stream failed, streamId: {}, error: {}", streamId, e.getMessage());
+                SseEmitterUtil.completeWithError(emitter, "Connection failed: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) {
+                if (!response.isSuccessful()) {
+                    log.error("OpenAI-compatible final stream request failed, streamId: {}, status code: {}, reason: {}",
+                            streamId, response.code(), response.message());
+                    SseEmitterUtil.completeWithError(emitter, "Request failed: " + response.message());
+                    return;
+                }
+
+                ResponseBody body = response.body();
+                if (body != null) {
+                    processSSEStream(body, emitter, streamId, chatReqRecords, edit, isDebug, provider, traceJson);
+                } else {
+                    SseEmitterUtil.completeWithError(emitter, "Response body is empty");
+                }
+            }
+        });
     }
 
     private Request buildHttpRequest(JSONObject request, PreparedRequest preparedRequest, String provider) {
@@ -647,10 +721,9 @@ public class PromptChatService {
             String code, String message) throws IOException {
         appendToolLoopStopInstruction(loopRequest, code, message);
         stripToolFields(loopRequest);
-        loopRequest.put("stream", false);
+        loopRequest.put("stream", true);
         try {
-            JSONObject finalResponse = executeJsonRequest(loopRequest, provider);
-            emitSynchronousOpenAiResponse(finalResponse, emitter, streamId, chatReqRecords, edit, isDebug, managedSearchTrace);
+            streamOpenAiFinalResponse(loopRequest, emitter, streamId, chatReqRecords, edit, isDebug, provider, managedSearchTrace);
         } catch (Exception e) {
             log.warn("OpenAI-compatible final answer after tool loop stop failed, streamId: {}, code: {}, error: {}",
                     streamId, code, e.getMessage());

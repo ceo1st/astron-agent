@@ -104,6 +104,27 @@ const getDebugSessionTitleFromMessages = (
   return userMessage?.message?.trim().slice(0, 30) || '';
 };
 
+const getDebugSessionSearchText = (session: AgentDebugSession): string => {
+  return [
+    buildDebugSessionTitle(session),
+    session.createdAt || '',
+    session.updatedAt || '',
+  ]
+    .join(' ')
+    .toLowerCase();
+};
+
+const filterDebugSessions = (
+  sessions: AgentDebugSession[],
+  keyword: string
+): AgentDebugSession[] => {
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  if (!normalizedKeyword) return [];
+  return sessions.filter(session =>
+    getDebugSessionSearchText(session).includes(normalizedKeyword)
+  );
+};
+
 const baseModelConfig: BaseModelConfig = {
   visible: false,
   isSending: false,
@@ -254,6 +275,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   >([]);
   const [debugSessionKey, setDebugSessionKey] = useState(0);
   const [debugHistoryLoading, setDebugHistoryLoading] = useState(false);
+  const [debugHistorySearchQuery, setDebugHistorySearchQuery] = useState('');
   const activeDebugSessionIdRef = useRef('');
   const debugSessionScopeRef = useRef(0);
   const debugMessageRevisionRef = useRef(0);
@@ -1069,6 +1091,11 @@ const BaseConfig: React.FC<ChatProps> = ({
     loadDebugSessions();
   }, [loadDebugSessions]);
 
+  const filteredDebugSessions = useMemo(
+    () => filterDebugSessions(debugSessions, debugHistorySearchQuery),
+    [debugHistorySearchQuery, debugSessions]
+  );
+
   useEffect(() => {
     activeDebugSessionIdRef.current = activeDebugSessionId;
   }, [activeDebugSessionId]);
@@ -1141,6 +1168,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     debugSessionScopeRef.current += 1;
     debugMessageRevisionRef.current += 1;
     setActiveWorkbenchView('chat');
+    setDebugHistorySearchQuery('');
     setShowTipPk(false);
     setShowModelPk(0);
     setAskValue('');
@@ -1156,6 +1184,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       const scope = debugSessionScopeRef.current;
       const revision = debugMessageRevisionRef.current;
       setActiveWorkbenchView('chat');
+      setDebugHistorySearchQuery('');
       setShowTipPk(false);
       setShowModelPk(0);
       activeDebugSessionIdRef.current = session.id;
@@ -1894,11 +1923,43 @@ const BaseConfig: React.FC<ChatProps> = ({
     <div className={styles.workbenchFormSection}>
       <Input
         prefix={<SearchOutlined />}
+        allowClear
+        value={debugHistorySearchQuery}
+        onChange={event => setDebugHistorySearchQuery(event.target.value)}
         placeholder={t('configBase.searchDebugHistory') || '搜索调试历史'}
       />
-      <div className={styles.workbenchEmptyState}>
-        {t('configBase.searchDebugHistoryTip') ||
-          '输入关键词搜索当前智能体的调试历史'}
+      <div className={styles.workbenchSearchResults}>
+        {debugHistoryLoading && (
+          <div className={styles.workbenchEmptyState}>
+            {t('configBase.loading') || '加载中...'}
+          </div>
+        )}
+        {!debugHistoryLoading && !debugHistorySearchQuery.trim() && (
+          <div className={styles.workbenchEmptyState}>
+            {t('configBase.searchDebugHistoryTip') ||
+              '输入关键词搜索当前智能体的调试历史'}
+          </div>
+        )}
+        {!debugHistoryLoading &&
+          debugHistorySearchQuery.trim() &&
+          filteredDebugSessions.length === 0 && (
+            <div className={styles.workbenchEmptyState}>
+              {t('configBase.noDebugHistory') || '暂无调试历史'}
+            </div>
+          )}
+        {!debugHistoryLoading &&
+          debugHistorySearchQuery.trim() &&
+          filteredDebugSessions.map(session => (
+            <button
+              type="button"
+              key={session.id}
+              className={styles.workbenchSearchResultItem}
+              onClick={() => handleSelectDebugSession(session)}
+            >
+              <span>{buildDebugSessionTitle(session)}</span>
+              <small>{session.updatedAt || session.createdAt || ''}</small>
+            </button>
+          ))}
       </div>
     </div>
   );

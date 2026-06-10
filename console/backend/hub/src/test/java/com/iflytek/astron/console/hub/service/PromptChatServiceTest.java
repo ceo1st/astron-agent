@@ -251,40 +251,118 @@ class PromptChatServiceTest {
                   {"role":"user","content":"<wrapped prompt with knowledge> Help me search today's news"}
                 ]
                 """));
-        when(httpClient.newCall(any(Request.class))).thenReturn(call);
-        when(call.execute()).thenReturn(response);
-        when(response.isSuccessful()).thenReturn(true);
-        when(response.body()).thenReturn(ResponseBody.create(
+        Call planningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
                 "{\"id\":\"plan-id\",\"choices\":[{\"message\":{\"content\":\"no tool call\"}}]}",
                 MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
 
         promptChatService.chatStream(request, emitter, streamId, chatReqRecords, false, false);
 
-        verify(httpClient).newCall(argThat(req -> {
-            try {
-                JSONObject body = parseRequestBody(req);
-                assertFalse(body.containsKey("managedSearchQuery"));
-                assertFalse(body.containsKey("userId"));
-                assertEquals("auto", body.getString("tool_choice"));
-                assertEquals("web_search", body.getJSONArray("tools")
-                        .getJSONObject(0)
-                        .getJSONObject("function")
-                        .getString("name"));
-                assertEquals("current_time", body.getJSONArray("tools")
-                        .getJSONObject(1)
-                        .getJSONObject("function")
-                        .getString("name"));
-                assertFalse(body.getJSONArray("messages")
-                        .getJSONObject(0)
-                        .getString("content")
-                        .contains("managed real-time web search"));
-            } catch (IOException e) {
-                fail(e);
-            }
-            return true;
-        }));
-        verify(call).execute();
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(2)).newCall(requestCaptor.capture());
+        JSONObject planningBody = parseRequestBody(requestCaptor.getAllValues().get(0));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+
+        assertFalse(planningBody.containsKey("managedSearchQuery"));
+        assertFalse(planningBody.containsKey("userId"));
+        assertEquals("auto", planningBody.getString("tool_choice"));
+        assertEquals("web_search", planningBody.getJSONArray("tools")
+                .getJSONObject(0)
+                .getJSONObject("function")
+                .getString("name"));
+        assertEquals("current_time", planningBody.getJSONArray("tools")
+                .getJSONObject(1)
+                .getJSONObject("function")
+                .getString("name"));
+        assertFalse(planningBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("managed real-time web search"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        assertFalse(finalBody.containsKey("managedSearchQuery"));
+        assertFalse(finalBody.containsKey("userId"));
+        assertFalse(finalBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("current_time and web_search tools"));
+        verify(planningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
         verify(managedWebSearchService, never()).search(anyString(), anyString());
+    }
+
+    @Test
+    void testChatStream_OpenAiFinalAnswerAfterToolCall_UsesStreamingRequest() throws Exception {
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("tool_choice", "auto");
+        request.put("tools", JSON.parseArray("""
+                [
+                  {
+                    "type": "function",
+                    "function": {
+                      "name": "web_search",
+                      "description": "Search the live web.",
+                      "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}
+                    }
+                  }
+                ]
+                """));
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"今天热点新闻"}
+                ]
+                """));
+
+        Call planningCall = mock(Call.class);
+        Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        Response finalPlanningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(finalPlanningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-id","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_search","type":"function","function":{"name":"web_search","arguments":"{\\"query\\":\\"今天热点新闻\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"final-plan-id","choices":[{"message":{"role":"assistant","content":"新闻摘要"}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+        when(managedWebSearchService.search(eq("今天热点新闻"), eq("debug-user")))
+                .thenReturn(new ManagedWebSearchService.SearchAugmentation("新闻摘要", "[]", false, null));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        assertEquals("assistant", finalBody.getJSONArray("messages").getJSONObject(2).getString("role"));
+        assertEquals("tool", finalBody.getJSONArray("messages").getJSONObject(3).getString("role"));
+        assertEquals("call_search", finalBody.getJSONArray("messages").getJSONObject(3).getString("tool_call_id"));
+        assertTrue(finalBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("新闻摘要"));
+        verify(planningCall).execute();
+        verify(finalPlanningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
+        verify(managedWebSearchService).search("今天热点新闻", "debug-user");
     }
 
     @Test
@@ -301,30 +379,34 @@ class PromptChatServiceTest {
                 ]
                 """));
         Call planningCall = mock(Call.class);
-        Call finalCall = mock(Call.class);
+        Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
         Response planningResponse = mock(Response.class);
-        Response finalResponse = mock(Response.class);
-        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalCall);
+        Response finalPlanningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
         when(planningCall.execute()).thenReturn(planningResponse);
-        when(finalCall.execute()).thenReturn(finalResponse);
+        when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
         when(planningResponse.isSuccessful()).thenReturn(true);
-        when(finalResponse.isSuccessful()).thenReturn(true);
+        when(finalPlanningResponse.isSuccessful()).thenReturn(true);
         when(planningResponse.body()).thenReturn(ResponseBody.create(
                 """
                 {"id":"plan-id","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_search","type":"function","function":{"name":"web_search","arguments":"{\\"query\\":\\"latest headlines\\"}"}}]}}]}
                 """,
                 MediaType.get("application/json; charset=utf-8")));
-        when(finalResponse.body()).thenReturn(ResponseBody.create(
+        when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
                 """
                 {"id":"final-id","choices":[{"message":{"role":"assistant","content":"summary"}}]}
                 """,
                 MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
         when(managedWebSearchService.search(eq("latest headlines"), eq("debug-user")))
                 .thenReturn(new ManagedWebSearchService.SearchAugmentation("summary", "[]", false, null));
 
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
-        verify(httpClient, times(2)).newCall(any(Request.class));
+        verify(httpClient, times(3)).newCall(any(Request.class));
+        verify(finalPlanningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
         verify(managedWebSearchService).search("latest headlines", "debug-user");
     }
 
@@ -362,33 +444,38 @@ class PromptChatServiceTest {
                 ]
                 """));
 
-        when(httpClient.newCall(argThat(req -> {
-            try {
-                JSONObject body = parseRequestBody(req);
-                assertEquals("web_search", body.getJSONArray("tools")
-                        .getJSONObject(0)
-                        .getJSONObject("function")
-                        .getString("name"));
-                assertTrue(body.getJSONArray("messages")
-                        .getJSONObject(0)
-                        .getString("content")
-                        .contains("Use current_time for questions about the current date"));
-                assertFalse(body.containsKey("managedWebSearch"));
-                assertFalse(body.containsKey("managedSearchQuery"));
-            } catch (IOException e) {
-                fail(e);
-            }
-            return true;
-        }))).thenReturn(call);
-        when(call.execute()).thenReturn(response);
-        when(response.isSuccessful()).thenReturn(true);
-        when(response.body()).thenReturn(ResponseBody.create(
+        Call planningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
                 "{\"id\":\"plan-id\",\"choices\":[{\"message\":{\"content\":\"no tool call\"}}]}",
                 MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
 
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
-        verify(call).execute();
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(2)).newCall(requestCaptor.capture());
+        JSONObject planningBody = parseRequestBody(requestCaptor.getAllValues().get(0));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        assertEquals("web_search", planningBody.getJSONArray("tools")
+                .getJSONObject(0)
+                .getJSONObject("function")
+                .getString("name"));
+        assertTrue(planningBody.getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content")
+                .contains("Use current_time for questions about the current date"));
+        assertFalse(planningBody.containsKey("managedWebSearch"));
+        assertFalse(planningBody.containsKey("managedSearchQuery"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
+        verify(planningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
         verify(managedWebSearchService, never()).search(anyString(), anyString());
     }
 
@@ -471,9 +558,10 @@ class PromptChatServiceTest {
 
         Call planningCall = mock(Call.class);
         Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
         Response planningResponse = mock(Response.class);
         Response finalPlanningResponse = mock(Response.class);
-        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
         when(planningCall.execute()).thenReturn(planningResponse);
         when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
         when(planningResponse.isSuccessful()).thenReturn(true);
@@ -518,6 +606,7 @@ class PromptChatServiceTest {
                 }
                 """,
                 MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
         when(managedWebSearchService.search(eq("今天是周几"), eq("debug-user")))
                 .thenReturn(new ManagedWebSearchService.SearchAugmentation(
                         "今天是星期一。",
@@ -528,9 +617,10 @@ class PromptChatServiceTest {
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
         ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
-        verify(httpClient, times(2)).newCall(requestCaptor.capture());
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
         JSONObject planningBody = parseRequestBody(requestCaptor.getAllValues().get(0));
-        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        JSONObject secondRoundBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
 
         assertEquals("web_search", planningBody.getJSONArray("tools")
                 .getJSONObject(0)
@@ -538,19 +628,23 @@ class PromptChatServiceTest {
                 .getString("name"));
         assertFalse(planningBody.containsKey("managedWebSearch"));
         assertFalse(planningBody.containsKey("managedSearchQuery"));
-        assertEquals("web_search", finalBody.getJSONArray("tools")
+        assertEquals("web_search", secondRoundBody.getJSONArray("tools")
                 .getJSONObject(0)
                 .getJSONObject("function")
                 .getString("name"));
-        assertEquals("auto", finalBody.getString("tool_choice"));
-        assertFalse(finalBody.containsKey("managedWebSearch"));
-        assertFalse(finalBody.containsKey("managedSearchQuery"));
-        assertEquals("assistant", finalBody.getJSONArray("messages").getJSONObject(2).getString("role"));
-        assertEquals("tool", finalBody.getJSONArray("messages").getJSONObject(3).getString("role"));
-        assertEquals("call_1", finalBody.getJSONArray("messages").getJSONObject(3).getString("tool_call_id"));
-        assertTrue(finalBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("星期一"));
+        assertEquals("auto", secondRoundBody.getString("tool_choice"));
+        assertFalse(secondRoundBody.containsKey("managedWebSearch"));
+        assertFalse(secondRoundBody.containsKey("managedSearchQuery"));
+        assertEquals("assistant", secondRoundBody.getJSONArray("messages").getJSONObject(2).getString("role"));
+        assertEquals("tool", secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("role"));
+        assertEquals("call_1", secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("tool_call_id"));
+        assertTrue(secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("星期一"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
         verify(managedWebSearchService).search("今天是周几", "debug-user");
         verify(finalPlanningCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
     }
 
     @Test
@@ -590,9 +684,10 @@ class PromptChatServiceTest {
 
         Call timeCall = mock(Call.class);
         Call searchCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
         Response timeResponse = mock(Response.class);
         Response searchResponse = mock(Response.class);
-        when(httpClient.newCall(any(Request.class))).thenReturn(timeCall, searchCall);
+        when(httpClient.newCall(any(Request.class))).thenReturn(timeCall, searchCall, finalStreamCall);
         when(timeCall.execute()).thenReturn(timeResponse);
         when(searchCall.execute()).thenReturn(searchResponse);
         when(timeResponse.isSuccessful()).thenReturn(true);
@@ -637,20 +732,26 @@ class PromptChatServiceTest {
                 }
                 """,
                 MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
 
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
         ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
-        verify(httpClient, times(2)).newCall(requestCaptor.capture());
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
         JSONObject secondRoundBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
         assertEquals("assistant", secondRoundBody.getJSONArray("messages").getJSONObject(2).getString("role"));
         assertEquals("tool", secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("role"));
         assertEquals("call_time", secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("tool_call_id"));
         assertTrue(secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("Asia/Shanghai"));
         assertTrue(secondRoundBody.getJSONArray("messages").getJSONObject(3).getString("content").contains("weekday"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
         verify(managedWebSearchService, never()).search(anyString(), anyString());
         verify(timeCall).execute();
         verify(searchCall).execute();
+        verify(finalStreamCall).enqueue(any(Callback.class));
     }
 
     @Test
@@ -680,9 +781,10 @@ class PromptChatServiceTest {
 
         Call planningCall = mock(Call.class);
         Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
         Response planningResponse = mock(Response.class);
         Response finalPlanningResponse = mock(Response.class);
-        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
         when(planningCall.execute()).thenReturn(planningResponse);
         when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
         when(planningResponse.isSuccessful()).thenReturn(true);
@@ -697,16 +799,22 @@ class PromptChatServiceTest {
                 {"id":"final-id","choices":[{"message":{"role":"assistant","content":"当前请求没有启用联网搜索。"}}]}
                 """,
                 MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
         ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
-        verify(httpClient, times(2)).newCall(requestCaptor.capture());
-        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(1));
-        JSONObject toolMessage = finalBody.getJSONArray("messages").getJSONObject(3);
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
+        JSONObject secondRoundBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
+        JSONObject toolMessage = secondRoundBody.getJSONArray("messages").getJSONObject(3);
         assertEquals("tool", toolMessage.getString("role"));
         assertEquals("call_search", toolMessage.getString("tool_call_id"));
         assertTrue(toolMessage.getString("content").contains("TOOL_NOT_AVAILABLE"));
+        assertTrue(finalBody.getBooleanValue("stream"));
+        assertFalse(finalBody.containsKey("tools"));
+        assertFalse(finalBody.containsKey("tool_choice"));
         verify(managedWebSearchService, never()).search(anyString(), anyString());
+        verify(finalStreamCall).enqueue(any(Callback.class));
     }
 
     @Test
@@ -747,10 +855,11 @@ class PromptChatServiceTest {
         Call timeCall = mock(Call.class);
         Call searchPlanningCall = mock(Call.class);
         Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
         Response timeResponse = mock(Response.class);
         Response searchPlanningResponse = mock(Response.class);
         Response finalPlanningResponse = mock(Response.class);
-        when(httpClient.newCall(any(Request.class))).thenReturn(timeCall, searchPlanningCall, finalPlanningCall);
+        when(httpClient.newCall(any(Request.class))).thenReturn(timeCall, searchPlanningCall, finalPlanningCall, finalStreamCall);
         when(timeCall.execute()).thenReturn(timeResponse);
         when(searchPlanningCall.execute()).thenReturn(searchPlanningResponse);
         when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
@@ -778,10 +887,12 @@ class PromptChatServiceTest {
                         "[{\"type\":\"web_search\",\"deskToolName\":\"Web Search\"}]",
                         false,
                         null));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
 
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
-        verify(httpClient, times(3)).newCall(any(Request.class));
+        verify(httpClient, times(4)).newCall(any(Request.class));
+        verify(finalStreamCall).enqueue(any(Callback.class));
         verify(managedWebSearchService).search("2026年6月9日 今日热点新闻", "debug-user");
     }
 
@@ -812,17 +923,14 @@ class PromptChatServiceTest {
 
         Call firstCall = mock(Call.class);
         Call duplicateCall = mock(Call.class);
-        Call finalCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
         Response firstResponse = mock(Response.class);
         Response duplicateResponse = mock(Response.class);
-        Response finalResponse = mock(Response.class);
-        when(httpClient.newCall(any(Request.class))).thenReturn(firstCall, duplicateCall, finalCall);
+        when(httpClient.newCall(any(Request.class))).thenReturn(firstCall, duplicateCall, finalStreamCall);
         when(firstCall.execute()).thenReturn(firstResponse);
         when(duplicateCall.execute()).thenReturn(duplicateResponse);
-        when(finalCall.execute()).thenReturn(finalResponse);
         when(firstResponse.isSuccessful()).thenReturn(true);
         when(duplicateResponse.isSuccessful()).thenReturn(true);
-        when(finalResponse.isSuccessful()).thenReturn(true);
         when(firstResponse.body()).thenReturn(ResponseBody.create(
                 """
                 {"id":"plan-1","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_time_1","type":"function","function":{"name":"current_time","arguments":"{\\"timezone\\":\\"Asia/Shanghai\\"}"}}]}}]}
@@ -833,11 +941,7 @@ class PromptChatServiceTest {
                 {"id":"plan-2","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_time_2","type":"function","function":{"name":"current_time","arguments":"{\\"timezone\\":\\"Asia/Shanghai\\"}"}}]}}]}
                 """,
                 MediaType.get("application/json; charset=utf-8")));
-        when(finalResponse.body()).thenReturn(ResponseBody.create(
-                """
-                {"id":"final-id","choices":[{"message":{"role":"assistant","content":"今天是星期二。"}}]}
-                """,
-                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
 
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
@@ -854,6 +958,7 @@ class PromptChatServiceTest {
                 .getJSONObject(5)
                 .getString("content")
                 .contains("Duplicate tool call skipped"));
+        verify(finalStreamCall).enqueue(any(Callback.class));
     }
 
     @Test
@@ -899,22 +1004,15 @@ class PromptChatServiceTest {
                                 .fluentPut("tool_calls", toolCalls))));
 
         Call planningCall = mock(Call.class);
-        Call finalCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
         Response planningResponse = mock(Response.class);
-        Response finalResponse = mock(Response.class);
-        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalCall);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalStreamCall);
         when(planningCall.execute()).thenReturn(planningResponse);
-        when(finalCall.execute()).thenReturn(finalResponse);
         when(planningResponse.isSuccessful()).thenReturn(true);
-        when(finalResponse.isSuccessful()).thenReturn(true);
         when(planningResponse.body()).thenReturn(ResponseBody.create(
                 planningBody.toJSONString(),
                 MediaType.get("application/json; charset=utf-8")));
-        when(finalResponse.body()).thenReturn(ResponseBody.create(
-                """
-                {"id":"final-id","choices":[{"message":{"role":"assistant","content":"工具调用次数过多，以下是已得到的结果。"}}]}
-                """,
-                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
 
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
@@ -930,6 +1028,7 @@ class PromptChatServiceTest {
         assertTrue(finalBody.getJSONArray("messages")
                 .toJSONString()
                 .contains("Tool call budget exhausted"));
+        verify(finalStreamCall).enqueue(any(Callback.class));
     }
 
     @Test
@@ -957,8 +1056,8 @@ class PromptChatServiceTest {
                 ]
                 """));
 
-        Call[] calls = new Call[16];
-        Response[] responses = new Response[16];
+        Call[] calls = new Call[15];
+        Response[] responses = new Response[15];
         for (int i = 0; i < calls.length; i++) {
             calls[i] = mock(Call.class);
             responses[i] = mock(Response.class);
@@ -973,14 +1072,14 @@ class PromptChatServiceTest {
                     responseBody,
                     MediaType.get("application/json; charset=utf-8")));
         }
-        when(responses[15].body()).thenReturn(ResponseBody.create(
-                """
-                {"id":"final-id","choices":[{"message":{"role":"assistant","content":"工具轮次过多，以下是已得到的结果。"}}]}
-                """,
-                MediaType.get("application/json; charset=utf-8")));
+        Call finalStreamCall = mock(Call.class);
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
 
         AtomicInteger callIndex = new AtomicInteger();
-        when(httpClient.newCall(any(Request.class))).thenAnswer(invocation -> calls[callIndex.getAndIncrement()]);
+        when(httpClient.newCall(any(Request.class))).thenAnswer(invocation -> {
+            int index = callIndex.getAndIncrement();
+            return index < calls.length ? calls[index] : finalStreamCall;
+        });
 
         promptChatService.chatStream(request, emitter, streamId, null, false, true);
 
@@ -994,6 +1093,7 @@ class PromptChatServiceTest {
                 .getString("content")
                 .contains("TOOL_ROUND_LIMIT_EXCEEDED"));
         assertEquals(32, finalBody.getJSONArray("messages").size());
+        verify(finalStreamCall).enqueue(any(Callback.class));
     }
 
     @Test

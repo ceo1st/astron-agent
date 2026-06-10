@@ -827,6 +827,51 @@
   font-size: 14px;
 }
 
+.workbenchSearchResults {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.workbenchSearchResultItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  color: #334155;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    flex-shrink: 0;
+    color: #94a3b8;
+    font-size: 12px;
+  }
+
+  &:hover {
+    border-color: #c7d2fe;
+    background: #f8fbff;
+  }
+}
+
 @media (max-width: 1024px) {
   .agentWorkbench {
     grid-template-columns: 220px minmax(0, 1fr);
