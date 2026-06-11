@@ -280,6 +280,6 @@ class MySQLAdapter(DatabaseAdapter):
         if not identifier:
             raise ValueError("MySQL identifier must not be empty")
         for char in identifier:
-            if not (char.isalnum() or char == "_"):
+            if not (char.isascii() and (char.isalnum() or char == "_")):
                 raise ValueError(f"Invalid MySQL identifier: {identifier}")
         return identifier

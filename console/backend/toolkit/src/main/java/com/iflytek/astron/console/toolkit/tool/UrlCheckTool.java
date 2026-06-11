@@ -486,14 +486,14 @@ public class UrlCheckTool {
                 throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
             }
             String asciiHost = IDN.toASCII(host);
-            String path = StringUtils.defaultIfBlank(uri.getRawPath(), "/");
+            String path = StringUtils.defaultIfBlank(uri.getPath(), "/");
             return new URI(
                     scheme,
                     null,
                     asciiHost,
                     uri.getPort(),
                     path,
-                    uri.getRawQuery(),
+                    uri.getQuery(),
                     null).toURL();
         } catch (URISyntaxException e) {
             throw new IOException("Illegal URL", e);

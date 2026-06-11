@@ -321,6 +321,11 @@ class TestMySQLAdapter:
         with pytest.raises(ValueError):
             self.adapter.set_search_path_sql("my-schema")
 
+    def test_set_search_path_sql_rejects_non_ascii_identifier(self) -> None:
+        """set_search_path_sql rejects non-ASCII identifiers."""
+        with pytest.raises(ValueError):
+            self.adapter.set_search_path_sql("测试_schema")
+
     def test_alembic_version_table_schema(self) -> None:
         """Alembic version table schema is None for MySQL."""
         assert self.adapter.get_alembic_version_table_schema() is None
