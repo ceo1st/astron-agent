@@ -316,6 +316,11 @@ class TestMySQLAdapter:
         result = self.adapter.set_search_path_sql("my_schema")
         assert "USE" in result
 
+    def test_set_search_path_sql_rejects_invalid_identifier(self) -> None:
+        """set_search_path_sql rejects identifiers containing unsafe characters."""
+        with pytest.raises(ValueError):
+            self.adapter.set_search_path_sql("my-schema")
+
     def test_alembic_version_table_schema(self) -> None:
         """Alembic version table schema is None for MySQL."""
         assert self.adapter.get_alembic_version_table_schema() is None

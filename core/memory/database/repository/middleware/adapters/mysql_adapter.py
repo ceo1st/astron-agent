@@ -154,6 +154,7 @@ class MySQLAdapter(DatabaseAdapter):
         return {}
 
     async def create_database_if_not_exists(self, base_url: str, db_name: str) -> None:
+        safe_db_name = self._validate_mysql_identifier(db_name)
         engine = create_async_engine(
             f"{base_url}/information_schema", isolation_level="AUTOCOMMIT"
         )
@@ -170,13 +171,13 @@ class MySQLAdapter(DatabaseAdapter):
                 if not exists:
                     await conn.execute(
                         text(
-                            f"CREATE DATABASE `{db_name}` "
+                            f"CREATE DATABASE `{safe_db_name}` "
                             f"CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
                         )
                     )
-                    logger.info(f"Database '{db_name}' created successfully")
+                    logger.info(f"Database '{safe_db_name}' created successfully")
         except RuntimeError as e:
-            logger.error(f"Failed to create database '{db_name}': {e}")
+            logger.error(f"Failed to create database '{safe_db_name}': {e}")
         finally:
             await engine.dispose()
 
@@ -202,14 +203,14 @@ class MySQLAdapter(DatabaseAdapter):
             await engine.dispose()
 
     def safe_create_schema_sql(self, schema_name: str) -> Any:
-        safe_name = quoted_name(schema_name, quote=True)
+        safe_name = quoted_name(self._validate_mysql_identifier(schema_name), quote=True)
         return text(
             f"CREATE DATABASE IF NOT EXISTS `{safe_name}` "
             f"CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
         )
 
     def safe_drop_schema_sql(self, schema_name: str) -> Any:
-        safe_name = quoted_name(schema_name, quote=True)
+        safe_name = quoted_name(self._validate_mysql_identifier(schema_name), quote=True)
         return text(f"DROP DATABASE IF EXISTS `{safe_name}`")
 
     def list_tables_sql(self) -> str:
@@ -243,9 +244,10 @@ class MySQLAdapter(DatabaseAdapter):
         current_schema = getattr(session, "_current_schema", None)
         if current_schema:
             try:
-                await session.execute(text(f"USE `{current_schema}`"))
+                safe_name = self._validate_mysql_identifier(current_schema)
+                await session.execute(text(f"USE `{safe_name}`"))
                 logger.debug(
-                    f"Restored active database to {current_schema} after cache clearing"
+                    f"Restored active database to {safe_name} after cache clearing"
                 )
             except Exception as restore_error:
                 logger.warning(
@@ -254,7 +256,7 @@ class MySQLAdapter(DatabaseAdapter):
                 )
 
     def set_search_path_sql(self, schema_name: str) -> str:
-        safe_name = quoted_name(schema_name, quote=True)
+        safe_name = quoted_name(self._validate_mysql_identifier(schema_name), quote=True)
         return f"USE `{safe_name}`"
 
     def get_alembic_version_table_schema(self) -> Optional[str]:
@@ -273,3 +275,11 @@ class MySQLAdapter(DatabaseAdapter):
 
     def get_default_port(self) -> int:
         return 3306
+
+    def _validate_mysql_identifier(self, identifier: str) -> str:
+        if not identifier:
+            raise ValueError("MySQL identifier must not be empty")
+        for char in identifier:
+            if not (char.isalnum() or char == "_"):
+                raise ValueError(f"Invalid MySQL identifier: {identifier}")
+        return identifier

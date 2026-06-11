@@ -192,16 +192,35 @@ public class WorkflowSkillExportServiceImpl implements WorkflowSkillExportServic
     }
 
     private String toSkillName(String workflowName, Long workflowId) {
-        String normalized = Normalizer.normalize(StringUtils.defaultString(workflowName), Normalizer.Form.NFKD)
-                .replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("(^-+|-+$)", "");
+        String normalizedText = Normalizer.normalize(
+                StringUtils.defaultString(workflowName),
+                Normalizer.Form.NFKD);
+        StringBuilder normalizedBuilder = new StringBuilder(normalizedText.length());
+        boolean previousHyphen = false;
+        for (int i = 0; i < normalizedText.length(); i++) {
+            char current = normalizedText.charAt(i);
+            int charType = Character.getType(current);
+            if (charType == Character.NON_SPACING_MARK
+                    || charType == Character.COMBINING_SPACING_MARK
+                    || charType == Character.ENCLOSING_MARK) {
+                continue;
+            }
+            if (isAsciiAlphaNumeric(current)) {
+                normalizedBuilder.append(Character.toLowerCase(current));
+                previousHyphen = false;
+                continue;
+            }
+            if (!previousHyphen && !normalizedBuilder.isEmpty()) {
+                normalizedBuilder.append('-');
+                previousHyphen = true;
+            }
+        }
+        String normalized = trimEdgeHyphen(normalizedBuilder.toString());
         if (StringUtils.isBlank(normalized)) {
             normalized = "workflow-" + workflowId;
         }
         if (normalized.length() > SKILL_NAME_MAX_LENGTH) {
-            normalized = normalized.substring(0, SKILL_NAME_MAX_LENGTH).replaceAll("-+$", "");
+            normalized = trimEdgeHyphen(normalized.substring(0, SKILL_NAME_MAX_LENGTH));
         }
         return StringUtils.defaultIfBlank(normalized, "workflow-" + workflowId);
     }
@@ -369,6 +388,27 @@ public class WorkflowSkillExportServiceImpl implements WorkflowSkillExportServic
 
     private String shellSingleQuote(String value) {
         return StringUtils.defaultString(value).replace("'", "'\"'\"'");
+    }
+
+    private boolean isAsciiAlphaNumeric(char value) {
+        return (value >= 'a' && value <= 'z')
+                || (value >= 'A' && value <= 'Z')
+                || (value >= '0' && value <= '9');
+    }
+
+    private String trimEdgeHyphen(String value) {
+        if (StringUtils.isBlank(value)) {
+            return "";
+        }
+        int start = 0;
+        int end = value.length();
+        while (start < end && value.charAt(start) == '-') {
+            start++;
+        }
+        while (end > start && value.charAt(end - 1) == '-') {
+            end--;
+        }
+        return value.substring(start, end);
     }
 
     private record SkillMetadata(String name, String description, boolean aiGenerated) {}
