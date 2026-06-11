@@ -6,11 +6,14 @@ import com.iflytek.astron.console.toolkit.mapper.ConfigInfoMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
+import java.net.URL;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -80,6 +83,18 @@ class UrlCheckToolTest {
         UrlCheckTool tool = new UrlCheckTool(mapper);
 
         assertThrows(BusinessException.class, () -> tool.checkUrl("http://127.0.0.1/internal"));
+    }
+
+    @Test
+    void toSafeHttpUrlPreservesEncodedPathAndQuery() throws Exception {
+        ConfigInfoMapper mapper = mockConfigMapper("", "");
+        UrlCheckTool tool = new UrlCheckTool(mapper);
+        Method method = UrlCheckTool.class.getDeclaredMethod("toSafeHttpUrl", String.class);
+        method.setAccessible(true);
+
+        URL safeUrl = (URL) method.invoke(tool, "https://example.com/a%20b?q=a%20b");
+
+        assertEquals("https://example.com/a%20b?q=a%20b", safeUrl.toString());
     }
 
     private static ConfigInfoMapper mockConfigMapper(String ipBlackList, String segmentBlackList) {
