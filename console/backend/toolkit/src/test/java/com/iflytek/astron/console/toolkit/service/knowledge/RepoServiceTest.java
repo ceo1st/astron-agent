@@ -220,12 +220,13 @@ class RepoServiceTest {
     }
 
     /**
-     * Clean up after each test method. Clears the RequestContextHolder to avoid side effects between
-     * tests.
+     * Clean up after each test method. Clears the RequestContextHolder and the static BizConfig on
+     * ProjectContent to avoid side effects between tests.
      */
     @AfterEach
     void tearDown() {
         RequestContextHolder.resetRequestAttributes();
+        new ProjectContent().setBizConfig(null);
     }
 
     /**

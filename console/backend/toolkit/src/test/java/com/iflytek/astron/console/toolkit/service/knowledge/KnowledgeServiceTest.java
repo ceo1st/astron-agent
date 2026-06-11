@@ -2403,6 +2403,14 @@ class KnowledgeServiceTest {
     @DisplayName("datasetId routing tests")
     class DatasetIdRoutingTests {
 
+        @BeforeEach
+        void resetBizConfig() {
+            // These tests assert the legacy fallback routing where only CBG-RAG is
+            // CBG-compatible, so pin the static BizConfig to null instead of relying
+            // on test execution order.
+            new ProjectContent().setBizConfig(null);
+        }
+
         @Test
         @DisplayName("resolveRagflowDatasetIdOrNull returns null for non-Ragflow-RAG sources")
         void resolveRagflowDatasetIdOrNull_NonRagflowRAG_returnsNull() {
